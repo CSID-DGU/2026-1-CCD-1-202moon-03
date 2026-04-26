@@ -27,6 +27,18 @@ const initialErrors: SignupFieldErrors = {
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const birthdatePattern = /^\d{4}\s*\/\s*(0[1-9]|1[0-2])\s*\/\s*(0[1-9]|[12]\d|3[01])$/;
 
+const mockSignup = () =>
+  new Promise<boolean>((resolve, reject) => {
+    window.setTimeout(() => {
+      if (Math.random() > 0.5) {
+        resolve(true);
+        return;
+      }
+
+      reject(new Error('Signup failed'));
+    }, 1000);
+  });
+
 export function useSignupForm() {
   const [name, setName] = useState('');
   const [birthdate, setBirthdate] = useState('');
@@ -154,7 +166,9 @@ export function useSignupForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    clearSubmitState();
+
+    setSubmitError('');
+    setIsSuccess(false);
 
     if (!validate()) {
       return;
@@ -163,7 +177,7 @@ export function useSignupForm() {
     setIsLoading(true);
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 400));
+      await mockSignup();
       setIsSuccess(true);
     } catch {
       setSubmitError('회원가입에 실패했습니다. 다시 시도해주세요.');

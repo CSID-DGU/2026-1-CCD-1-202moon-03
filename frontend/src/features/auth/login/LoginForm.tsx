@@ -1,76 +1,26 @@
-import React, { useMemo, useState } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
 import FormField from '../../../components/form/FormField';
 import InputField from '../../../components/form/InputField';
 import StatusMessage from '../../../components/form/StatusMessage';
 import PrimaryButton from '../../../components/ui/PrimaryButton';
 import { ROUTES } from '../../../constants/routes';
-
-type LoginState = 'default' | 'completed' | 'validation_error' | 'fail' | 'success';
+import { useLoginForm } from './useLoginForm';
 
 const LoginForm: React.FC = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [emailError, setEmailError] = useState('');
-  const [passwordError, setPasswordError] = useState('');
-  const [loginError, setLoginError] = useState('');
-  const [isSuccess, setIsSuccess] = useState(false);
-
-  const isValidEmail = (value: string) => /\S+@\S+\.\S+/.test(value);
-  const isValidPassword = (value: string) => value.length >= 8;
-
-  const loginState: LoginState = useMemo(
-    () =>
-      loginError
-        ? 'fail'
-        : emailError || passwordError
-          ? 'validation_error'
-          : isSuccess
-            ? 'success'
-            : email && password
-              ? 'completed'
-              : 'default',
-    [email, emailError, isSuccess, loginError, password, passwordError],
-  );
-
-  const isSubmitDisabled = loginState === 'default';
-
-  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setEmail(e.target.value);
-    setEmailError('');
-    setLoginError('');
-    setIsSuccess(false);
-  };
-
-  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setPassword(e.target.value);
-    setPasswordError('');
-    setLoginError('');
-    setIsSuccess(false);
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-
-    const nextEmailError = isValidEmail(email) ? '' : '이메일 형식이 올바르지 않습니다';
-    const nextPasswordError = isValidPassword(password) ? '' : '비밀번호 형식이 올바르지 않습니다';
-
-    setEmailError(nextEmailError);
-    setPasswordError(nextPasswordError);
-    setLoginError('');
-    setIsSuccess(false);
-
-    if (nextEmailError || nextPasswordError) {
-      return;
-    }
-
-    if (email === 'tadac202@gmail.com' && password === 'password') {
-      setIsSuccess(true);
-      return;
-    }
-
-    setLoginError('이메일 또는 비밀번호가 올바르지 않습니다');
-  };
+  const {
+    email,
+    password,
+    emailError,
+    passwordError,
+    submitError,
+    isSuccess,
+    loginState,
+    isSubmitDisabled,
+    handleEmailChange,
+    handlePasswordChange,
+    handleSubmit,
+  } = useLoginForm();
 
   return (
     <form
@@ -119,8 +69,8 @@ const LoginForm: React.FC = () => {
           </button>
         </div>
 
-        <StatusMessage variant={loginState === 'success' ? 'success' : 'error'}>
-          {loginState === 'success' ? '로그인에 성공했습니다' : loginError}
+        <StatusMessage variant={isSuccess ? 'success' : 'error'}>
+          {isSuccess ? '로그인에 성공했습니다' : submitError}
         </StatusMessage>
       </div>
 
@@ -128,7 +78,7 @@ const LoginForm: React.FC = () => {
         <PrimaryButton
           type="submit"
           disabled={isSubmitDisabled}
-          variant={isSubmitDisabled ? 'disabled' : 'active'}
+          variant={loginState === 'loading' ? 'loading' : isSubmitDisabled ? 'disabled' : 'active'}
         >
           로그인
         </PrimaryButton>
