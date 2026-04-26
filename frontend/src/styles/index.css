@@ -1,0 +1,32 @@
+@import url('https://cdn.jsdelivr.net/npm/pretendard/dist/web/static/pretendard.css');
+@import "tailwindcss";
+
+:root {
+  color: #0f172a;
+  background-color: #f8fafc;
+  font-family: 'Pretendard', 'Noto Sans KR', sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: 'Pretendard', 'Noto Sans KR', sans-serif;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
