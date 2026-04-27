@@ -1,7 +1,15 @@
 import { createBrowserRouter } from 'react-router-dom';
+import AuthLayout from '../components/layout/AuthLayout';
+import MainLayout from '../components/layout/MainLayout';
+import PlayerLayout from '../components/layout/PlayerLayout';
 import HomePage from '../pages/Home';
 import LoginPage from '../pages/Login';
+import MyPage from '../pages/MyPage';
+import OnboardingPage from '../pages/Onboarding';
+import RainModePage from '../pages/RainMode';
+import ResultPage from '../pages/Result';
 import SignupPage from '../pages/Signup';
+import SpinnerModePage from '../pages/SpinnerMode';
 import { ROUTES } from '../constants/routes';
 
 function NotFoundPage() {
@@ -17,16 +25,51 @@ function NotFoundPage() {
 
 export const router = createBrowserRouter([
   {
-    path: ROUTES.home,
-    element: <HomePage />,
+    element: <MainLayout />,
     errorElement: <NotFoundPage />,
+    children: [
+      {
+        path: ROUTES.ONBOARDING,
+        element: <OnboardingPage />,
+      },
+      {
+        path: ROUTES.HOME,
+        element: <HomePage />,
+      },
+      {
+        path: ROUTES.MYPAGE,
+        element: <MyPage />,
+      },
+      {
+        path: ROUTES.RESULT,
+        element: <ResultPage />,
+      },
+    ],
   },
   {
-    path: ROUTES.login,
-    element: <LoginPage />,
+    element: <AuthLayout />,
+    children: [
+      {
+        path: ROUTES.LOGIN,
+        element: <LoginPage />,
+      },
+      {
+        path: ROUTES.SIGNUP,
+        element: <SignupPage />,
+      },
+    ],
   },
   {
-    path: ROUTES.signup,
-    element: <SignupPage />,
+    element: <PlayerLayout />,
+    children: [
+      {
+        path: ROUTES.PLAYER_SPINNER,
+        element: <SpinnerModePage />,
+      },
+      {
+        path: ROUTES.PLAYER_RAIN,
+        element: <RainModePage />,
+      },
+    ],
   },
 ]);

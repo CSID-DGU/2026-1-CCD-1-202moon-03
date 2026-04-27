@@ -5,9 +5,16 @@ interface PrimaryButtonProps {
   disabled: boolean;
   variant: 'disabled' | 'active' | 'loading';
   children: React.ReactNode;
+  onClick?: () => void;
 }
 
-const PrimaryButton: React.FC<PrimaryButtonProps> = ({ type, disabled, variant, children }) => {
+const PrimaryButton: React.FC<PrimaryButtonProps> = ({
+  type,
+  disabled,
+  variant,
+  children,
+  onClick,
+}) => {
   const baseClasses =
     'inline-flex h-[64px] w-full items-center justify-center rounded-[12px] px-4 text-[24px] font-semibold transition-colors duration-200 focus:outline-none focus:ring-2';
 
@@ -21,6 +28,7 @@ const PrimaryButton: React.FC<PrimaryButtonProps> = ({ type, disabled, variant, 
     <button
       type={type}
       disabled={disabled}
+      onClick={onClick}
       className={`${baseClasses} ${variantClasses[variant]}`}
     >
       {children}
