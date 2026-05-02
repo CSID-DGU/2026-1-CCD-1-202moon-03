@@ -1,3 +1,5 @@
+import Button from '../../../components/ui/Button';
+
 interface TypingInputProps {
   value: string;
   activeKeyword?: string;
@@ -15,10 +17,10 @@ function TypingInput({ value, activeKeyword, hint, onChange, onSubmit }: TypingI
             Typing Input
           </p>
           <h2 className="text-2xl font-semibold tracking-[-0.03em] text-[#1D2836]">
-            빈칸 키워드 입력
+            빈칸 단어 입력
           </h2>
           <p className="text-sm leading-6 text-[#617389]">
-            현재 정답: <span className="font-semibold text-[#2F80ED]">{activeKeyword ?? '완료'}</span>
+            현재 정답: <span className="font-semibold text-[#2F80ED]">{activeKeyword ?? '없음'}</span>
           </p>
         </div>
 
@@ -40,17 +42,18 @@ function TypingInput({ value, activeKeyword, hint, onChange, onSubmit }: TypingI
               onSubmit();
             }
           }}
-          placeholder="들리는 키워드를 입력하세요"
+          placeholder="들리는 단어를 입력하세요"
           className="flex-1 rounded-[18px] border border-[#D5E3F2] bg-[#F8FBFE] px-5 py-4 text-lg text-[#1D2836] outline-none transition-colors placeholder:text-[#94A3B8] focus:border-[#2F80ED]"
         />
 
-        <button
+        <Button
           type="button"
           onClick={onSubmit}
-          className="rounded-[18px] bg-[#2F80ED] px-6 py-4 text-base font-semibold text-white transition-colors hover:bg-[#1E73E6]"
+          variant="active"
+          className="rounded-[18px] bg-[#2F80ED] px-6 py-4 text-base font-semibold text-white hover:bg-[#1E73E6]"
         >
           입력 확인
-        </button>
+        </Button>
       </div>
     </section>
   );

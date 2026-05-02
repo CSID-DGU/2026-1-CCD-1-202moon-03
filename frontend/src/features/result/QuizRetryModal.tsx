@@ -1,3 +1,5 @@
+import Button from '../../components/ui/Button';
+
 interface QuizRetryModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -16,16 +18,17 @@ function QuizRetryModal({ isOpen, onClose }: QuizRetryModalProps) {
           퀴즈 다시 풀기
         </h2>
         <p className="mt-3 text-sm text-slate-600">
-          실제 퀴즈 내용 대신, 퀴즈 재진입 흐름만 확인할 수 있는 mock 모달입니다.
+          실제 퀴즈 내용 대신 퀴즈 사진의 레이아웃만 확인할 수 있는 mock 모달입니다.
         </p>
         <div className="mt-6 flex justify-end">
-          <button
+          <Button
             type="button"
             onClick={onClose}
-            className="rounded-[14px] bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-slate-800"
+            variant="active"
+            className="rounded-[14px] bg-slate-950 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800"
           >
             닫기
-          </button>
+          </Button>
         </div>
       </div>
     </div>

@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import PrimaryButton from '../../components/ui/PrimaryButton';
+import Button from '../../components/ui/Button';
 import { ROUTES } from '../../constants/routes';
 
 function OnboardingPage() {
@@ -13,21 +13,21 @@ function OnboardingPage() {
         </div>
         <p className="mt-6 text-sm uppercase tracking-[0.3em] text-slate-400">온보딩</p>
         <h1 className="mt-3 text-4xl font-semibold tracking-tight text-slate-950">
-          수동 시청을 능동적인 듣기 학습으로 바꿔보세요
+          수동 시청에서 능동적인 자기 학습으로 바꿔보세요.
         </h1>
         <p className="mt-4 text-slate-600">
-          영상이나 녹음본을 선택하고, 학습 모드를 고른 뒤 결과와 기록까지 이어질 수 있는
-          흐름을 준비해두었습니다.
+          영상이나 음성본을 선택하고, 학습 모드를 고른 뒤 결과와 기록까지 이어지는 흐름을 준비해두었습니다.
         </p>
         <div className="mt-8">
-          <PrimaryButton
+          <Button
             type="button"
             disabled={false}
             variant="active"
             onClick={() => navigate(ROUTES.HOME)}
+            className="h-[64px] w-full rounded-[12px] text-[24px]"
           >
             시작하기
-          </PrimaryButton>
+          </Button>
         </div>
       </div>
     </section>

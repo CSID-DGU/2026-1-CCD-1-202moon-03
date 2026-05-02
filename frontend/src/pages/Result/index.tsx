@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import Button from '../../components/ui/Button';
 import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '../../constants/routes';
 import UploadVideoModal from '../../features/home/UploadVideoModal';
@@ -36,27 +37,30 @@ function ResultPage() {
               </div>
             </div>
             <div className="flex flex-wrap gap-3">
-              <button
+              <Button
                 type="button"
+                variant="secondary"
                 onClick={() => setIsQuizOpen(true)}
-                className="rounded-[14px] border border-[#DCE1EA] bg-white px-5 py-3 text-[15px] font-semibold text-[#303747] transition-colors hover:bg-[#F7F9FC]"
+                className="rounded-[14px] border-[#DCE1EA] px-5 py-3 text-[15px] font-semibold text-[#303747] hover:bg-[#F7F9FC]"
               >
                 퀴즈 다시 풀기
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
+                variant="secondary"
                 onClick={handleReplay}
-                className="rounded-[14px] border border-[#DCE1EA] bg-white px-5 py-3 text-[15px] font-semibold text-[#303747] transition-colors hover:bg-[#F7F9FC]"
+                className="rounded-[14px] border-[#DCE1EA] px-5 py-3 text-[15px] font-semibold text-[#303747] hover:bg-[#F7F9FC]"
               >
                 영상 다시 보기
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
+                variant="secondary"
                 onClick={() => setIsUploadOpen(true)}
-                className="rounded-[14px] border border-[#DCE1EA] bg-white px-5 py-3 text-[15px] font-semibold text-[#303747] transition-colors hover:bg-[#F7F9FC]"
+                className="rounded-[14px] border-[#DCE1EA] px-5 py-3 text-[15px] font-semibold text-[#303747] hover:bg-[#F7F9FC]"
               >
-                영상 업로드 +
-              </button>
+                영상 업로드+
+              </Button>
             </div>
           </div>
 

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import Button from '../../components/ui/Button';
 import type { HomeVideoItem } from './homeVideoItems';
 
 interface EditVideoTitleModalProps {
@@ -87,15 +88,15 @@ export function EditVideoTitleModal({
           </div>
 
           <div className="flex justify-end">
-            <button
+            <Button
               type="button"
               disabled={isDisabled}
               onClick={() => onSave(video.id, title.trim())}
-              className="relative inline-flex h-[56px] w-[120px] items-center justify-center overflow-hidden rounded-[16px] border border-[#1A9AF5] bg-[#1A9AF5] text-[16px] font-bold text-white transition-transform duration-200 hover:scale-[1.01] disabled:cursor-not-allowed disabled:border-[#A8D8FF] disabled:bg-[#A8D8FF]"
+              variant={isDisabled ? 'inactive' : 'active'}
+              className="h-[56px] w-[120px] !text-[16px]"
             >
-              <span className="absolute inset-0 rounded-[16px] shadow-[inset_0px_4px_4px_0px_#40AFFE,inset_0px_-4px_2px_0px_#1089DF]" />
-              <span className="relative">저장</span>
-            </button>
+              저장
+            </Button>
           </div>
         </div>
       </div>

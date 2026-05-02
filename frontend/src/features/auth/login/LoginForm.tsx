@@ -1,9 +1,9 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import Button from '../../../components/ui/Button';
 import FormField from '../../../components/form/FormField';
 import InputField from '../../../components/form/InputField';
 import StatusMessage from '../../../components/form/StatusMessage';
-import PrimaryButton from '../../../components/ui/PrimaryButton';
 import { ROUTES } from '../../../constants/routes';
 import { useLoginForm } from './useLoginForm';
 
@@ -75,13 +75,14 @@ const LoginForm: React.FC = () => {
       </div>
 
       <div className="mt-12">
-        <PrimaryButton
+        <Button
           type="submit"
-          disabled={isSubmitDisabled}
-          variant={loginState === 'loading' ? 'loading' : isSubmitDisabled ? 'disabled' : 'active'}
+          disabled={isSubmitDisabled || loginState === 'loading'}
+          variant={isSubmitDisabled ? 'inactive' : 'active'}
+          className="h-[64px] w-full rounded-[12px] text-lg"
         >
           로그인
-        </PrimaryButton>
+        </Button>
       </div>
     </form>
   );

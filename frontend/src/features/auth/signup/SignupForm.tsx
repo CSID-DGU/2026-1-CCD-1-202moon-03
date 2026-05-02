@@ -1,9 +1,9 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import Button from '../../../components/ui/Button';
 import FormField from '../../../components/form/FormField';
 import InputField from '../../../components/form/InputField';
 import StatusMessage from '../../../components/form/StatusMessage';
-import PrimaryButton from '../../../components/ui/PrimaryButton';
 import { ROUTES } from '../../../constants/routes';
 import EmailField from './components/EmailField';
 import GenderToggleGroup from './components/GenderToggleGroup';
@@ -113,19 +113,15 @@ const SignupForm: React.FC = () => {
         </div>
 
         <div className="mt-12">
-          <PrimaryButton
+          <Button
             type="submit"
-            disabled={isSubmitDisabled}
-            variant={
-              signupState === 'submit_loading'
-                ? 'loading'
-                : isSubmitDisabled
-                  ? 'disabled'
-                  : 'active'
-            }
+            disabled={isSubmitDisabled || signupState === 'submit_loading'}
+            variant={isSubmitDisabled ? 'inactive' : 'active'}
+            className="h-[64px] w-full rounded-[12px] text-lg"
+            
           >
             회원가입
-          </PrimaryButton>
+          </Button>
         </div>
       </form>
 
@@ -136,9 +132,9 @@ const SignupForm: React.FC = () => {
               ✓
             </div>
             <p className="mt-3 text-center text-[15px] font-medium leading-7 text-[#394150]">
-              회원가입이 완료 되었습니다!
+              회원가입이 완료되었습니다.
               <br />
-              로그인 후 서비스를 이용하실 수 있습니다
+              로그인 후 서비스를 이용하실 수 있습니다.
             </p>
             <Link
               className="mt-7 inline-flex h-[40px] w-full items-center justify-center rounded-[8px] bg-[#1A9AF5] text-[16px] font-semibold text-white transition-colors hover:bg-[#168fe6]"

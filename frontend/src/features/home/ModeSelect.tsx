@@ -1,7 +1,8 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import InfoIcon from '../../components/ui/InfoIcon';
 import rainIcon from '../../assets/icons/rain.svg';
 import spinnerIcon from '../../assets/icons/spinner.svg';
+import Button from '../../components/ui/Button';
+import InfoIcon from '../../components/ui/InfoIcon';
 import type { PlayerMode } from '../../store/usePlayerStore';
 
 interface ModeSelectProps {
@@ -27,11 +28,11 @@ function ModeSelect({ onBack, onSelect }: ModeSelectProps) {
     () => [
       {
         mode: 'spinner',
-        title: '피젯 모드',
-        tooltipTitle: '피젯 모드',
+        title: '피젯스피너 모드',
+        tooltipTitle: '피젯스피너 모드',
         tooltipDescription: [
-          '피젯스피너를 회전시키거나 키캡을 누르면서 영상을 시청해보세요.',
-          '집중력이 올라갈 수 있습니다',
+          '피젯스피너를 회전시키거나 탭을 누르면서 영상을 시청해보세요.',
+          '집중도가 올라갈 수 있습니다.',
         ],
         renderArt: () => <SpinnerModeArtwork />,
       },
@@ -40,8 +41,8 @@ function ModeSelect({ onBack, onSelect }: ModeSelectProps) {
         title: '집중호우 모드',
         tooltipTitle: '집중호우 모드',
         tooltipDescription: [
-          '영상 하단 자막의 핵심 키워드가 빈칸으로 표시되고, 해당 단어가 화면 위에서 천천히 떨어집니다. 키워드가 바닥에 닿기 전에 타이핑해서 빈칸을 채워보세요.',
-          '피젯스피너가 손끝의 촉각 자극으로 집중을 돕듯, 키보드 타이핑이라는 운동감각 자극으로 영상에 머무를 동기를 만들어줍니다.',
+          '영상 하단 자막으로 단어가 표시되고, 해당 단어가 보이면 위에서 천천히 떨어집니다. 단어가 바닥에 닿기 전에 타이핑해서 빈칸을 채워보세요.',
+          '피젯스피너가 소근육 감각 자극으로 집중을 돕는다면, 키보드 타이핑은 리듬감 있는 입력으로 영상에 머무르기를 돕습니다.',
         ],
         renderArt: () => <RainModeArtwork />,
       },
@@ -71,7 +72,9 @@ function ModeSelect({ onBack, onSelect }: ModeSelectProps) {
                 <div
                   key={card.mode}
                   className="relative h-[349px] w-[300px]"
-                  onMouseLeave={() => setHoveredTooltip((current) => (current === card.mode ? null : current))}
+                  onMouseLeave={() =>
+                    setHoveredTooltip((current) => (current === card.mode ? null : current))
+                  }
                 >
                   <button
                     type="button"
@@ -129,7 +132,7 @@ function ModeSelect({ onBack, onSelect }: ModeSelectProps) {
             })}
           </div>
 
-          <button
+          <Button
             type="button"
             disabled={!selectedMode}
             onClick={() => {
@@ -137,14 +140,15 @@ function ModeSelect({ onBack, onSelect }: ModeSelectProps) {
                 onSelect(selectedMode);
               }
             }}
-            className={`mt-12 inline-flex h-[64px] w-[220px] items-center justify-center rounded-[16px] border text-[22px] font-bold tracking-[-0.03em] text-white ${
+            variant={selectedMode ? 'active' : 'inactive'}
+            className={`mt-12 h-[64px] w-[220px] text-[20px] tracking-[-0.03em] ${
               selectedMode
-                ? 'border-[#1A9AF5] bg-[#1A9AF5] shadow-[inset_0px_4px_4px_0px_rgba(64,175,254,0.6),inset_0px_-4px_4px_0px_rgba(16,137,223,0.4)]'
-                : 'border-[#C6E4FF] bg-[#C6E4FF] shadow-[inset_0px_4px_4px_0px_rgba(64,175,254,0.08),inset_0px_-4px_4px_0px_rgba(16,137,223,0.08)]'
-            } disabled:cursor-not-allowed`}
+                ? 'shadow-[inset_0px_4px_4px_0px_rgba(64,175,254,0.6),inset_0px_-4px_4px_0px_rgba(16,137,223,0.4)]'
+                : 'shadow-[inset_0px_4px_4px_0px_rgba(64,175,254,0.08),inset_0px_-4px_4px_0px_rgba(16,137,223,0.08)]'
+            }`}
           >
             선택완료
-          </button>
+          </Button>
         </div>
       </div>
     </section>

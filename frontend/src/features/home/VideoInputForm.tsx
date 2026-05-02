@@ -1,5 +1,5 @@
 import type { FormEvent } from 'react';
-import PrimaryButton from '../../components/ui/PrimaryButton';
+import Button from '../../components/ui/Button';
 import { useVideoInput, type VideoInputSubmitPayload } from './useVideoInput';
 
 interface VideoInputFormProps {
@@ -42,7 +42,7 @@ function VideoInputForm({
     <form className="space-y-5" onSubmit={onFormSubmit}>
       <div className="relative">
         <span className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-[26px] text-[#C6CDD9]">
-          ⛓
+          →
         </span>
         <input
           id="home-video-url"
@@ -73,7 +73,7 @@ function VideoInputForm({
         <UploadIcon />
         <p className="mt-5 text-[17px] font-semibold text-[#C0C7D4]">파일 업로드</p>
         <p className="mt-3 text-[16px] leading-[1.45] text-[#CAD0DB]">
-          파일을 첨부하거나 원하는 파일을 마우스로 끌어오세요.
+          파일을 첨부하거나 원하는 파일을 마우스로 끌어다 놓으세요.
         </p>
         {values.file ? (
           <p className="mt-5 rounded-full bg-white px-4 py-2 text-[14px] font-medium text-[#63708A] shadow-[0_6px_16px_rgba(15,23,42,0.08)]">
@@ -83,13 +83,14 @@ function VideoInputForm({
       </label>
 
       <div className="pt-4">
-        <PrimaryButton
+        <Button
           type="submit"
           disabled={!canSubmit || isSubmitting}
-          variant={!canSubmit || isSubmitting ? 'disabled' : 'active'}
+          variant={!canSubmit || isSubmitting ? 'inactive' : 'active'}
+          className="h-[64px] w-full rounded-[12px] text-[20px]"
         >
           {submitLabel}
-        </PrimaryButton>
+        </Button>
       </div>
 
       {onCancel ? (
