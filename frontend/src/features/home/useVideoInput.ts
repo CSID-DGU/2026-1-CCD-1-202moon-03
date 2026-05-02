@@ -1,42 +1,91 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useVideoStore } from '../../store/useVideoStore';
 
 export interface VideoInputValues {
-  youtubeUrl: string;
-  personalVideoLink: string;
-  audioFile: File | null;
+  url: string;
+  file: File | null;
+}
+
+export interface VideoInputSubmitPayload {
+  sourceType: 'url' | 'file';
+  url?: string;
+  file?: File;
 }
 
 const initialValues: VideoInputValues = {
-  youtubeUrl: '',
-  personalVideoLink: '',
-  audioFile: null,
+  url: '',
+  file: null,
 };
 
 export function useVideoInput() {
   const setVideoUrl = useVideoStore((state) => state.setVideoUrl);
   const [values, setValues] = useState<VideoInputValues>(initialValues);
-  const [isModeSelectVisible, setIsModeSelectVisible] = useState(false);
 
-  const updateField = <Key extends keyof VideoInputValues>(
-    field: Key,
-    value: VideoInputValues[Key],
-  ) => {
-    setValues((current) => ({ ...current, [field]: value }));
+  const isUrlDisabled = Boolean(values.file);
+  const isFileDisabled = Boolean(values.url.trim());
+  const canSubmit = Boolean(values.url.trim() || values.file);
+
+  const selectedSourceLabel = useMemo(() => {
+    if (values.url.trim()) {
+      return values.url.trim();
+    }
+
+    if (values.file) {
+      return values.file.name;
+    }
+
+    return '';
+  }, [values.file, values.url]);
+
+  const setUrl = (url: string) => {
+    setValues((current) => ({
+      ...current,
+      url,
+      file: url.trim() ? null : current.file,
+    }));
   };
 
-  const handleSubmit = () => {
-    const resolvedUrl =
-      values.youtubeUrl.trim() || values.personalVideoLink.trim() || values.audioFile?.name || '';
+  const setFile = (file: File | null) => {
+    setValues((current) => ({
+      url: file ? '' : current.url,
+      file,
+    }));
+  };
 
-    setVideoUrl(resolvedUrl);
-    setIsModeSelectVisible(true);
+  const reset = () => {
+    setValues(initialValues);
+  };
+
+  const handleSubmit = (): VideoInputSubmitPayload | null => {
+    if (values.url.trim()) {
+      const nextUrl = values.url.trim();
+      setVideoUrl(nextUrl);
+      return {
+        sourceType: 'url',
+        url: nextUrl,
+      };
+    }
+
+    if (values.file) {
+      setVideoUrl(values.file.name);
+      return {
+        sourceType: 'file',
+        file: values.file,
+      };
+    }
+
+    return null;
   };
 
   return {
     values,
-    isModeSelectVisible,
-    updateField,
+    canSubmit,
+    isUrlDisabled,
+    isFileDisabled,
+    selectedSourceLabel,
+    setUrl,
+    setFile,
+    reset,
     handleSubmit,
   };
 }

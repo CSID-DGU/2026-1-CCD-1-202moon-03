@@ -9,9 +9,9 @@ function MyPage() {
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow="My Page"
-        title="Track your study identity and history"
-        description="This skeleton page gives us stable sections for profile data, session history, and future analytics widgets."
+        eyebrow="마이페이지"
+        title="학습 기록과 사용자 정보를 확인하세요"
+        description="프로필 정보, 학습 이력, 이후 확장될 통계 영역을 위한 skeleton 페이지입니다."
       />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">

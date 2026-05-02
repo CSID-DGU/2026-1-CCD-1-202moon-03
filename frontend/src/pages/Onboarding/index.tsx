@@ -11,13 +11,13 @@ function OnboardingPage() {
         <div className="mx-auto flex h-[120px] w-[120px] items-center justify-center rounded-[32px] bg-slate-950 text-3xl font-semibold text-white">
           TD
         </div>
-        <p className="mt-6 text-sm uppercase tracking-[0.3em] text-slate-400">Onboarding</p>
+        <p className="mt-6 text-sm uppercase tracking-[0.3em] text-slate-400">온보딩</p>
         <h1 className="mt-3 text-4xl font-semibold tracking-tight text-slate-950">
-          Turn passive watching into active listening practice
+          수동 시청을 능동적인 듣기 학습으로 바꿔보세요
         </h1>
         <p className="mt-4 text-slate-600">
-          Start with a video or recording, choose a learning mode, and leave room for richer
-          results and personal history later.
+          영상이나 녹음본을 선택하고, 학습 모드를 고른 뒤 결과와 기록까지 이어질 수 있는
+          흐름을 준비해두었습니다.
         </p>
         <div className="mt-8">
           <PrimaryButton
@@ -26,7 +26,7 @@ function OnboardingPage() {
             variant="active"
             onClick={() => navigate(ROUTES.HOME)}
           >
-            Start
+            시작하기
           </PrimaryButton>
         </div>
       </div>

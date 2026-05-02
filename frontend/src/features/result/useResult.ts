@@ -1,8 +1,17 @@
+import { useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { getMockVideoById } from '../home/mockVideos';
+
 export function useResult() {
+  const [searchParams] = useSearchParams();
+  const videoId = searchParams.get('videoId');
+
+  const video = useMemo(() => getMockVideoById(videoId), [videoId]);
+
   return {
-    title: 'Practice Result Summary',
-    summary:
-      'This skeleton page reserves room for transcript comparison, scoring, keyword review, and teacher feedback.',
-    highlightedKeywords: ['focus', 'repeat', 'summary', 'shadowing'],
+    video,
+    title: video.title,
+    summary: video.aiSummary,
+    highlightedKeywords: video.keywords,
   };
 }

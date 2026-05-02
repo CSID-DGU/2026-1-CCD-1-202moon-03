@@ -1,50 +1,130 @@
-import { useNavigate } from 'react-router-dom';
-import { PageHeader } from '../../components/common/PageHeader';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ROUTES } from '../../constants/routes';
+import { EditVideoTitleModal } from '../../features/home/EditVideoTitleModal';
 import ModeSelect from '../../features/home/ModeSelect';
-import VideoInputForm from '../../features/home/VideoInputForm';
-import { useVideoInput } from '../../features/home/useVideoInput';
+import VideoGrid from '../../features/home/VideoGrid';
+import { deleteHomeVideoItem, renameHomeVideoItem } from '../../features/home/homeVideoActions';
+import { buildInitialHomeVideoItems } from '../../features/home/homeVideoItems';
+import UploadVideoModal from '../../features/home/UploadVideoModal';
+import type { VideoInputSubmitPayload } from '../../features/home/useVideoInput';
 import { usePlayerStore } from '../../store/usePlayerStore';
 
 function HomePage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const setSelectedMode = usePlayerStore((state) => state.setSelectedMode);
   const setSessionId = usePlayerStore((state) => state.setSessionId);
-  const { values, isModeSelectVisible, updateField, handleSubmit } = useVideoInput();
+  const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [isModeSelectOpen, setIsModeSelectOpen] = useState(false);
+  const [pendingSourceLabel, setPendingSourceLabel] = useState('');
+  const [videos, setVideos] = useState(buildInitialHomeVideoItems);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [editingVideoId, setEditingVideoId] = useState<string | null>(null);
+
+  const replayVideoId = searchParams.get('modeSelect');
+  const editingVideo = useMemo(
+    () => videos.find((video) => video.id === editingVideoId) ?? null,
+    [editingVideoId, videos],
+  );
+
+  useEffect(() => {
+    if (!replayVideoId) {
+      return;
+    }
+
+    setPendingSourceLabel(`다시 보기 영상 ${replayVideoId}`);
+    setIsModeSelectOpen(true);
+  }, [replayVideoId]);
+
+  const handleUploadComplete = (payload: VideoInputSubmitPayload) => {
+    const sourceLabel =
+      payload.sourceType === 'url'
+        ? payload.url ?? 'URL 입력 영상'
+        : payload.file?.name ?? '업로드한 파일';
+
+    setPendingSourceLabel(sourceLabel);
+    setIsUploadOpen(false);
+    setIsModeSelectOpen(true);
+    setSearchParams({});
+  };
 
   const handleModeSelect = (mode: 'spinner' | 'rain') => {
     setSelectedMode(mode);
-    setSessionId(`mock-session-${mode}`);
+    setSessionId(replayVideoId ?? `mock-session-${mode}-${Date.now()}`);
+    setIsModeSelectOpen(false);
     navigate(mode === 'spinner' ? ROUTES.PLAYER_SPINNER : ROUTES.PLAYER_RAIN);
   };
 
+  const closeModeSelect = () => {
+    setIsModeSelectOpen(false);
+    setPendingSourceLabel('');
+    if (replayVideoId) {
+      setSearchParams({});
+    }
+  };
+
+  const requestRenameVideo = (videoId: string, nextTitle: string) => {
+    setVideos((current) => renameHomeVideoItem(current, videoId, nextTitle));
+  };
+
+  const requestDeleteVideo = (videoId: string) => {
+    setVideos((current) => deleteHomeVideoItem(current, videoId));
+  };
+
+  const handleSaveTitle = (videoId: string, nextTitle: string) => {
+    requestRenameVideo(videoId, nextTitle);
+    setEditingVideoId(null);
+  };
+
   return (
-    <div className="space-y-8">
-      <PageHeader
-        eyebrow="Study Entry"
-        title="Set up your listening practice"
-        description="Collect a video or audio source first, then move into the learning mode you want to prototype."
+    <div className="-mx-6 min-h-screen bg-white">
+      <div className="mx-auto w-full max-w-[1200px] px-4 pb-20 pt-20 sm:px-5 lg:px-6">
+        <section className="space-y-4">
+          <div className="space-y-3">
+            <div className="justify-start font-paperlogy text-xl font-semibold leading-8 text-zinc-900">
+              학습 목록
+            </div>
+          </div>
+
+          <VideoGrid
+            videos={videos}
+            openMenuId={openMenuId}
+            onOpenUpload={() => setIsUploadOpen(true)}
+            onToggleMenu={(videoId) =>
+              setOpenMenuId((current) => (current === videoId ? null : videoId))
+            }
+            onRequestEdit={(videoId) => {
+              setOpenMenuId(null);
+              setEditingVideoId(videoId);
+            }}
+            onRequestDelete={(videoId) => {
+              setOpenMenuId(null);
+              requestDeleteVideo(videoId);
+            }}
+            onCloseMenu={() => setOpenMenuId(null)}
+          />
+        </section>
+      </div>
+
+      <UploadVideoModal
+        isOpen={isUploadOpen}
+        onClose={() => setIsUploadOpen(false)}
+        onComplete={handleUploadComplete}
       />
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
-        <VideoInputForm
-          values={values}
-          onYoutubeUrlChange={(value) => updateField('youtubeUrl', value)}
-          onAudioFileChange={(file) => updateField('audioFile', file)}
-          onPersonalVideoLinkChange={(value) => updateField('personalVideoLink', value)}
-          onSubmit={handleSubmit}
-        />
+      <EditVideoTitleModal
+        video={editingVideo}
+        isOpen={Boolean(editingVideo)}
+        onClose={() => setEditingVideoId(null)}
+        onSave={handleSaveTitle}
+      />
 
-        <div className="space-y-6">
-          {isModeSelectVisible ? (
-            <ModeSelect onSelect={handleModeSelect} />
-          ) : (
-            <section className="rounded-[28px] border border-dashed border-slate-300 bg-white/60 px-6 py-8 text-slate-500">
-              Submit one of the input sources to unlock the mode selection skeleton.
-            </section>
-          )}
+      {isModeSelectOpen ? (
+        <div className="fixed inset-0 z-40 bg-white">
+          <ModeSelect onBack={closeModeSelect} onSelect={handleModeSelect} />
         </div>
-      </div>
+      ) : null}
     </div>
   );
 }

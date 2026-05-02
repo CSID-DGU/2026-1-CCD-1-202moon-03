@@ -4,13 +4,13 @@ interface KeywordHighlightProps {
 
 function KeywordHighlight({ keywords }: KeywordHighlightProps) {
   return (
-    <section className="rounded-[24px] border border-slate-200 bg-slate-50 px-6 py-6">
-      <p className="text-sm uppercase tracking-[0.3em] text-slate-500">Keyword Highlight</p>
-      <div className="mt-4 flex flex-wrap gap-3">
+    <section className="space-y-4">
+      <p className="text-[16px] font-semibold text-[#5F6777]">핵심 키워드</p>
+      <div className="flex flex-wrap gap-3">
         {keywords.map((keyword) => (
           <span
             key={keyword}
-            className="rounded-full bg-sky-100 px-4 py-2 text-sm font-medium text-sky-700"
+            className="rounded-full bg-[#EEF5FF] px-4 py-2 text-[14px] font-medium text-[#287AD6]"
           >
             {keyword}
           </span>

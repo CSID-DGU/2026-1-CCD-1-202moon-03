@@ -12,7 +12,7 @@ interface LearningHistoryProps {
 function LearningHistory({ items }: LearningHistoryProps) {
   return (
     <section className="rounded-[24px] border border-slate-200 bg-slate-50 px-6 py-6">
-      <p className="text-sm uppercase tracking-[0.3em] text-slate-500">Learning History</p>
+      <p className="text-sm uppercase tracking-[0.3em] text-slate-500">학습 이력</p>
       <div className="mt-4 space-y-3">
         {items.map((item) => (
           <article key={item.id} className="rounded-[18px] bg-white px-4 py-4">

@@ -4,31 +4,23 @@ import { useAuthStore } from '../../store/useAuthStore';
 
 function Header() {
   const user = useAuthStore((state) => state.user);
+  const profileLabel = user?.name ? user.name.slice(0, 2).toUpperCase() : 'MY';
 
   return (
-    <header className="rounded-[24px] border border-white/60 bg-white/80 px-5 py-4 shadow-[0_10px_30px_rgba(15,23,42,0.06)] backdrop-blur">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <Link className="text-lg font-semibold tracking-tight text-slate-950" to={ROUTES.ONBOARDING}>
-            TADAC
-          </Link>
-          <p className="text-sm text-slate-500">Interactive listening study playground</p>
-        </div>
+    <header className="-mx-6 -mt-10 border-b border-[#E3E7EE] bg-white">
+      <div className="mx-auto flex h-[84px] w-full max-w-[1440px] items-center justify-between px-8 sm:px-12 lg:px-16">
+        <Link to={ROUTES.HOME} className="flex items-center gap-3">
+          <span className="h-7 w-7 rounded-[2px] bg-[#D9D9D9]" aria-hidden="true" />
+          <span className="text-[30px] font-bold tracking-[-0.04em] text-[#161A23]">TADAC</span>
+        </Link>
 
-        <nav className="flex flex-wrap items-center gap-3 text-sm font-medium text-slate-600">
-          <Link className="transition-colors hover:text-slate-950" to={ROUTES.HOME}>
-            Home
-          </Link>
-          <Link className="transition-colors hover:text-slate-950" to={ROUTES.RESULT}>
-            Result
-          </Link>
-          <Link className="transition-colors hover:text-slate-950" to={ROUTES.MYPAGE}>
-            My Page
-          </Link>
-          <Link className="transition-colors hover:text-slate-950" to={ROUTES.LOGIN}>
-            {user ? user.name : 'Login'}
-          </Link>
-        </nav>
+        <Link
+          to={ROUTES.MYPAGE}
+          aria-label="마이페이지로 이동"
+          className="flex h-11 w-11 items-center justify-center rounded-full bg-[#D9DFEA] text-[13px] font-semibold text-[#2D3545] transition-transform duration-200 hover:scale-[1.03]"
+        >
+          {profileLabel}
+        </Link>
       </div>
     </header>
   );
