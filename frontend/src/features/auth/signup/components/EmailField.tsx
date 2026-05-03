@@ -4,7 +4,7 @@ import InputField from '../../../../components/form/InputField';
 import SelectField from '../../../../components/form/SelectField';
 
 const emailDomainOptions = [
-  { label: '직접입력', value: '직접입력' },
+  { label: '직접입력', value: 'Direct input' },
   { label: 'gmail.com', value: 'gmail.com' },
   { label: 'naver.com', value: 'naver.com' },
   { label: 'daum.net', value: 'daum.net' },
@@ -35,7 +35,7 @@ const EmailField: React.FC<EmailFieldProps> = ({
   const leftInputVariant = errorMessage ? 'error' : emailId ? 'filled' : 'default';
   const rightInputValue = isCustomDomain ? customEmailDomain : emailDomain;
   const rightInputVariant = errorMessage ? 'error' : rightInputValue ? 'filled' : 'default';
-  const selectVariant = emailDomain !== '직접입력' ? 'filled' : 'default';
+  const selectVariant = emailDomain !== 'Direct input' ? 'filled' : 'default';
 
   return (
     <FormField label="이메일" htmlFor="signup-email-id" errorMessage={errorMessage} required>

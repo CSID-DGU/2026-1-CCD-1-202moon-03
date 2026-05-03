@@ -1,4 +1,1 @@
-export interface ApiErrorResponse {
-  message: string;
-  statusCode: number;
-}
+export * from './common';

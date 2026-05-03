@@ -1,6 +1,5 @@
-import { api } from '../api';
-import type { UserProfile } from '../../types';
+import { getMyProfile } from '../user.api';
 
-export async function fetchUserProfile(userId: string) {
-  return api<UserProfile>(`/api/users/${userId}`);
+export async function fetchUserProfile(_userId?: string) {
+  return getMyProfile();
 }

@@ -11,7 +11,8 @@ import { useSignupForm } from './useSignupForm';
 
 const SignupForm: React.FC = () => {
   const {
-    name,
+    username,
+    nickname,
     birthdate,
     gender,
     emailId,
@@ -22,7 +23,8 @@ const SignupForm: React.FC = () => {
     submitError,
     signupState,
     isCustomDomain,
-    handleNameChange,
+    handleUsernameChange,
+    handleNicknameChange,
     handleBirthdateChange,
     handleGenderChange,
     handleEmailIdChange,
@@ -45,15 +47,28 @@ const SignupForm: React.FC = () => {
         <h1 className="text-left text-[24px] font-bold leading-tight text-[#394150]">회원가입</h1>
 
         <div className="mt-12 space-y-6">
-          <FormField label="이름" htmlFor="signup-name" errorMessage={fieldErrors.name} required>
+          <FormField label="아이디" htmlFor="signup-username" errorMessage={fieldErrors.username} required>
             <InputField
-              id="signup-name"
-              name="name"
+              id="signup-username"
+              name="username"
               type="text"
-              placeholder="이름을 입력해 주세요"
-              value={name}
-              onChange={(e) => handleNameChange(e.target.value)}
-              variant={fieldErrors.name ? 'error' : name ? 'filled' : 'default'}
+              placeholder="4~20자의 영문, 숫자, 밑줄"
+              value={username}
+              onChange={(e) => handleUsernameChange(e.target.value)}
+              autoComplete="username"
+              variant={fieldErrors.username ? 'error' : username ? 'filled' : 'default'}
+            />
+          </FormField>
+
+          <FormField label="닉네임" htmlFor="signup-nickname" errorMessage={fieldErrors.nickname} required>
+            <InputField
+              id="signup-nickname"
+              name="nickname"
+              type="text"
+              placeholder="2~15자로 입력해 주세요"
+              value={nickname}
+              onChange={(e) => handleNicknameChange(e.target.value)}
+              variant={fieldErrors.nickname ? 'error' : nickname ? 'filled' : 'default'}
             />
           </FormField>
 
@@ -118,7 +133,6 @@ const SignupForm: React.FC = () => {
             disabled={isSubmitDisabled || signupState === 'submit_loading'}
             variant={isSubmitDisabled ? 'inactive' : 'active'}
             className="h-[64px] w-full rounded-[12px] text-lg"
-            
           >
             회원가입
           </Button>
@@ -129,18 +143,18 @@ const SignupForm: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 px-6">
           <div className="w-full max-w-[344px] rounded-[16px] bg-white px-8 pb-7 pt-5 shadow-[0_18px_48px_rgba(15,23,42,0.14)]">
             <div className="mx-auto flex h-[44px] w-[44px] items-center justify-center rounded-full bg-[#eef7ff] text-[28px] font-bold text-[#1A9AF5]">
-              ✓
+              확인
             </div>
             <p className="mt-3 text-center text-[15px] font-medium leading-7 text-[#394150]">
               회원가입이 완료되었습니다.
               <br />
-              로그인 후 서비스를 이용하실 수 있습니다.
+              로그인 후 서비스를 이용할 수 있습니다.
             </p>
             <Link
               className="mt-7 inline-flex h-[40px] w-full items-center justify-center rounded-[8px] bg-[#1A9AF5] text-[16px] font-semibold text-white transition-colors hover:bg-[#168fe6]"
               to={ROUTES.login}
             >
-              로그인
+              로그인으로 이동
             </Link>
           </div>
         </div>

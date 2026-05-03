@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '../../../constants/routes';
 import { useAuthStore } from '../../../store/useAuthStore';
-import type { LoginResponse } from '../../../types/auth';
 
 type LoginState =
   | 'default'
@@ -12,38 +11,19 @@ type LoginState =
   | 'success'
   | 'loading';
 
-const mockLogin = (email: string, password: string) =>  //API 호출로 대체할 곳 
-  new Promise<LoginResponse>((resolve, reject) => {
-    window.setTimeout(() => {
-      if (email === 'test@test.com' && password === '12345678') {
-        resolve({
-          user: {
-            id: 'mock-user-1',
-            email,
-            name: '테스트 사용자',
-          },
-        });
-        return;
-      }
-
-      reject(new Error('Invalid credentials'));
-    }, 1000);
-  });
+const usernamePattern = /^[a-zA-Z0-9_]{4,20}$/;
 
 export function useLoginForm() {
   const navigate = useNavigate();
-  const setAuth = useAuthStore((state) => state.setAuth);
+  const login = useAuthStore((state) => state.login);
 
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [emailError, setEmailError] = useState('');
+  const [usernameError, setUsernameError] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [submitError, setSubmitError] = useState('');
   const [isSuccess, setIsSuccess] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-
-  const isValidEmail = (value: string) => /\S+@\S+\.\S+/.test(value);
-  const isValidPassword = (value: string) => value.length >= 8;
 
   const loginState: LoginState = useMemo(
     () =>
@@ -51,21 +31,21 @@ export function useLoginForm() {
         ? 'loading'
         : submitError
           ? 'fail'
-          : emailError || passwordError
+          : usernameError || passwordError
             ? 'validation_error'
             : isSuccess
               ? 'success'
-              : email && password
+              : username && password
                 ? 'completed'
                 : 'default',
-    [email, emailError, isLoading, isSuccess, password, passwordError, submitError],
+    [isLoading, isSuccess, password, passwordError, submitError, username, usernameError],
   );
 
   const isSubmitDisabled = loginState === 'default' || loginState === 'loading';
 
-  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setEmail(e.target.value);
-    setEmailError('');
+  const handleUsernameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setUsername(e.target.value);
+    setUsernameError('');
     setSubmitError('');
     setIsSuccess(false);
   };
@@ -78,13 +58,17 @@ export function useLoginForm() {
   };
 
   const validate = () => {
-    const nextEmailError = isValidEmail(email) ? '' : '이메일 형식이 올바르지 않습니다';
-    const nextPasswordError = isValidPassword(password) ? '' : '비밀번호 형식이 올바르지 않습니다';
+    const nextUsernameError = usernamePattern.test(username)
+      ? ''
+      : '아이디는 4~20자의 영문, 숫자, 밑줄만 사용할 수 있습니다.';
+    const nextPasswordError = password.length >= 8
+      ? ''
+      : '비밀번호는 8자 이상이어야 합니다.';
 
-    setEmailError(nextEmailError);
+    setUsernameError(nextUsernameError);
     setPasswordError(nextPasswordError);
 
-    return !nextEmailError && !nextPasswordError;
+    return !nextUsernameError && !nextPasswordError;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -100,29 +84,27 @@ export function useLoginForm() {
     setIsLoading(true);
 
     try {
-      const session = await mockLogin(email, password);
-      setAuth(session.user);
+      await login({ username, password });
       setIsSuccess(true);
-      console.log('로그인 성공');
       navigate(ROUTES.home);
     } catch {
-      setSubmitError('이메일 또는 비밀번호가 올바르지 않습니다');
+      setSubmitError('아이디 또는 비밀번호가 올바르지 않습니다.');
     } finally {
       setIsLoading(false);
     }
   };
 
   return {
-    email,
+    username,
     password,
-    emailError,
+    usernameError,
     passwordError,
     submitError,
     isSuccess,
     isLoading,
     loginState,
     isSubmitDisabled,
-    handleEmailChange,
+    handleUsernameChange,
     handlePasswordChange,
     handleSubmit,
   };

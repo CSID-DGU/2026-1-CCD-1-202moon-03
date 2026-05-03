@@ -9,15 +9,15 @@ import { useLoginForm } from './useLoginForm';
 
 const LoginForm: React.FC = () => {
   const {
-    email,
+    username,
     password,
-    emailError,
+    usernameError,
     passwordError,
     submitError,
     isSuccess,
     loginState,
     isSubmitDisabled,
-    handleEmailChange,
+    handleUsernameChange,
     handlePasswordChange,
     handleSubmit,
   } = useLoginForm();
@@ -31,17 +31,17 @@ const LoginForm: React.FC = () => {
       <h1 className="text-left text-[32px] font-bold leading-tight text-slate-800">로그인</h1>
 
       <div className="mt-12 space-y-8">
-        <FormField label="이메일" htmlFor="login-email" errorMessage={emailError}>
+        <FormField label="아이디" htmlFor="login-username" errorMessage={usernameError}>
           <InputField
-            id="login-email"
-            name="email"
-            type="email"
-            placeholder="tabac202@abc.com"
-            value={email}
-            onChange={handleEmailChange}
-            autoComplete="email"
-            ariaDescribedBy={emailError ? 'login-email-error' : undefined}
-            variant={emailError ? 'error' : email ? 'filled' : 'default'}
+            id="login-username"
+            name="username"
+            type="text"
+            placeholder="아이디를 입력해 주세요"
+            value={username}
+            onChange={handleUsernameChange}
+            autoComplete="username"
+            ariaDescribedBy={usernameError ? 'login-username-error' : undefined}
+            variant={usernameError ? 'error' : username ? 'filled' : 'default'}
           />
         </FormField>
 
@@ -70,7 +70,7 @@ const LoginForm: React.FC = () => {
         </div>
 
         <StatusMessage variant={isSuccess ? 'success' : 'error'}>
-          {isSuccess ? '로그인에 성공했습니다' : submitError}
+          {isSuccess ? '로그인에 성공했습니다.' : submitError}
         </StatusMessage>
       </div>
 
