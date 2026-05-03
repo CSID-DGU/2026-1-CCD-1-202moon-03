@@ -6,8 +6,6 @@ import { ROUTES } from '../../constants/routes';
 
 function SpinnerModePage() {
   const {
-    lessonTitle,
-    subtitle,
     videoSrc,
     videoRef,
     speedMenuRef,
@@ -53,7 +51,7 @@ function SpinnerModePage() {
           <div className="rounded-[12px] border border-[#52555F] bg-[#25272E] p-2">
             <div className="flex items-center gap-[6px]">
               <ModeChip
-                label="피젯"
+                label="스피너"
                 isActive={selectedTool === 'spinner'}
                 onClick={() => handleSelectTool('spinner')}
               />
@@ -69,8 +67,6 @@ function SpinnerModePage() {
         <div className="flex items-start gap-6">
           <div ref={speedMenuRef} className="min-w-0 flex-1">
             <SpinnerPlayer
-              lessonTitle={lessonTitle}
-              subtitle={subtitle}
               videoSrc={videoSrc}
               videoRef={videoRef}
               currentTime={currentTime}

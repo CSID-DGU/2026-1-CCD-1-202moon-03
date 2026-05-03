@@ -9,7 +9,7 @@ export const mockRainSession = {
   defaultVideoUrl: 'https://www.youtube.com/watch?v=1Sp3EuDlZgM&list=PLE7ogCa1_I6suFmGQa5-Uj_ZF4H1KdMZw',
   youtubeEmbedUrl:
     'https://www.youtube.com/embed/1Sp3EuDlZgM?list=PLE7ogCa1_I6suFmGQa5-Uj_ZF4H1KdMZw&rel=0&modestbranding=1&cc_load_policy=1&hl=ko',
-  characterName: '도우미 또닥이',
+  characterName: '캐릭터',
   introText: '영상 속 핵심 키워드를 실시간으로 입력하면서 빈칸을 완성해 보세요.',
   keywordPool: [
     { id: 'kw-1', text: '역사', hint: '과거의 사건과 흐름을 배우는 분야', lane: 0 },

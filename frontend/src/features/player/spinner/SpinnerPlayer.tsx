@@ -1,12 +1,10 @@
-import { useRef } from 'react';
-import type { PointerEvent as ReactPointerEvent, RefObject } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import type { PointerEvent as ReactPointerEvent, ReactNode, RefObject } from 'react';
 import triDownIcon from '../../../assets/icons/tri-down.svg';
 import triUpIcon from '../../../assets/icons/tri-up.svg';
 import type { SpinnerAssistTool, SpinnerPlaybackRate } from './types';
 
 interface SpinnerPlayerProps {
-  lessonTitle: string;
-  subtitle: string;
   videoSrc: string;
   videoRef: RefObject<HTMLVideoElement | null>;
   currentTime: number;
@@ -17,7 +15,9 @@ interface SpinnerPlayerProps {
   speedOptions: SpinnerPlaybackRate[];
   isCaptionVisible: boolean;
   captionText: string;
-  selectedTool: SpinnerAssistTool;
+  selectedTool?: SpinnerAssistTool;
+  overlayContent?: ReactNode;
+  captionOverlay?: ReactNode;
   onTogglePlay: () => void;
   onToggleSpeedMenu: () => void;
   onSelectSpeed: (speed: SpinnerPlaybackRate) => void;
@@ -31,8 +31,6 @@ interface SpinnerPlayerProps {
 }
 
 function SpinnerPlayer({
-  lessonTitle,
-  subtitle,
   videoSrc,
   videoRef,
   currentTime,
@@ -43,6 +41,8 @@ function SpinnerPlayer({
   speedOptions,
   isCaptionVisible,
   captionText,
+  overlayContent,
+  captionOverlay,
   onTogglePlay,
   onToggleSpeedMenu,
   onSelectSpeed,
@@ -55,6 +55,29 @@ function SpinnerPlayer({
   onEnded,
 }: SpinnerPlayerProps) {
   const seekTrackRef = useRef<HTMLDivElement | null>(null);
+  const hideControlsTimeoutRef = useRef<number | null>(null);
+  const [areControlsVisible, setAreControlsVisible] = useState(true);
+
+  const clearHideControlsTimeout = () => {
+    if (hideControlsTimeoutRef.current !== null) {
+      window.clearTimeout(hideControlsTimeoutRef.current);
+      hideControlsTimeoutRef.current = null;
+    }
+  };
+
+  const scheduleHideControls = () => {
+    clearHideControlsTimeout();
+
+    if (!isPlaying) {
+      setAreControlsVisible(true);
+      return;
+    }
+
+    hideControlsTimeoutRef.current = window.setTimeout(() => {
+      setAreControlsVisible(false);
+      hideControlsTimeoutRef.current = null;
+    }, 2000);
+  };
 
   const seekFromClientX = (clientX: number) => {
     const track = seekTrackRef.current;
@@ -85,8 +108,30 @@ function SpinnerPlayer({
     window.addEventListener('pointerup', handlePointerUp);
   };
 
+  const handleMouseMove = () => {
+    setAreControlsVisible(true);
+    scheduleHideControls();
+  };
+
+  useEffect(() => {
+    if (!isPlaying) {
+      clearHideControlsTimeout();
+      setAreControlsVisible(true);
+      return;
+    }
+
+    scheduleHideControls();
+
+    return clearHideControlsTimeout;
+  }, [isPlaying]);
+
+  useEffect(() => clearHideControlsTimeout, []);
+
   return (
-    <section className="relative h-[590px] overflow-hidden rounded-[11.455px] bg-[#DDDDDD]">
+    <section
+      className="relative h-[590px] overflow-hidden rounded-[11.455px] bg-[#DDDDDD]"
+      onMouseMove={handleMouseMove}
+    >
       <video
         ref={videoRef}
         className="absolute inset-0 h-full w-full object-cover"
@@ -102,23 +147,25 @@ function SpinnerPlayer({
 
       <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0)_0%,rgba(0,0,0,0)_70%,rgba(0,0,0,0.42)_100%)]" />
 
-      <div className="absolute left-0 right-0 top-0 px-8 pt-8">
-        <div className="max-w-[420px]">
-          <p className="text-sm font-semibold uppercase tracking-[0.28em] text-white/80">Spinner Mode</p>
-          <h2 className="mt-3 font-paperlogy text-[28px] font-bold leading-tight text-white">
-            {lessonTitle}
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-white/80">{subtitle}</p>
-        </div>
-      </div>
-
-      {isCaptionVisible && captionText ? (
-        <div className="absolute left-1/2 top-[calc(100%-184px)] -translate-x-1/2 bg-[rgba(0,0,0,0.6)] px-[15px] py-[8px]">
-          <p className="text-[22px] font-semibold leading-[1.5] text-white">{captionText}</p>
+      {overlayContent ? (
+        <div className="pointer-events-none absolute inset-x-0 bottom-[152px] top-[24px]">
+          {overlayContent}
         </div>
       ) : null}
 
-      <div className="absolute bottom-0 left-0 right-0">
+      {isCaptionVisible && (captionOverlay || captionText) ? (
+        <div className="absolute left-1/2 top-[calc(100%-184px)] -translate-x-1/2 bg-[rgba(0,0,0,0.6)] px-[15px] py-[8px]">
+          {captionOverlay ?? (
+            <p className="text-[22px] font-semibold leading-[1.5] text-white">{captionText}</p>
+          )}
+        </div>
+      ) : null}
+
+      <div
+        className={`absolute bottom-0 left-0 right-0 transition-opacity duration-300 ${
+          areControlsVisible ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
+        }`}
+      >
         <div
           ref={seekTrackRef}
           className="relative h-3 w-full cursor-pointer"

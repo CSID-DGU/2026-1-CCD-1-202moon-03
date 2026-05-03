@@ -8,21 +8,22 @@ function FallingKeywords({ keywords }: FallingKeywordsProps) {
   return (
     <div className="relative h-full w-full overflow-hidden rounded-[24px]">
       {keywords.map((keyword) => {
-        const leftOffset = 9 + keyword.lane * 21;
+        const leftOffset = 12 + keyword.lane * 18;
 
         return (
           <div
             key={keyword.id}
-            className={`absolute rounded-full px-4 py-2 text-sm font-semibold shadow-[0_10px_24px_rgba(148,163,184,0.22)] transition-all duration-300 ${
+            className={`absolute rounded-[8px] border px-[14px] py-[8px] text-center font-paperlogy text-[18px] font-semibold leading-[1.5] shadow-[0_8px_20px_rgba(3,46,78,0.14)] transition-all duration-300 ${
               keyword.status === 'active'
-                ? 'border border-[#9DD1FF] bg-[#2F80ED] text-white'
+                ? 'border-[#032E4E] bg-[#EAF5FF] text-[#1A9AF5]'
                 : keyword.status === 'cleared'
-                  ? 'border border-[#D6E6F8] bg-white/78 text-[#7A8EA5] opacity-60'
-                  : 'border border-[#DDE7F2] bg-white/92 text-[#2C3D52]'
+                  ? 'border-[#E5E7EC] bg-white/72 text-[#7D828B] opacity-50'
+                  : 'border-[#D7DCE4] bg-white/88 text-[#25272E]'
             }`}
             style={{
               left: `${leftOffset}%`,
               top: `${keyword.progress}%`,
+              minWidth: '100px',
               transform: 'translateY(-50%)',
             }}
           >

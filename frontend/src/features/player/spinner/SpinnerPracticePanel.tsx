@@ -23,7 +23,9 @@ function SpinnerPracticePanel({
   onSpinnerWheel,
   onPressKeycap,
 }: SpinnerPracticePanelProps) {
-  const handleSpinnerWheel = (event: WheelEvent<HTMLButtonElement>) => {
+  const handleSpinnerWheel = (
+    event: WheelEvent<HTMLButtonElement | HTMLDivElement>,
+  ) => {
     event.preventDefault();
     onSpinnerWheel(event.deltaY);
   };
@@ -31,17 +33,21 @@ function SpinnerPracticePanel({
   return (
     <section className="flex h-[592px] w-[306px] flex-col items-center justify-between">
       <div className="w-full">
-        <div className="flex h-[246px] w-full items-center justify-center overflow-hidden rounded-[12px] border border-[#52555F] bg-[#25272E]">
+        <div
+          className="flex h-[246px] w-full items-center justify-center overflow-hidden rounded-[12px] border border-[#52555F] bg-[#25272E]"
+          onWheel={selectedTool === 'spinner' ? handleSpinnerWheel : undefined}
+        >
           {selectedTool === 'spinner' ? (
             <button
               type="button"
               onClick={onSpin}
               onWheel={handleSpinnerWheel}
-              className="relative flex h-[250px] w-[250px] items-center justify-center"
+              className="relative flex h-[250px] w-[250px] cursor-ns-resize items-center justify-center"
+              aria-label="마우스 휠이나 클릭으로 스피너 회전"
             >
               <img
                 src={spinnerIcon}
-                alt="피젯 스피너"
+                alt="원형 스피너"
                 className="h-[206px] w-[206px] object-contain transition-transform duration-700 ease-out"
                 style={{ transform: `rotate(${spinnerTurns * 360}deg)` }}
               />
@@ -61,7 +67,7 @@ function SpinnerPracticePanel({
                   : 'shadow-[0_12px_24px_rgba(26,154,245,0.18)]'
               }`}
             >
-              <span className="text-[42px] font-black tracking-[0.08em]">Q</span>
+              <span className="text-[42px] font-black tracking-[0.08em]">D</span>
             </button>
           )}
         </div>
@@ -73,8 +79,8 @@ function SpinnerPracticePanel({
         </p>
         <p className="mt-2 text-sm leading-6 text-[#66788E]">
           {selectedTool === 'spinner'
-            ? '스피너를 가볍게 돌리며 손의 리듬을 유지해보세요. 시선과 청각을 현재 구간에 붙잡는 데 도움이 됩니다.'
-            : 'Q 키를 누르며 중요한 단어가 들릴 때마다 반응해보세요. 반복 입력 감각이 집중 유지에 도움을 줍니다.'}
+            ? '스피너를 가볍게 돌리며 시청 리듬을 맞춰 보세요. 시선과 손 감각으로 현재 구간을 붙잡는 데 도움이 됩니다.'
+            : 'D 키를 누를 때마다 키캡이 눌리며 반응합니다. 반복 입력 감각으로 집중 흐름을 유지해 보세요.'}
         </p>
       </div>
     </section>
