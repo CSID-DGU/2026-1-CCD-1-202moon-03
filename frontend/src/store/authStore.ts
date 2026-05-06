@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { ROUTES } from '../constants/routes';
 import { login as loginRequest, logout as logoutRequest, refreshAccessToken } from '../services/auth.api';
+import { getMyProfile } from '../services/user.api';
 import type { AuthUser, LoginRequest, LoginResponse, LogoutRequest, UserProfileData } from '../types';
 
 const REFRESH_TOKEN_STORAGE_KEY = 'refreshToken';
@@ -124,6 +125,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const response = await refreshAccessToken({ refresh: refreshToken });
       get().setAccessToken(response.access);
+      const profileResponse = await getMyProfile();
+      get().setUser(mapProfileToAuthUser(profileResponse.data));
       set({ isHydrated: true });
     } catch {
       clearStoredAuth(set);

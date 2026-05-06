@@ -20,6 +20,7 @@ export interface LearningHistoryItem {
   session_id: number;
   title: string;
   mode: SessionMode;
+  thumbnail_url?: string | null;
   completed_at: string;
   watch_rate: number;
   total_score?: number;

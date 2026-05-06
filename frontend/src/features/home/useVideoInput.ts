@@ -17,9 +17,22 @@ const initialValues: VideoInputValues = {
   file: null,
 };
 
+const SUPPORTED_VIDEO_TYPES = new Set(['video/mp4', 'video/webm']);
+const SUPPORTED_VIDEO_EXTENSIONS = ['.mp4', '.webm'];
+
+function isSupportedVideoFile(file: File) {
+  const normalizedName = file.name.toLowerCase();
+
+  return (
+    SUPPORTED_VIDEO_TYPES.has(file.type) ||
+    SUPPORTED_VIDEO_EXTENSIONS.some((extension) => normalizedName.endsWith(extension))
+  );
+}
+
 export function useVideoInput() {
   const setVideoUrl = useVideoStore((state) => state.setVideoUrl);
   const [values, setValues] = useState<VideoInputValues>(initialValues);
+  const [fileError, setFileError] = useState('');
 
   const isUrlDisabled = Boolean(values.file);
   const isFileDisabled = Boolean(values.url.trim());
@@ -38,6 +51,7 @@ export function useVideoInput() {
   }, [values.file, values.url]);
 
   const setUrl = (url: string) => {
+    setFileError('');
     setValues((current) => ({
       ...current,
       url,
@@ -46,6 +60,12 @@ export function useVideoInput() {
   };
 
   const setFile = (file: File | null) => {
+    if (file && !isSupportedVideoFile(file)) {
+      setFileError('mp4 또는 webm 파일만 업로드할 수 있어요.');
+      return;
+    }
+
+    setFileError('');
     setValues((current) => ({
       url: file ? '' : current.url,
       file,
@@ -54,6 +74,7 @@ export function useVideoInput() {
 
   const reset = () => {
     setValues(initialValues);
+    setFileError('');
   };
 
   const handleSubmit = (): VideoInputSubmitPayload | null => {
@@ -82,6 +103,7 @@ export function useVideoInput() {
     canSubmit,
     isUrlDisabled,
     isFileDisabled,
+    fileError,
     selectedSourceLabel,
     setUrl,
     setFile,

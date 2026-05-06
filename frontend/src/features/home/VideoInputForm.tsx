@@ -20,6 +20,7 @@ function VideoInputForm({
     canSubmit,
     isUrlDisabled,
     isFileDisabled,
+    fileError,
     setUrl,
     setFile,
     reset,
@@ -65,7 +66,7 @@ function VideoInputForm({
           id="home-video-file"
           name="videoFile"
           type="file"
-          accept="video/*,audio/*"
+          accept=".mp4,.webm,video/mp4,video/webm"
           onChange={(event) => setFile(event.target.files?.[0] ?? null)}
           disabled={isFileDisabled}
           className="hidden"
@@ -79,6 +80,9 @@ function VideoInputForm({
           <p className="mt-5 rounded-full bg-white px-4 py-2 text-[14px] font-medium text-[#63708A] shadow-[0_6px_16px_rgba(15,23,42,0.08)]">
             {values.file.name}
           </p>
+        ) : null}
+        {fileError ? (
+          <p className="mt-4 text-[14px] font-medium text-rose-500">{fileError}</p>
         ) : null}
       </label>
 

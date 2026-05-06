@@ -3,7 +3,8 @@ import type { AiStatus, ApiResponse, SessionMode } from './common';
 export type SessionSourceType = 'youtube_url' | 'file' | 'private_url';
 
 export interface SessionListItem {
-  session_id: number;
+  session_id?: number;
+  id?: number;
   title: string;
   thumbnail_url: string;
   mode: SessionMode;
@@ -26,7 +27,8 @@ export interface CreateSessionFromFileRequest {
 }
 
 export interface CreateSessionResponseData {
-  session_id: number;
+  session_id?: number;
+  id?: number;
   title: string;
   ai_status: AiStatus;
   mode: SessionMode;
@@ -35,7 +37,8 @@ export interface CreateSessionResponseData {
 export type CreateSessionResponse = ApiResponse<CreateSessionResponseData>;
 
 export interface SessionDetailData {
-  session_id: number;
+  session_id?: number;
+  id?: number;
   title: string;
   source_type: SessionSourceType;
   source_url: string;
@@ -53,7 +56,8 @@ export interface UpdateSessionTitleRequest {
 }
 
 export interface UpdateSessionTitleResponseData {
-  session_id: number;
+  session_id?: number;
+  id?: number;
   title: string;
 }
 
@@ -62,7 +66,8 @@ export type UpdateSessionTitleResponse = ApiResponse<UpdateSessionTitleResponseD
 export type DeleteSessionResponse = ApiResponse<Record<string, never>>;
 
 export interface SessionStatusData {
-  session_id: number;
+  session_id?: number;
+  id?: number;
   ai_status: AiStatus;
   error_message?: string;
 }

@@ -15,7 +15,7 @@ export function HomeVideoMenu({ isOpen, onClose, onEdit, onDelete }: HomeVideoMe
       return;
     }
 
-    const handlePointerDown = (event: MouseEvent) => {
+    const handlePointerDown = (event: PointerEvent) => {
       if (!menuRef.current?.contains(event.target as Node)) {
         onClose();
       }
@@ -27,11 +27,11 @@ export function HomeVideoMenu({ isOpen, onClose, onEdit, onDelete }: HomeVideoMe
       }
     };
 
-    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('pointerdown', handlePointerDown);
     document.addEventListener('keydown', handleEscape);
 
     return () => {
-      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('pointerdown', handlePointerDown);
       document.removeEventListener('keydown', handleEscape);
     };
   }, [isOpen, onClose]);

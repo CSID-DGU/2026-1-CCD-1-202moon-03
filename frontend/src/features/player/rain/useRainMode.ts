@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { mockRainSession, rainSpeedOptions } from './mockRainSession';
-import type { PlaybackRate, RainKeyword } from './types';
+import { usePlayerSession } from '../../../hooks/usePlayerSession';
 import { useRainStore } from '../../../store/useRainStore';
 import { useVideoStore } from '../../../store/useVideoStore';
+import { resolvePlayerSource } from '../shared/playback';
+import { mockRainSession, rainSpeedOptions } from './mockRainSession';
+import type { PlaybackRate, RainKeyword } from './types';
 
 const FALLBACK_VIDEO_SOURCE =
   'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4';
@@ -11,26 +13,22 @@ function clampProgress(value: number) {
   return Math.max(12, Math.min(value, 86));
 }
 
-function isPlayableVideoSource(source: string) {
-  if (!source) {
-    return false;
-  }
-
-  if (source.startsWith('blob:')) {
-    return true;
-  }
-
-  if (source.includes('youtube.com') || source.includes('youtu.be')) {
-    return false;
-  }
-
-  return /\.(mp4|webm|ogg|mov)(\?.*)?$/i.test(source);
-}
-
 export function useRainMode() {
+  const { sessionId, sessionDetail, sessionStatus, isLoadingSession, sessionError } =
+    usePlayerSession();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const speedMenuRef = useRef<HTMLDivElement | null>(null);
-  const { score, combo, setAccuracy, setCombo, setScore } = useRainStore();
+  const initializedSessionIdRef = useRef<string | null>(null);
+  const {
+    score,
+    combo,
+    setAccuracy,
+    setCombo,
+    setScore,
+    saveSessionResult,
+    sessionResults,
+    resetRainState,
+  } = useRainStore();
   const { videoUrl } = useVideoStore();
 
   const [typedValue, setTypedValue] = useState('');
@@ -46,9 +44,40 @@ export function useRainMode() {
   const [duration, setDuration] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
 
-  const resolvedVideoSrc = useMemo(
-    () => (isPlayableVideoSource(videoUrl) ? videoUrl : FALLBACK_VIDEO_SOURCE),
-    [videoUrl],
+  useEffect(() => {
+    if (!sessionId) {
+      return;
+    }
+
+    if (initializedSessionIdRef.current === sessionId) {
+      return;
+    }
+
+    initializedSessionIdRef.current = sessionId;
+
+    const savedResult = sessionResults[sessionId];
+    setScore(savedResult?.score ?? 0);
+    setCombo(0);
+    setAccuracy(savedResult?.accuracy ?? 0);
+    setMaxCombo(savedResult?.maxCombo ?? 0);
+    setAttempts(0);
+    setCorrectCount(0);
+    setTypedValue('');
+    setActiveIndex(0);
+
+    return () => {
+      resetRainState();
+    };
+  }, [resetRainState, sessionId, sessionResults, setAccuracy, setCombo, setScore]);
+
+  const resolvedPlayerSource = useMemo(
+    () =>
+      resolvePlayerSource({
+        sourceType: sessionDetail?.source_type,
+        sourceUrl: sessionDetail?.source_url,
+        fallbackSrc: videoUrl || FALLBACK_VIDEO_SOURCE,
+      }),
+    [sessionDetail?.source_type, sessionDetail?.source_url, videoUrl],
   );
 
   useEffect(() => {
@@ -86,7 +115,8 @@ export function useRainMode() {
     };
   }, [isSpeedMenuOpen]);
 
-  const activeKeyword = mockRainSession.keywordPool[Math.min(activeIndex, mockRainSession.keywordPool.length - 1)];
+  const activeKeyword =
+    mockRainSession.keywordPool[Math.min(activeIndex, mockRainSession.keywordPool.length - 1)];
 
   const fallingKeywords = useMemo<RainKeyword[]>(() => {
     return mockRainSession.keywordPool.map((keyword, index) => {
@@ -121,6 +151,18 @@ export function useRainMode() {
   useEffect(() => {
     setAccuracy(accuracy);
   }, [accuracy, setAccuracy]);
+
+  useEffect(() => {
+    if (!sessionId) {
+      return;
+    }
+
+    saveSessionResult(sessionId, {
+      score,
+      maxCombo,
+      accuracy,
+    });
+  }, [accuracy, maxCombo, saveSessionResult, score, sessionId]);
 
   const captionText =
     mockRainSession.captions.find(
@@ -216,10 +258,15 @@ export function useRainMode() {
   };
 
   return {
+    sessionId,
     speedMenuRef,
     videoRef,
-    videoSrc: resolvedVideoSrc,
-    sessionTitle: mockRainSession.title,
+    playerType: resolvedPlayerSource.playerType,
+    playerSrc: resolvedPlayerSource.playerSrc,
+    sessionTitle: sessionDetail?.title || mockRainSession.title,
+    sessionAiStatus: sessionStatus?.ai_status ?? sessionDetail?.ai_status ?? null,
+    isLoadingSession,
+    sessionError,
     characterName: mockRainSession.characterName,
     duration,
     currentTime,

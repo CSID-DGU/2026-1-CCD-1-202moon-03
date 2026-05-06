@@ -1,12 +1,18 @@
 import { Link } from 'react-router-dom';
+import { ROUTES } from '../../constants/routes';
 import SpinnerPlayer from '../../features/player/spinner/SpinnerPlayer';
 import SpinnerPracticePanel from '../../features/player/spinner/SpinnerPracticePanel';
 import { useSpinnerMode } from '../../features/player/spinner/useSpinnerMode';
-import { ROUTES } from '../../constants/routes';
 
 function SpinnerModePage() {
   const {
-    videoSrc,
+    sessionId,
+    playerType,
+    playerSrc,
+    sessionTitle,
+    sessionAiStatus,
+    isLoadingSession,
+    sessionError,
     videoRef,
     speedMenuRef,
     selectedTool,
@@ -37,16 +43,26 @@ function SpinnerModePage() {
     handleEnded,
   } = useSpinnerMode();
 
+  const resultHref = `${ROUTES.RESULT}?videoId=${encodeURIComponent(sessionId || '')}`;
+
   return (
     <main className="min-h-screen bg-[#15171C]">
       <div className="mx-auto flex w-full max-w-[1440px] flex-col px-[60px] pb-[60px] pt-[40px]">
-        <div className="flex items-center justify-between pb-[40px]">
-          <Link to={ROUTES.RESULT} className="flex items-center gap-3 text-[#F4F6F7]">
-            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#1A9AF5]">
-              <BackIcon />
-            </span>
-            <span className="font-paperlogy text-[24px] font-medium leading-none">학습 종료</span>
-          </Link>
+        <div className="flex items-start justify-between pb-[40px]">
+          <div className="space-y-2">
+            <Link to={resultHref} className="flex items-center gap-3 text-[#F4F6F7]">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#1A9AF5]">
+                <BackIcon />
+              </span>
+              <span className="font-paperlogy text-[24px] font-medium leading-none">학습 종료</span>
+            </Link>
+            <div className="space-y-1">
+              <p className="text-lg font-semibold text-white">{sessionTitle}</p>
+              {isLoadingSession ? <p className="text-sm text-slate-300">Loading session...</p> : null}
+              {sessionAiStatus ? <p className="text-sm text-slate-300">AI status: {sessionAiStatus}</p> : null}
+              {sessionError ? <p className="text-sm text-rose-300">{sessionError}</p> : null}
+            </div>
+          </div>
 
           <div className="rounded-[12px] border border-[#52555F] bg-[#25272E] p-2">
             <div className="flex items-center gap-[6px]">
@@ -67,7 +83,8 @@ function SpinnerModePage() {
         <div className="flex items-start gap-6">
           <div ref={speedMenuRef} className="min-w-0 flex-1">
             <SpinnerPlayer
-              videoSrc={videoSrc}
+              playerType={playerType}
+              playerSrc={playerSrc}
               videoRef={videoRef}
               currentTime={currentTime}
               duration={duration}

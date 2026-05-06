@@ -2,6 +2,7 @@ import { apiClient } from './apiClient';
 import type {
   ChangeMyPasswordRequest,
   ChangeMyPasswordResponse,
+  DeleteMyAccountRequest,
   DeleteMyAccountResponse,
   GetMySettingsResponse,
   UpdateMyProfileRequest,
@@ -26,8 +27,10 @@ export async function changeMyPassword(payload: ChangeMyPasswordRequest) {
   return response.data;
 }
 
-export async function deleteMyAccount() {
-  const response = await apiClient.delete<DeleteMyAccountResponse>('/api/users/me/');
+export async function deleteMyAccount(payload: DeleteMyAccountRequest) {
+  const response = await apiClient.delete<DeleteMyAccountResponse>('/api/users/me/', {
+    data: payload,
+  });
   return response.data;
 }
 

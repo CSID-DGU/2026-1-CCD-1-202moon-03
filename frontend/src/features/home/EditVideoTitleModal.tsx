@@ -5,13 +5,15 @@ import type { HomeVideoItem } from './homeVideoItems';
 interface EditVideoTitleModalProps {
   video: HomeVideoItem | null;
   isOpen: boolean;
+  isSubmitting?: boolean;
   onClose: () => void;
-  onSave: (videoId: string, nextTitle: string) => void;
+  onSave: (videoId: string, nextTitle: string) => void | Promise<void>;
 }
 
 export function EditVideoTitleModal({
   video,
   isOpen,
+  isSubmitting = false,
   onClose,
   onSave,
 }: EditVideoTitleModalProps) {
@@ -42,7 +44,7 @@ export function EditVideoTitleModal({
     return null;
   }
 
-  const isDisabled = !title.trim();
+  const isDisabled = !title.trim() || isSubmitting;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.4)] px-6 py-8">
@@ -95,7 +97,7 @@ export function EditVideoTitleModal({
               variant={isDisabled ? 'inactive' : 'active'}
               className="h-[56px] w-[120px] !text-[16px]"
             >
-              저장
+              {isSubmitting ? '저장 중...' : '저장'}
             </Button>
           </div>
         </div>

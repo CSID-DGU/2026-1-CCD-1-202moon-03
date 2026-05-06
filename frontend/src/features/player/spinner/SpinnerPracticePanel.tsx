@@ -1,4 +1,6 @@
 import type { WheelEvent } from 'react';
+import keycapIcon from '../../../assets/icons/keycap.svg';
+import mascotDefaultIcon from '../../../assets/icons/mascot_default.svg';
 import spinnerIcon from '../../../assets/icons/spinner.svg';
 import type { SpinnerAssistTool } from './types';
 
@@ -23,9 +25,7 @@ function SpinnerPracticePanel({
   onSpinnerWheel,
   onPressKeycap,
 }: SpinnerPracticePanelProps) {
-  const handleSpinnerWheel = (
-    event: WheelEvent<HTMLButtonElement | HTMLDivElement>,
-  ) => {
+  const handleSpinnerWheel = (event: WheelEvent<HTMLButtonElement | HTMLDivElement>) => {
     event.preventDefault();
     onSpinnerWheel(event.deltaY);
   };
@@ -61,27 +61,32 @@ function SpinnerPracticePanel({
                 onPressKeycap();
               }}
               aria-pressed={isKeycapPressed}
-              className={`flex h-[160px] w-[220px] items-center justify-center rounded-[30px] border border-[#1A9AF5] bg-[#E5E7EC] text-[#1A9AF5] transition-all duration-150 ${
+              className={`flex h-[160px] w-[220px] items-center justify-center bg-transparent transition-all duration-150 ${
                 isKeycapPressed
-                  ? 'translate-y-1 scale-[0.985] shadow-[inset_0px_6px_8px_0px_#40AFFE,inset_0px_-4px_2px_0px_#1089DF]'
-                  : 'shadow-[0_12px_24px_rgba(26,154,245,0.18)]'
+                  ? 'translate-y-3 scale-[0.95]'
+                  : 'hover:-translate-y-0.5'
               }`}
             >
-              <span className="text-[42px] font-black tracking-[0.08em]">D</span>
+              <img
+                src={keycapIcon}
+                alt="키캡"
+                className={`h-[136px] w-[196px] object-contain transition-all duration-150 ${
+                  isKeycapPressed
+                    ? 'brightness-[0.9] contrast-[1.04] saturate-[1.08] drop-shadow-[0_3px_4px_rgba(16,137,223,0.14)]'
+                    : 'drop-shadow-[0_18px_30px_rgba(26,154,245,0.28)]'
+                }`}
+              />
             </button>
           )}
         </div>
       </div>
 
-      <div className="w-full rounded-[22px] border border-[#E3ECF7] bg-[#F8FBFF] px-5 py-4">
-        <p className="text-sm font-semibold tracking-[0.04em] text-[#355070]">
-          {selectedTool === 'spinner' ? '스피너 사용 팁' : '키캡 사용 팁'}
-        </p>
-        <p className="mt-2 text-sm leading-6 text-[#66788E]">
-          {selectedTool === 'spinner'
-            ? '스피너를 가볍게 돌리며 시청 리듬을 맞춰 보세요. 시선과 손 감각으로 현재 구간을 붙잡는 데 도움이 됩니다.'
-            : 'D 키를 누를 때마다 키캡이 눌리며 반응합니다. 반복 입력 감각으로 집중 흐름을 유지해 보세요.'}
-        </p>
+      <div className="flex w-full items-center justify-center px-2 py-2">
+        <img
+          src={mascotDefaultIcon}
+          alt="마스코트"
+          className="h-[220px] w-[220px] object-contain"
+        />
       </div>
     </section>
   );

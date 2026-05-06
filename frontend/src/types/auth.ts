@@ -27,6 +27,17 @@ export interface LoginResponseData {
 
 export type LoginResponse = ApiResponse<LoginResponseData>;
 
+export type LoginResponseApiData =
+  | LoginResponseData
+  | (Omit<LoginResponseData, 'access_token' | 'refresh_token'> & {
+      access?: string;
+      refresh?: string;
+      access_token?: string;
+      refresh_token?: string;
+    });
+
+export type LoginResponseApiResponse = ApiResponse<LoginResponseApiData>;
+
 export interface RegisterRequest {
   username: string;
   password: string;
@@ -61,26 +72,33 @@ export interface RefreshAccessTokenResponse {
   access: string;
 }
 
+export type RefreshAccessTokenApiResponse =
+  | RefreshAccessTokenResponse
+  | ApiResponse<RefreshAccessTokenResponse>;
+
 export interface RequestPasswordResetRequest {
-  // TODO: API 명세 상세 확정 후 필드 정의
+  // TODO: API spec fields
 }
 
 export interface RequestPasswordResetResponse {
-  // TODO: API 명세 상세 확정 후 필드 정의
+  // TODO: API spec fields
 }
 
 export interface ConfirmPasswordResetRequest {
-  // TODO: API 명세 상세 확정 후 필드 정의
+  // TODO: API spec fields
 }
 
 export interface ConfirmPasswordResetResponse {
-  // TODO: API 명세 상세 확정 후 필드 정의
+  // TODO: API spec fields
 }
 
 export interface OnboardingSurveyRequest {
-  // TODO: API 명세 상세 확정 후 필드 정의
+  answers: {
+    question_number: 1 | 2 | 3 | 4 | 5;
+    answer_value: 'low' | 'medium' | 'high';
+  }[];
 }
 
-export interface OnboardingSurveyResponse {
-  // TODO: API 명세 상세 확정 후 필드 정의
-}
+export type OnboardingSurveyResponse = ApiResponse<{
+  stimulation_level: number;
+}>;

@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { usePlayerSession } from '../../../hooks/usePlayerSession';
+import { resolvePlayerSource } from '../shared/playback';
 import type { SpinnerCaption, SpinnerAssistTool, SpinnerPlaybackRate } from './types';
 
 const VIDEO_SOURCE =
@@ -7,13 +9,15 @@ const VIDEO_SOURCE =
 const SPEED_OPTIONS: SpinnerPlaybackRate[] = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
 const CAPTIONS: SpinnerCaption[] = [
-  { start: 0, end: 4, text: '스피너를 돌리며 영상 시청 리듬을 맞춰 보세요.' },
-  { start: 4, end: 8, text: '중요한 문장이 들리면 반복 감각으로 구간을 붙잡아 보세요.' },
-  { start: 8, end: 12, text: '속도를 조절하면서 집중이 잘되는 리듬을 찾아 보세요.' },
-  { start: 12, end: 18, text: '짧은 자막 구간을 따라가며 듣기 흐름을 유지해 보세요.' },
+  { start: 0, end: 4, text: 'Use the spinner and keycap to keep your focus on the video.' },
+  { start: 4, end: 8, text: 'Repeat important sections and follow each sentence carefully.' },
+  { start: 8, end: 12, text: 'Adjust playback speed and practice at a pace that fits you.' },
+  { start: 12, end: 18, text: 'Stay with the current scene and continue the rhythm of study.' },
 ];
 
 export function useSpinnerMode() {
+  const { sessionId, sessionDetail, sessionStatus, isLoadingSession, sessionError } =
+    usePlayerSession();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const speedMenuRef = useRef<HTMLDivElement | null>(null);
   const keycapTimeoutRef = useRef<number | null>(null);
@@ -136,6 +140,16 @@ export function useSpinnerMode() {
     [currentTime],
   );
 
+  const resolvedPlayerSource = useMemo(
+    () =>
+      resolvePlayerSource({
+        sourceType: sessionDetail?.source_type,
+        sourceUrl: sessionDetail?.source_url,
+        fallbackSrc: VIDEO_SOURCE,
+      }),
+    [sessionDetail?.source_type, sessionDetail?.source_url],
+  );
+
   const handleSpin = () => {
     setSelectedTool('spinner');
     setSpinnerTurns((current) => current + 1);
@@ -200,7 +214,13 @@ export function useSpinnerMode() {
   };
 
   return {
-    videoSrc: VIDEO_SOURCE,
+    sessionId,
+    playerType: resolvedPlayerSource.playerType,
+    playerSrc: resolvedPlayerSource.playerSrc,
+    sessionTitle: sessionDetail?.title || 'Spinner mode',
+    sessionAiStatus: sessionStatus?.ai_status ?? sessionDetail?.ai_status ?? null,
+    isLoadingSession,
+    sessionError,
     videoRef,
     speedMenuRef,
     selectedTool,

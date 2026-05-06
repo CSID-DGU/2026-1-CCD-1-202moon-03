@@ -2,7 +2,7 @@ import axios from 'axios';
 import type { AxiosError, AxiosRequestConfig, InternalAxiosRequestConfig } from 'axios';
 import { ROUTES } from '../constants/routes';
 import { useAuthStore } from '../store/authStore';
-import type { RefreshAccessTokenResponse } from '../types/auth';
+import type { ApiResponse, RefreshAccessTokenResponse } from '../types';
 
 const REFRESH_TOKEN_STORAGE_KEY = 'refreshToken';
 const REFRESH_ENDPOINT = '/api/auth/token/refresh/';
@@ -10,6 +10,8 @@ const REFRESH_ENDPOINT = '/api/auth/token/refresh/';
 interface RetryableRequestConfig extends InternalAxiosRequestConfig {
   _retry?: boolean;
 }
+
+type RefreshTokenResponsePayload = RefreshAccessTokenResponse | ApiResponse<RefreshAccessTokenResponse>;
 
 function redirectToLogin() {
   if (window.location.pathname !== ROUTES.login) {
@@ -20,11 +22,19 @@ function redirectToLogin() {
 async function requestAccessTokenRefresh(refreshToken: string) {
   const baseURL = import.meta.env.VITE_API_BASE_URL ?? '';
 
-  return axios.post<RefreshAccessTokenResponse>(
+  return axios.post<RefreshTokenResponsePayload>(
     REFRESH_ENDPOINT,
     { refresh: refreshToken },
     { baseURL },
   );
+}
+
+function extractAccessToken(payload: RefreshTokenResponsePayload) {
+  if ('access' in payload) {
+    return payload.access;
+  }
+
+  return payload.data.access;
 }
 
 export const apiClient = axios.create({
@@ -67,7 +77,7 @@ apiClient.interceptors.response.use(
 
     try {
       const refreshResponse = await requestAccessTokenRefresh(refreshToken);
-      const nextAccessToken = refreshResponse.data.access;
+      const nextAccessToken = extractAccessToken(refreshResponse.data);
       useAuthStore.getState().setAccessToken(nextAccessToken);
 
       originalRequest.headers = originalRequest.headers ?? {};

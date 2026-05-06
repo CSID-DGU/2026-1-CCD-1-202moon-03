@@ -18,30 +18,38 @@ export interface UpdateMyProfileRequest {
   avatar_type?: string;
 }
 
-export type UpdateMyProfileResponse = ApiResponse<UserProfileData>;
+export type UpdateMyProfileResponse = ApiResponse<{
+  nickname: string;
+  avatar_type: string;
+}>;
 
 export interface ChangeMyPasswordRequest {
-  // TODO: API 명세 상세 확정 후 필드 정의
+  current_password: string;
+  new_password: string;
+  new_password_confirm: string;
 }
 
-export interface ChangeMyPasswordResponse {
-  // TODO: API 명세 상세 확정 후 필드 정의
+export interface ChangeMyPasswordResponseData {
+  access: string;
+  refresh: string;
+}
+
+export type ChangeMyPasswordResponse = ApiResponse<ChangeMyPasswordResponseData>;
+
+export interface DeleteMyAccountRequest {
+  password: string;
 }
 
 export type DeleteMyAccountResponse = ApiResponse<Record<string, never>>;
 
 export interface UserSettingsData {
-  avatar_type: string;
-  stimulation_level: number;
-  is_tutorial_done: boolean;
+  fidget_toggle_key: string;
 }
 
 export type GetMySettingsResponse = ApiResponse<UserSettingsData>;
 
 export interface UpdateMySettingsRequest {
-  avatar_type?: string;
-  stimulation_level?: number;
-  is_tutorial_done?: boolean;
+  fidget_toggle_key?: string;
 }
 
 export type UpdateMySettingsResponse = ApiResponse<UserSettingsData>;
