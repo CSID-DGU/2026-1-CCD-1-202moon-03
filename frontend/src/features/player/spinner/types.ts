@@ -1,0 +1,8 @@
+export type SpinnerAssistTool = 'spinner' | 'keycap';
+export type SpinnerPlaybackRate = 0.5 | 0.75 | 1 | 1.25 | 1.5 | 2;
+
+export interface SpinnerCaption {
+  start: number;
+  end: number;
+  text: string;
+}

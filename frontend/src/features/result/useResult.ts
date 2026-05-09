@@ -1,0 +1,180 @@
+import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { getSessionResult, getSessionSummary } from '../../services/analytic.api';
+import { getSessionDetail } from '../../services/session.api';
+import { useRainStore } from '../../store/useRainStore';
+import type {
+  ApiErrorResponse,
+  SessionDetailData,
+  SessionResultData,
+  SessionSummaryData,
+} from '../../types';
+
+interface ResultViewModel {
+  sessionId: string;
+  title: string;
+  summary: string;
+  mode: 'rain' | 'spinner';
+  learnedAt: string;
+  score: number | null;
+  maxCombo: number | null;
+  watchRate: number;
+  quizCorrect: number;
+  quizTotal: number;
+  thumbnailUrl: string;
+  hasThumbnail: boolean;
+}
+
+function getErrorMessage(error: unknown, fallbackMessage: string) {
+  const apiError = error as { response?: { data?: ApiErrorResponse } };
+
+  return apiError?.response?.data?.message || apiError?.response?.data?.detail || fallbackMessage;
+}
+
+function mapMode(mode?: SessionResultData['mode'] | SessionDetailData['mode']) {
+  return mode === 'rain' ? 'rain' : 'spinner';
+}
+
+function formatDate(value?: string) {
+  if (!value) {
+    return '-';
+  }
+
+  const parsedDate = new Date(value);
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return value;
+  }
+
+  return parsedDate.toLocaleDateString('ko-KR');
+}
+
+function buildViewModel({
+  videoId,
+  detail,
+  result,
+  summary,
+  localRainResult,
+}: {
+  videoId: string;
+  detail: SessionDetailData | null;
+  result: SessionResultData | null;
+  summary: SessionSummaryData | null;
+  localRainResult?: { score: number; maxCombo: number; accuracy: number } | null;
+}): ResultViewModel {
+  const resolvedSummary =
+    result?.ai_summary || summary?.summary || '아직 생성된 AI 요약이 없습니다.';
+
+  return {
+    sessionId: String(result?.session_id ?? detail?.session_id ?? detail?.id ?? videoId),
+    title: result?.title || detail?.title || '영상 제목',
+    summary: resolvedSummary,
+    mode: mapMode(result?.mode ?? detail?.mode),
+    learnedAt: formatDate(result?.completed_at ?? detail?.created_at),
+    score: result?.total_score ?? localRainResult?.score ?? null,
+    maxCombo: result?.max_combo ?? localRainResult?.maxCombo ?? null,
+    watchRate: result?.watch_rate ?? 0,
+    quizCorrect: result?.quiz_correct ?? 0,
+    quizTotal: result?.quiz_total ?? 0,
+    thumbnailUrl: detail?.thumbnail_url || '',
+    hasThumbnail: Boolean(detail?.thumbnail_url),
+  };
+}
+
+export function useResult() {
+  const [searchParams] = useSearchParams();
+  const videoId = searchParams.get('videoId');
+  const localRainResult = useRainStore((state) =>
+    videoId ? state.sessionResults[videoId] ?? null : null,
+  );
+  const [detail, setDetail] = useState<SessionDetailData | null>(null);
+  const [resultData, setResultData] = useState<SessionResultData | null>(null);
+  const [summaryData, setSummaryData] = useState<SessionSummaryData | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!videoId) {
+      setDetail(null);
+      setResultData(null);
+      setSummaryData(null);
+      setError('세션 정보가 없어 결과를 불러올 수 없습니다.');
+      return;
+    }
+
+    let isCancelled = false;
+
+    const loadResult = async () => {
+      setIsLoading(true);
+      setError('');
+
+      try {
+        const detailResponse = await getSessionDetail(videoId);
+
+        if (!isCancelled) {
+          setDetail(detailResponse.data);
+        }
+
+        try {
+          const resultResponse = await getSessionResult(videoId);
+
+          if (!isCancelled) {
+            setResultData(resultResponse.data);
+          }
+        } catch (resultError) {
+          if (!isCancelled) {
+            setResultData(null);
+            setError(getErrorMessage(resultError, '학습 결과가 아직 생성되지 않았습니다.'));
+          }
+        }
+
+        try {
+          const summaryResponse = await getSessionSummary(videoId);
+
+          if (!isCancelled) {
+            setSummaryData(summaryResponse.data);
+          }
+        } catch {
+          if (!isCancelled) {
+            setSummaryData(null);
+          }
+        }
+      } catch (detailError) {
+        if (!isCancelled) {
+          setDetail(null);
+          setResultData(null);
+          setSummaryData(null);
+          setError(getErrorMessage(detailError, '세션 상세 정보를 불러오지 못했습니다.'));
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void loadResult();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [videoId]);
+
+  const result = useMemo(
+    () =>
+      buildViewModel({
+        videoId: videoId ?? '',
+        detail,
+        result: resultData,
+        summary: summaryData,
+        localRainResult,
+      }),
+    [detail, localRainResult, resultData, summaryData, videoId],
+  );
+
+  return {
+    result,
+    isLoading,
+    error,
+  };
+}
