@@ -16,8 +16,19 @@ export type SubmitQuizAnswerResponse = ApiResponse<SubmitQuizAnswerResponseData>
 export interface RetryQuizItem {
   quiz_id: number;
   quiz_index: number;
+  answer_index: number;
   question: string;
   options: string[];
+  correct_feedback?: string;
+  incorrect_feedback?: string;
+  trigger_time?: number;
+  segment_range?: [number, number];
+}
+
+export interface StoredRetryQuizSession {
+  sessionId: string;
+  quizzes: RetryQuizItem[];
+  updatedAt: number;
 }
 
 export interface RetryQuizResponseData {

@@ -110,16 +110,19 @@ export function useResult() {
 
       try {
         const detailResponse = await getSessionDetail(videoId);
+        const detailData = detailResponse.data;
+        let fetchedResultData: SessionResultData | null = null;
 
         if (!isCancelled) {
-          setDetail(detailResponse.data);
+          setDetail(detailData);
         }
 
         try {
           const resultResponse = await getSessionResult(videoId);
+          fetchedResultData = resultResponse.data;
 
           if (!isCancelled) {
-            setResultData(resultResponse.data);
+            setResultData(fetchedResultData);
           }
         } catch (resultError) {
           if (!isCancelled) {
@@ -128,15 +131,24 @@ export function useResult() {
           }
         }
 
-        try {
-          const summaryResponse = await getSessionSummary(videoId);
+        const shouldFetchSummary =
+          detailData.ai_status === 'done' && !(fetchedResultData?.ai_summary?.trim());
 
-          if (!isCancelled) {
-            setSummaryData(summaryResponse.data);
-          }
-        } catch {
+        if (!shouldFetchSummary) {
           if (!isCancelled) {
             setSummaryData(null);
+          }
+        } else {
+          try {
+            const summaryResponse = await getSessionSummary(videoId);
+
+            if (!isCancelled) {
+              setSummaryData(summaryResponse.data);
+            }
+          } catch {
+            if (!isCancelled) {
+              setSummaryData(null);
+            }
           }
         }
       } catch (detailError) {

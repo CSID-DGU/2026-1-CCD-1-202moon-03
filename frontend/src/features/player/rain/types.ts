@@ -13,20 +13,36 @@ export interface RainKeyword {
   text: string;
   hint: string;
   lane: number;
+  leftPercent?: number;
   progress: number;
-  status: 'pending' | 'active' | 'cleared';
+  status: 'pending' | 'active' | 'cleared' | 'missed';
+}
+
+export interface RainCaptionTextItem {
+  type: 'text';
+  key: string;
+  text: string;
+}
+
+export interface RainCaptionInputItem {
+  type: 'input';
+  key: string;
+  blank: GameBlankItem;
+  value: string;
+  placeholder: string;
+  resolvedState: 'pending' | 'cleared' | 'missed';
 }
 
 export interface RainCaptionDisplay {
-  beforeText: string;
-  afterText: string;
-  blank: GameBlankItem | null;
+  items: Array<RainCaptionTextItem | RainCaptionInputItem>;
+  hasPlaceholder: boolean;
 }
 
 export interface RainQuizState {
   quiz: GameQuizItem;
   selectedIndex: number | null;
   feedback: string;
+  submitError: string;
   isCorrect: boolean | null;
   isSubmitting: boolean;
 }

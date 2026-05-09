@@ -1,5 +1,6 @@
 import type {
   GameFallEventItem,
+  GameBlankItem,
   GameQuizItem,
   GameSubtitleItem,
   NormalizedFallEvent,
@@ -28,15 +29,29 @@ function uniqueByKey<T>(items: T[], getKey: (item: T) => string) {
 }
 
 export function normalizeSegment(
-  segment: GameSubtitleItem,
+  segment: GameSubtitleItem | {
+    segment_id: number;
+    start?: number;
+    end?: number;
+    start_sec?: number;
+    end_sec?: number;
+    text?: string;
+    original_text?: string;
+    blank_text?: string;
+    blanks?: GameBlankItem[];
+  },
   chapterIndex?: number,
 ): NormalizedSegment {
+  const originalText =
+    segment.original_text ??
+    ('text' in segment ? segment.text ?? '' : '');
+
   return {
     segmentId: segment.segment_id,
     start: segment.start ?? segment.start_sec ?? 0,
     end: segment.end ?? segment.end_sec ?? 0,
-    originalText: segment.original_text,
-    blankText: segment.blank_text,
+    originalText,
+    blankText: segment.blank_text ?? originalText,
     blanks: segment.blanks ?? [],
     chapterIndex,
   };
@@ -59,7 +74,7 @@ export function normalizeQuiz(quiz: GameQuizItem, fallbackIndex: number, chapter
   const fallbackFeedback = quiz.explanation ?? '';
 
   return {
-    quizId: quiz.quiz_id ?? quiz.quiz_index ?? fallbackIndex,
+    quizId: quiz.quiz_id ?? null,
     triggerTime: quiz.trigger_time,
     segmentRange: quiz.segment_range,
     question: quiz.question,
@@ -83,9 +98,11 @@ export function buildChunkFromStoredGame(data: StartGameResponseData): Normalize
 export function buildChunkFromStreamingEvent(
   event: StreamingChapterReadyEvent,
 ): NormalizedGameChunk {
+  const subtitleItems = event.segments ?? event.subtitles ?? event.corrected_subtitles ?? [];
+
   return {
     chapterIndex: event.chapter_index,
-    segments: (event.segments ?? []).map((segment) => normalizeSegment(segment, event.chapter_index)),
+    segments: subtitleItems.map((segment) => normalizeSegment(segment, event.chapter_index)),
     fallEvents: (event.fall_events ?? []).map((fallEvent) =>
       normalizeFallEvent(fallEvent, event.chapter_index),
     ),

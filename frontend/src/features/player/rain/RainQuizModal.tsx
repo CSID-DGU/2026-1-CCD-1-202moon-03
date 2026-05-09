@@ -71,7 +71,7 @@ function RainQuizModal({ quizState, onSelectOption, onContinue }: RainQuizModalP
             </Button>
           ) : (
             <div className="text-sm text-[#7A879A]">
-              {isSubmitting ? '정답을 확인하는 중...' : '보기 하나를 선택해 주세요.'}
+              {isSubmitting ? '정답을 확인하는 중...' : '보기를 하나 선택해 주세요.'}
             </div>
           )}
         </div>

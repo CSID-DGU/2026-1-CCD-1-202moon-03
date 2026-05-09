@@ -54,21 +54,30 @@ export function buildInitialHomeVideoItems(): HomeVideoItem[] {
   return [...mockHomeVideos.map(toHomeVideoItem), ...placeholderItems];
 }
 
-export function buildHomeVideoItemsFromSessions(sessions: SessionListItem[]): HomeVideoItem[] {
+export function buildHomeVideoItemsFromSessions(
+  sessions: SessionListItem[],
+  scoreMap: Record<string, number> = {},
+  maxComboMap: Record<string, number> = {},
+): HomeVideoItem[] {
   if (sessions.length === 0) {
     return placeholderItems;
   }
 
-  return sessions.map((session, index) => ({
-    id: getSessionItemId(session, index),
-    title: session.title,
-    thumbnailLabel: buildThumbnailLabel(session.title),
-    thumbnailColor: thumbnailPalette[index % thumbnailPalette.length],
-    mode: mapSessionModeToHomeMode(session.mode),
-    learnedAt: formatDisplayDate(new Date(session.created_at)),
-    aiSummary: '',
-    keywords: [],
-    hasThumbnail: Boolean(session.thumbnail_url),
-    thumbnailUrl: session.thumbnail_url || undefined,
-  }));
+  return sessions.map((session, index) => {
+    const id = getSessionItemId(session, index);
+    return {
+      id,
+      title: session.title,
+      thumbnailLabel: buildThumbnailLabel(session.title),
+      thumbnailColor: thumbnailPalette[index % thumbnailPalette.length],
+      mode: mapSessionModeToHomeMode(session.mode),
+      learnedAt: formatDisplayDate(new Date(session.created_at)),
+      aiSummary: '',
+      keywords: [],
+      hasThumbnail: Boolean(session.thumbnail_url),
+      thumbnailUrl: session.thumbnail_url || undefined,
+      score: scoreMap[id],
+      maxCombo: maxComboMap[id],
+    };
+  });
 }
