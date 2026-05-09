@@ -40,9 +40,35 @@ function decodeSseBlock(block: string): StreamingSessionEvent[] {
     .map((payload) => JSON.parse(payload) as StreamingSessionEvent);
 }
 
+async function buildStreamingError(response: Response) {
+  const fallbackMessage = `스트리밍 연결 실패: ${response.status}`;
+  const contentType = response.headers.get('content-type') ?? '';
+
+  try {
+    if (contentType.includes('application/json')) {
+      const payload = (await response.json()) as {
+        message?: string;
+        detail?: string;
+      };
+
+      return payload.message ?? payload.detail ?? fallbackMessage;
+    }
+
+    const text = (await response.text()).trim();
+
+    if (!text || text.startsWith('<')) {
+      return fallbackMessage;
+    }
+
+    return text;
+  } catch {
+    return fallbackMessage;
+  }
+}
+
 async function* readSseEvents(response: Response) {
   if (!response.ok) {
-    throw new Error(`스트리밍 연결 실패: ${response.status}`);
+    throw new Error(await buildStreamingError(response));
   }
 
   if (!response.body) {
@@ -112,6 +138,27 @@ export async function* startStreamingSession({
     method: 'POST',
     headers,
     body: formData,
+  });
+
+  yield* readSseEvents(response);
+}
+
+export async function* resumeStreamingSession({
+  sessionId,
+  language,
+}: {
+  sessionId: string;
+  language?: string;
+}): AsyncGenerator<StreamingSessionEvent, void, void> {
+  const response = await fetch(buildAbsoluteUrl(`/api/sessions/${sessionId}/stream/resume/`), {
+    method: 'POST',
+    headers: {
+      ...getAuthHeaders(),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      language: language ?? 'ko',
+    }),
   });
 
   yield* readSseEvents(response);

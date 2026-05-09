@@ -82,7 +82,19 @@ export interface StreamingChapterReadyEvent {
   type: 'chapter_ready';
   session_id?: number;
   chapter_index: number;
-  segments: GameSubtitleItem[];
+  segments?: GameSubtitleItem[];
+  subtitles?: GameSubtitleItem[];
+  corrected_subtitles?: Array<{
+    segment_id: number;
+    start?: number;
+    end?: number;
+    start_sec?: number;
+    end_sec?: number;
+    text?: string;
+    original_text?: string;
+    blank_text?: string;
+    blanks?: GameBlankItem[];
+  }>;
   fall_events?: GameFallEventItem[];
   quizzes?: GameQuizItem[];
 }
@@ -127,7 +139,7 @@ export interface NormalizedFallEvent {
 }
 
 export interface NormalizedQuiz {
-  quizId: number;
+  quizId: number | null;
   triggerTime: number;
   segmentRange?: [number, number];
   question: string;

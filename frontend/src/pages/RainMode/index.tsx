@@ -1,10 +1,14 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '../../constants/routes';
 import ComboIndicator from '../../features/player/rain/ComboIndicator';
 import FallingKeywords from '../../features/player/rain/FallingKeywords';
-import RainCaptionInput from '../../features/player/rain/RainCaptionInput';
+import RainCaptionInput, {
+  type RainCaptionInputHandle,
+} from '../../features/player/rain/RainCaptionInput';
 import RainQuizModal from '../../features/player/rain/RainQuizModal';
+import RainSettingsModal from '../../features/player/rain/RainSettingsModal';
+import type { RainSettings } from '../../features/player/rain/RainSettingsModal';
 import ScoreBoard from '../../features/player/rain/ScoreBoard';
 import PlayerDebugPanel from '../../features/player/shared/PlayerDebugPanel';
 import { useRainMode } from '../../features/player/rain/useRainMode';
@@ -15,6 +19,14 @@ import { endGame } from '../../services/game.api';
 function RainModePage() {
   const navigate = useNavigate();
   const [isEndingStudy, setIsEndingStudy] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [rainSettings, setRainSettings] = useState<RainSettings>({
+    mode: 'auto',
+    difficulty: 'normal',
+    blankCount: 4,
+    fallSpeed: 1,
+  });
+  const captionInputRef = useRef<RainCaptionInputHandle | null>(null);
   const {
     sessionId,
     speedMenuRef,
@@ -40,7 +52,8 @@ function RainModePage() {
     captionDisplay,
     fallingKeywords,
     activeKeyword,
-    typedValue,
+
+    typedValuesByBlankKey,
     score,
     combo,
     maxCombo,
@@ -50,7 +63,7 @@ function RainModePage() {
     quizCorrectCount,
     quizAnsweredCount,
     totalQuizCount,
-    setTypedValue,
+    handleTypedValueChange,
     togglePlay,
     toggleSpeedMenu,
     selectSpeed,
@@ -61,10 +74,17 @@ function RainModePage() {
     handleTimeUpdate,
     handleSeek,
     handleLoadedMetadata,
+    handlePlayerReady,
     handlePlay,
     handlePause,
     handleEnded,
-  } = useRainMode();
+  } = useRainMode(rainSettings);
+
+  const refocusCaptionInput = () => {
+    requestAnimationFrame(() => {
+      captionInputRef.current?.focusPrimaryInput();
+    });
+  };
 
   const handleFinishStudy = async () => {
     if (!sessionId) {
@@ -119,13 +139,21 @@ function RainModePage() {
             </div>
           </div>
 
-          <div className="rounded-[12px] border border-[#52555F] bg-[#25272E] p-2">
+          <div className="relative">
             <button
               type="button"
-              className="rounded-[8px] bg-[#1A9AF5] px-3 py-1 font-paperlogy text-[16px] font-semibold leading-6 text-white"
+              onClick={() => setIsSettingsOpen((prev) => !prev)}
+              className="rounded-[12px] border border-[#52555F] bg-[#25272E] px-4 py-[10px] font-paperlogy text-[15px] font-semibold text-white"
             >
-              레인 모드
+              모드설정
             </button>
+
+            <RainSettingsModal
+              isOpen={isSettingsOpen}
+              settings={rainSettings}
+              onClose={() => setIsSettingsOpen(false)}
+              onApply={(next) => setRainSettings(next)}
+            />
           </div>
         </div>
 
@@ -148,24 +176,51 @@ function RainModePage() {
                 overlayContent={<FallingKeywords keywords={fallingKeywords} />}
                 captionOverlay={
                   <RainCaptionInput
-                    beforeText={captionDisplay.beforeText}
-                    afterText={captionDisplay.afterText}
-                    value={typedValue}
-                    placeholder={activeKeyword?.hint ?? activeKeyword?.text ?? ''}
-                    onChange={setTypedValue}
+                    ref={captionInputRef}
+                    items={captionDisplay.items}
+                    fallbackText={captionText}
+                    onChange={handleTypedValueChange}
                     onSubmit={submitTypedKeyword}
                   />
                 }
-                onTogglePlay={togglePlay}
-                onToggleSpeedMenu={toggleSpeedMenu}
-                onSelectSpeed={selectSpeed}
-                onToggleCaption={toggleCaption}
+                onTogglePlay={async () => {
+                  await togglePlay();
+                  refocusCaptionInput();
+                }}
+                onToggleSpeedMenu={() => {
+                  toggleSpeedMenu();
+                  refocusCaptionInput();
+                }}
+                onSelectSpeed={(speed) => {
+                  selectSpeed(speed);
+                  refocusCaptionInput();
+                }}
+                onToggleCaption={() => {
+                  toggleCaption();
+                  refocusCaptionInput();
+                }}
                 onTimeUpdate={handleTimeUpdate}
-                onSeek={handleSeek}
+                onSeek={(nextTime) => {
+                  handleSeek(nextTime);
+                  refocusCaptionInput();
+                }}
                 onLoadedMetadata={handleLoadedMetadata}
-                onPlay={handlePlay}
-                onPause={handlePause}
-                onEnded={handleEnded}
+                onPlayerReady={() => {
+                  handlePlayerReady();
+                  refocusCaptionInput();
+                }}
+                onPlay={() => {
+                  handlePlay();
+                  refocusCaptionInput();
+                }}
+                onPause={() => {
+                  handlePause();
+                  refocusCaptionInput();
+                }}
+                onEnded={() => {
+                  handleEnded();
+                  refocusCaptionInput();
+                }}
               />
             ) : (
               <PlayerStatusOverlay

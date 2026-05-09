@@ -5,13 +5,14 @@ import { ROUTES } from '../../constants/routes';
 import UploadVideoModal from '../../features/home/UploadVideoModal';
 import type { VideoInputSubmitPayload } from '../../features/home/useVideoInput';
 import QuizRetryModal from '../../features/result/QuizRetryModal';
+import { useQuizRetry } from '../../features/result/useQuizRetry';
 import { useResult } from '../../features/result/useResult';
 
 function ResultPage() {
   const navigate = useNavigate();
   const { result, isLoading, error } = useResult();
-  const [isQuizOpen, setIsQuizOpen] = useState(false);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const quizRetry = useQuizRetry(result.sessionId);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'auto' });
@@ -77,7 +78,7 @@ function ResultPage() {
               {result.mode === 'rain' ? (
                 <>
                   <MetaRow label="점수" value={`${result.score ?? 0}점`} />
-                  <MetaRow label="최대 콤보수" value={`${result.maxCombo ?? 0}`} />
+                  <MetaRow label="최대 콤보" value={`${result.maxCombo ?? 0}`} />
                 </>
               ) : null}
             </div>
@@ -86,7 +87,7 @@ function ResultPage() {
           <div className="flex min-h-0 flex-1 flex-col gap-2">
             <div className="flex items-center gap-1 text-[#15171C]">
               <SparkleIcon />
-              <h2 className="text-[16px] font-medium leading-[1.5]">AI 요약본</h2>
+              <h2 className="text-[16px] font-medium leading-[1.5]">AI 요약보기</h2>
             </div>
 
             <div className="flex flex-1 flex-col rounded-[12px] bg-[#F4F6F7] p-4">
@@ -96,7 +97,7 @@ function ResultPage() {
             <Button
               type="button"
               variant="active"
-              onClick={() => setIsQuizOpen(true)}
+              onClick={quizRetry.openQuizRetry}
               className="h-[56px] w-full rounded-[12px] px-4 py-4 text-[16px] font-bold tracking-[-0.4px]"
             >
               퀴즈 다시 풀기
@@ -105,7 +106,23 @@ function ResultPage() {
         </div>
       </section>
 
-      <QuizRetryModal isOpen={isQuizOpen} onClose={() => setIsQuizOpen(false)} />
+      <QuizRetryModal
+        isOpen={quizRetry.isOpen}
+        isLoading={quizRetry.isLoading}
+        loadError={quizRetry.loadError}
+        quiz={quizRetry.currentQuiz}
+        currentIndex={quizRetry.currentIndex}
+        totalCount={quizRetry.totalCount}
+        selectedIndex={quizRetry.selectedIndex}
+        feedback={quizRetry.feedback}
+        isCorrect={quizRetry.isCorrect}
+        isCompleted={quizRetry.isCompleted}
+        onClose={quizRetry.closeQuizRetry}
+        onSelectOption={quizRetry.selectOption}
+        onContinue={quizRetry.continueQuizRetry}
+        onRestart={quizRetry.restartQuizRetry}
+      />
+
       <UploadVideoModal
         isOpen={isUploadOpen}
         onClose={() => setIsUploadOpen(false)}

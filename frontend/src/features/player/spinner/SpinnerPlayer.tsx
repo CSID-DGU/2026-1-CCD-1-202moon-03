@@ -62,6 +62,7 @@ interface SpinnerPlayerProps {
   onTimeUpdate: (time: number, duration: number) => void;
   onSeek: (time: number) => void;
   onLoadedMetadata: (duration: number) => void;
+  onPlayerReady?: () => void;
   onPlay: () => void;
   onPause: () => void;
   onEnded: () => void;
@@ -142,6 +143,7 @@ function SpinnerPlayer({
   onTimeUpdate,
   onSeek,
   onLoadedMetadata,
+  onPlayerReady,
   onPlay,
   onPause,
   onEnded,
@@ -246,7 +248,13 @@ function SpinnerPlayer({
 
       controllerRef.current = videoElement
         ? {
-            play: () => videoElement.play(),
+            play: async () => {
+              if (videoElement.readyState === 0) {
+                videoElement.load();
+              }
+
+              await videoElement.play();
+            },
             pause: () => videoElement.pause(),
             seek: (time) => {
               videoElement.currentTime = time;
@@ -258,6 +266,10 @@ function SpinnerPlayer({
             getDuration: () => videoElement.duration || 0,
           }
         : null;
+
+      if (videoElement) {
+        onPlayerReady?.();
+      }
 
       return;
     }
@@ -301,6 +313,7 @@ function SpinnerPlayer({
             };
             const nextDuration = event.target.getDuration() || 0;
             onLoadedMetadata(nextDuration);
+            onPlayerReady?.();
             syncYoutubeProgress();
           },
           onStateChange: (event) => {
@@ -348,6 +361,7 @@ function SpinnerPlayer({
     isYoutubePlayer,
     onEnded,
     onLoadedMetadata,
+    onPlayerReady,
     onPause,
     onPlay,
     onTimeUpdate,
@@ -379,16 +393,16 @@ function SpinnerPlayer({
         />
       )}
 
-      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0)_0%,rgba(0,0,0,0)_70%,rgba(0,0,0,0.42)_100%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0)_0%,rgba(0,0,0,0)_70%,rgba(0,0,0,0.42)_100%)]" />
 
       {overlayContent ? (
-        <div className="pointer-events-none absolute inset-x-0 bottom-[152px] top-[24px]">
+        <div className="pointer-events-none absolute inset-x-0 bottom-[152px] top-[24px] z-10">
           {overlayContent}
         </div>
       ) : null}
 
       {isCaptionVisible && (captionOverlay || captionText) ? (
-        <div className="absolute left-1/2 top-[calc(100%-184px)] -translate-x-1/2 bg-[rgba(0,0,0,0.6)] px-[15px] py-[8px]">
+        <div className="pointer-events-auto absolute bottom-[40px] left-1/2 z-20 -translate-x-1/2 bg-[rgba(0,0,0,0.6)] px-[15px] py-[8px]">
           {captionOverlay ?? (
             <p className="text-[22px] font-semibold leading-[1.5] text-white">{captionText}</p>
           )}

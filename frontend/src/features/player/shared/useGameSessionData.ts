@@ -2,7 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { startGame } from '../../../services/game.api';
 import { usePlayerSession } from '../../../hooks/usePlayerSession';
 import { getTransientStreamingSource, usePlayerStore } from '../../../store/usePlayerStore';
+import { useStreamedQuizStore } from '../../../store/useStreamedQuizStore';
 import type { ApiErrorResponse, NormalizedGameData, StreamingChapterReadyEvent } from '../../../types';
+import { mapNormalizedQuizToRetryQuiz } from '../../result/retryQuizData';
 import {
   applyStreamingInit,
   buildChunkFromStreamingEvent,
@@ -10,7 +12,7 @@ import {
   createNormalizedGameFromStoredData,
   mergeGameChunk,
 } from './normalizeGameData';
-import { startStreamingSession } from './streamingSession';
+import { resumeStreamingSession, startStreamingSession } from './streamingSession';
 
 export type PlayerDataState =
   | 'auth_loading'
@@ -21,8 +23,15 @@ export type PlayerDataState =
   | 'stream_complete'
   | 'failed';
 
+type ActiveStreamStrategy = 'source' | 'resume' | null;
+
 function getErrorMessage(error: unknown, fallbackMessage: string) {
   const apiError = error as { response?: { data?: ApiErrorResponse } };
+
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
   return apiError.response?.data?.message || apiError.response?.data?.detail || fallbackMessage;
 }
 
@@ -37,48 +46,81 @@ export function useGameSessionData() {
     isAuthenticated,
   } = usePlayerSession();
   const storeStreamingSource = usePlayerStore((state) => state.streamingSource);
-  const setStreamingSource = usePlayerStore((state) => state.setStreamingSource);
   const streamingSource = storeStreamingSource ?? getTransientStreamingSource();
   const initializedStreamingSessionRef = useRef<string | null>(null);
   const loadedStoredGameSessionRef = useRef<string | null>(null);
+  const latestGameDataRef = useRef<NormalizedGameData>(createEmptyNormalizedGameData());
+  const saveStreamedQuizzes = useStreamedQuizStore((state) => state.saveStreamedQuizzes);
 
   const [state, setState] = useState<PlayerDataState>('session_loading');
+  const [activeStreamStrategy, setActiveStreamStrategy] = useState<ActiveStreamStrategy>(null);
   const [gameData, setGameData] = useState<NormalizedGameData>(createEmptyNormalizedGameData);
   const [errorMessage, setErrorMessage] = useState('');
   const [lastStreamEventType, setLastStreamEventType] = useState('');
+  const [lastChunkSegments, setLastChunkSegments] = useState<number | null>(null);
+  const [lastMergedTotalSegments, setLastMergedTotalSegments] = useState<number | null>(null);
 
+  const currentAiStatus = sessionStatus?.ai_status ?? sessionDetail?.ai_status ?? null;
   const isStreamingCurrentSession =
     Boolean(streamingSource?.sessionId) &&
     String(streamingSource?.sessionId) === String(sessionId ?? '');
+  const hasCompletedStreamingData =
+    gameData.isComplete &&
+    (gameData.segments.length > 0 ||
+      gameData.quizzes.length > 0 ||
+      gameData.fallEvents.length > 0 ||
+      gameData.loadedChapterIndexes.length > 0);
+  const shouldResumeFileCurrentSession =
+    Boolean(sessionId) &&
+    !streamingSource &&
+    sessionDetail?.source_type === 'file' &&
+    !hasCompletedStreamingData &&
+    currentAiStatus !== 'done' &&
+    currentAiStatus !== 'failed';
+  const isStreamingFlowCurrentSession =
+    activeStreamStrategy !== null || isStreamingCurrentSession || shouldResumeFileCurrentSession;
 
   useEffect(() => {
     console.log('[useGameSessionData] snapshot', {
       sessionId,
       sessionDetailId: sessionDetail?.id ?? sessionDetail?.session_id ?? null,
-      currentAiStatus: sessionStatus?.ai_status ?? sessionDetail?.ai_status ?? null,
+      currentAiStatus,
       state,
+      activeStreamStrategy,
       isHydrated,
       isAuthenticated,
       streamingSource,
       isStreamingCurrentSession,
+      shouldResumeFileCurrentSession,
     });
   }, [
+    activeStreamStrategy,
+    currentAiStatus,
     isAuthenticated,
     isHydrated,
     isStreamingCurrentSession,
-    sessionDetail?.ai_status,
     sessionDetail?.id,
     sessionDetail?.session_id,
     sessionId,
-    sessionStatus?.ai_status,
+    shouldResumeFileCurrentSession,
     state,
     streamingSource,
   ]);
 
   useEffect(() => {
-    setGameData(createEmptyNormalizedGameData());
+    latestGameDataRef.current = gameData;
+  }, [gameData]);
+
+  useEffect(() => {
+    const emptyGameData = createEmptyNormalizedGameData();
+
+    latestGameDataRef.current = emptyGameData;
+    setGameData(emptyGameData);
     setErrorMessage('');
     setLastStreamEventType('');
+    setLastChunkSegments(null);
+    setLastMergedTotalSegments(null);
+    setActiveStreamStrategy(null);
     setState(!isHydrated ? 'auth_loading' : 'session_loading');
     initializedStreamingSessionRef.current = null;
     loadedStoredGameSessionRef.current = null;
@@ -97,7 +139,10 @@ export function useGameSessionData() {
   }, [isAuthenticated, isHydrated]);
 
   useEffect(() => {
-    if (!sessionId || !streamingSource || !isStreamingCurrentSession) {
+    const shouldUseSourceStreaming = Boolean(sessionId && streamingSource && isStreamingCurrentSession);
+    const shouldUseResumeStreaming = Boolean(sessionId && shouldResumeFileCurrentSession);
+
+    if (!sessionId || (!shouldUseSourceStreaming && !shouldUseResumeStreaming)) {
       return;
     }
 
@@ -106,17 +151,31 @@ export function useGameSessionData() {
     }
 
     let isCancelled = false;
+    const streamStrategy: Exclude<ActiveStreamStrategy, null> = shouldUseSourceStreaming
+      ? 'source'
+      : 'resume';
+
     initializedStreamingSessionRef.current = sessionId;
+    setActiveStreamStrategy(streamStrategy);
     setState('stream_connecting');
     setErrorMessage('');
     console.log('[useGameSessionData] start streaming branch', {
       sessionId,
+      streamStrategy,
       streamingSource,
     });
 
     const run = async () => {
       try {
-        for await (const event of startStreamingSession({ source: streamingSource })) {
+        const eventStream =
+          streamStrategy === 'source' && streamingSource
+            ? startStreamingSession({ source: streamingSource })
+            : resumeStreamingSession({
+                sessionId,
+                language: streamingSource?.language ?? 'ko',
+              });
+
+        for await (const event of eventStream) {
           if (isCancelled) {
             break;
           }
@@ -125,28 +184,78 @@ export function useGameSessionData() {
           setLastStreamEventType(event.type);
 
           if (event.type === 'init') {
-            setGameData((current) =>
-              applyStreamingInit(current, {
-                sessionId: event.session_id,
-                totalDuration: event.total_duration,
-                chapters: event.chapters,
-              }),
-            );
+            const nextGameData = applyStreamingInit(latestGameDataRef.current, {
+              sessionId: event.session_id,
+              totalDuration: event.total_duration,
+              chapters: event.chapters,
+            });
+
+            latestGameDataRef.current = nextGameData;
+            setGameData(nextGameData);
             setState('chapter_waiting');
             continue;
           }
 
           if (event.type === 'chapter_ready') {
+            const streamEvent = event as StreamingChapterReadyEvent & {
+              subtitles?: Array<Record<string, unknown>>;
+            };
+            const firstSegment = Array.isArray(streamEvent.segments)
+              ? ((streamEvent.segments[0] as unknown) as Record<string, unknown> | undefined)
+              : undefined;
+            const firstSubtitle = Array.isArray(streamEvent.subtitles)
+              ? streamEvent.subtitles[0]
+              : undefined;
+            console.log('[useGameSessionData] chapter_ready payload shape', {
+              chapterIndex: event.chapter_index,
+              segmentKeys: firstSegment ? Object.keys(firstSegment) : null,
+              subtitlesKeys: firstSubtitle ? Object.keys(firstSubtitle) : null,
+              segmentsLength: Array.isArray(streamEvent.segments)
+                ? streamEvent.segments.length
+                : null,
+              subtitlesLength: Array.isArray(streamEvent.subtitles)
+                ? streamEvent.subtitles.length
+                : null,
+              rawEvent: streamEvent,
+            });
+
             const chunk = buildChunkFromStreamingEvent(event as StreamingChapterReadyEvent);
-            setGameData((current) => mergeGameChunk(current, chunk));
-            setState((current) => (current === 'stream_complete' ? current : 'ready'));
+            setLastChunkSegments(chunk.segments.length);
+            console.log('[useGameSessionData] chapter_ready normalized chunk', {
+              chapterIndex: chunk.chapterIndex,
+              chunkSegments: chunk.segments.length,
+              chunkQuizzes: chunk.quizzes.length,
+              chunkFallEvents: chunk.fallEvents.length,
+            });
+
+            const merged = mergeGameChunk(latestGameDataRef.current, chunk);
+            latestGameDataRef.current = merged;
+            setLastMergedTotalSegments(merged.segments.length);
+            setGameData(merged);
+            setState('ready');
+
+            if (sessionId && merged.quizzes.length > 0) {
+              saveStreamedQuizzes(
+                sessionId,
+                merged.quizzes.map((quiz, index) => mapNormalizedQuizToRetryQuiz(quiz, index)),
+              );
+            }
+
+            console.log('[useGameSessionData] merged game data totals', {
+              totalSegments: merged.segments.length,
+              totalQuizzes: merged.quizzes.length,
+              totalFallEvents: merged.fallEvents.length,
+              loadedChapterIndexes: merged.loadedChapterIndexes,
+            });
             continue;
           }
 
           if (event.type === 'complete') {
-            setGameData((current) => ({ ...current, isComplete: true }));
-            setState((current) => (current === 'ready' ? 'stream_complete' : current));
-            setStreamingSource(null);
+            const completedGameData = { ...latestGameDataRef.current, isComplete: true };
+
+            latestGameDataRef.current = completedGameData;
+            setGameData(completedGameData);
+            setState('stream_complete');
             console.log('[useGameSessionData] stream complete');
             continue;
           }
@@ -172,17 +281,31 @@ export function useGameSessionData() {
     return () => {
       isCancelled = true;
     };
-  }, [isStreamingCurrentSession, sessionId, setStreamingSource, streamingSource]);
-
-  const currentAiStatus = sessionStatus?.ai_status ?? sessionDetail?.ai_status ?? null;
+  }, [
+    isStreamingCurrentSession,
+    saveStreamedQuizzes,
+    sessionId,
+    shouldResumeFileCurrentSession,
+    streamingSource,
+  ]);
 
   useEffect(() => {
-    if (!sessionId || isStreamingCurrentSession) {
-      if (sessionId && isStreamingCurrentSession) {
-        console.log(
-          '[useGameSessionData] skip stored branch because streaming branch is active',
-          { sessionId },
-        );
+    if (hasCompletedStreamingData) {
+      console.log('[useGameSessionData] preserve completed streaming data', {
+        sessionId,
+        segments: gameData.segments.length,
+        quizzes: gameData.quizzes.length,
+        fallEvents: gameData.fallEvents.length,
+      });
+      return;
+    }
+
+    if (!sessionId || isStreamingFlowCurrentSession) {
+      if (sessionId && isStreamingFlowCurrentSession) {
+        console.log('[useGameSessionData] skip stored branch because streaming branch is active', {
+          sessionId,
+          activeStreamStrategy,
+        });
       }
       return;
     }
@@ -203,10 +326,7 @@ export function useGameSessionData() {
     if (currentAiStatus === 'failed') {
       setState('failed');
       setErrorMessage(sessionStatus?.error_message || 'AI 처리에 실패했습니다.');
-      console.log(
-        '[useGameSessionData] stored branch failed status',
-        sessionStatus?.error_message,
-      );
+      console.log('[useGameSessionData] stored branch failed status', sessionStatus?.error_message);
       return;
     }
 
@@ -233,6 +353,7 @@ export function useGameSessionData() {
 
     let isCancelled = false;
     loadedStoredGameSessionRef.current = sessionId;
+    setActiveStreamStrategy(null);
     setState('session_loading');
     setErrorMessage('');
     console.log('[useGameSessionData] start stored game branch', { sessionId });
@@ -245,8 +366,23 @@ export function useGameSessionData() {
           return;
         }
 
-        setGameData(createNormalizedGameFromStoredData(response.data));
+        const normalizedGameData = createNormalizedGameFromStoredData(response.data);
+
+        latestGameDataRef.current = normalizedGameData;
+        setGameData(normalizedGameData);
         setState('ready');
+        console.log('[useGameSessionData] startGame raw quizzes', {
+          sessionId,
+          quizCount: response.data.quizzes?.length ?? 0,
+          quizIds: (response.data.quizzes ?? []).map((quiz) => quiz.quiz_id ?? null),
+          quizIndexes: (response.data.quizzes ?? []).map((quiz) => quiz.quiz_index ?? null),
+          firstQuiz: response.data.quizzes?.[0] ?? null,
+        });
+        console.log('[useGameSessionData] normalized quizzes', {
+          sessionId,
+          quizIds: normalizedGameData.quizzes.map((quiz) => quiz.quizId),
+          firstQuiz: normalizedGameData.quizzes[0] ?? null,
+        });
         console.log('[useGameSessionData] stored game loaded', {
           sessionId,
           subtitles: response.data.subtitles?.length ?? 0,
@@ -267,16 +403,23 @@ export function useGameSessionData() {
       isCancelled = true;
     };
   }, [
+    activeStreamStrategy,
     currentAiStatus,
+    gameData.fallEvents.length,
+    gameData.isComplete,
+    gameData.loadedChapterIndexes.length,
+    gameData.quizzes.length,
+    gameData.segments.length,
+    hasCompletedStreamingData,
     isLoadingSession,
-    isStreamingCurrentSession,
+    isStreamingFlowCurrentSession,
     sessionError,
     sessionId,
     sessionStatus?.error_message,
   ]);
 
   const statusLabel = useMemo(() => {
-    if (isStreamingCurrentSession) {
+    if (isStreamingFlowCurrentSession) {
       if (state === 'stream_connecting') return '스트리밍 연결 중...';
       if (state === 'chapter_waiting') return '첫 챕터를 준비하는 중...';
       if (state === 'stream_complete') return '전체 챕터 수신 완료';
@@ -286,7 +429,7 @@ export function useGameSessionData() {
     }
 
     return '';
-  }, [currentAiStatus, isStreamingCurrentSession, state]);
+  }, [currentAiStatus, isStreamingFlowCurrentSession, state]);
 
   return {
     sessionId,
@@ -302,6 +445,8 @@ export function useGameSessionData() {
       state,
       currentAiStatus,
       isStreamingCurrentSession,
+      activeStreamStrategy,
+      shouldResumeFileCurrentSession,
       streamingSourceType: streamingSource?.type ?? null,
       streamingSourceSessionId: streamingSource?.sessionId ?? null,
       loadedSegments: gameData.segments.length,
@@ -309,6 +454,8 @@ export function useGameSessionData() {
       loadedFallEvents: gameData.fallEvents.length,
       loadedChapterIndexes: gameData.loadedChapterIndexes,
       lastStreamEventType,
+      lastChunkSegments,
+      lastMergedTotalSegments,
       errorMessage,
     },
   };

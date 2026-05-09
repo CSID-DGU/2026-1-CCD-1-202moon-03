@@ -52,6 +52,7 @@ function SpinnerModePage() {
     handleTimeUpdate,
     handleSeek,
     handleLoadedMetadata,
+    handlePlayerReady,
     handlePlay,
     handlePause,
     handleEnded,
@@ -149,6 +150,7 @@ function SpinnerModePage() {
                 onTimeUpdate={handleTimeUpdate}
                 onSeek={handleSeek}
                 onLoadedMetadata={handleLoadedMetadata}
+                onPlayerReady={handlePlayerReady}
                 onPlay={handlePlay}
                 onPause={handlePause}
                 onEnded={handleEnded}
@@ -180,8 +182,9 @@ function SpinnerModePage() {
           quizState
             ? {
                 quiz: {
-                  quiz_id: quizState.quizId,
-                  trigger_time: 0,
+                  quiz_id: quizState.quizId ?? undefined,
+                  trigger_time: quizState.triggerTime,
+                  segment_range: quizState.segmentRange,
                   question: quizState.question,
                   options: quizState.options,
                   answer_index: quizState.answerIndex,
@@ -190,6 +193,7 @@ function SpinnerModePage() {
                 },
                 selectedIndex: quizState.selectedIndex,
                 feedback: quizState.selectedIndex === null ? '' : quizState.feedback,
+                submitError: quizState.submitError,
                 isCorrect: quizState.isCorrect,
                 isSubmitting: quizState.isSubmitting,
               }

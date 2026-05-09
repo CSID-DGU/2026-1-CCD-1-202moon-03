@@ -12,6 +12,7 @@ import {
 } from '../../features/home/homeVideoItems';
 import UploadVideoModal from '../../features/home/UploadVideoModal';
 import type { VideoInputSubmitPayload } from '../../features/home/useVideoInput';
+import { getLearningHistory } from '../../services/analytic.api';
 import {
   createSessionFromFile,
   createSessionFromUrl,
@@ -19,6 +20,7 @@ import {
   getSessionList,
   updateSessionTitle,
 } from '../../services/session.api';
+import { useRainStore } from '../../store/useRainStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { usePlayerStore } from '../../store/usePlayerStore';
 import type { ApiErrorResponse, SessionMode } from '../../types';
@@ -52,6 +54,7 @@ function HomePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const isHydrated = useAuthStore((state) => state.isHydrated);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const rainSessionResults = useRainStore((state) => state.sessionResults);
   const setSelectedMode = usePlayerStore((state) => state.setSelectedMode);
   const setSessionId = usePlayerStore((state) => state.setSessionId);
   const setStreamingSource = usePlayerStore((state) => state.setStreamingSource);
@@ -97,13 +100,37 @@ function HomePage() {
       setVideoLoadError('');
 
       try {
-        const response = await getSessionList();
+        const [sessionResponse, historyResponse] = await Promise.allSettled([
+          getSessionList(),
+          getLearningHistory(),
+        ]);
 
         if (isCancelled) {
           return;
         }
 
-        setVideos(buildHomeVideoItemsFromSessions(response.data));
+        if (sessionResponse.status === 'rejected') {
+          throw sessionResponse.reason as unknown;
+        }
+
+        const sessions = sessionResponse.value.data;
+        const history = historyResponse.status === 'fulfilled' ? historyResponse.value.data : [];
+
+        const scoreMap: Record<string, number> = {};
+        history.forEach((item) => {
+          if (item.total_score !== undefined) {
+            scoreMap[String(item.session_id)] = item.total_score;
+          }
+        });
+
+        const maxComboMap: Record<string, number> = {};
+        Object.entries(rainSessionResults).forEach(([id, result]) => {
+          if (result?.maxCombo !== undefined) {
+            maxComboMap[id] = result.maxCombo;
+          }
+        });
+
+        setVideos(buildHomeVideoItemsFromSessions(sessions, scoreMap, maxComboMap));
       } catch (error) {
         if (!isCancelled) {
           setVideoLoadError(
@@ -122,7 +149,7 @@ function HomePage() {
     return () => {
       isCancelled = true;
     };
-  }, [isAuthenticated, isHydrated]);
+  }, [isAuthenticated, isHydrated, rainSessionResults]);
 
   const handleUploadComplete = (payload: VideoInputSubmitPayload) => {
     const sourceLabel =
@@ -165,8 +192,25 @@ function HomePage() {
               mode: sessionMode,
             });
 
-      const latestSessions = await getSessionList();
-      setVideos(buildHomeVideoItemsFromSessions(latestSessions.data));
+      const [latestSessionResponse, latestHistoryResponse] = await Promise.allSettled([
+        getSessionList(),
+        getLearningHistory(),
+      ]);
+      const latestSessions = latestSessionResponse.status === 'fulfilled' ? latestSessionResponse.value.data : [];
+      const latestHistory = latestHistoryResponse.status === 'fulfilled' ? latestHistoryResponse.value.data : [];
+      const latestScoreMap: Record<string, number> = {};
+      latestHistory.forEach((item) => {
+        if (item.total_score !== undefined) {
+          latestScoreMap[String(item.session_id)] = item.total_score;
+        }
+      });
+      const latestMaxComboMap: Record<string, number> = {};
+      Object.entries(useRainStore.getState().sessionResults).forEach(([id, result]) => {
+        if (result?.maxCombo !== undefined) {
+          latestMaxComboMap[id] = result.maxCombo;
+        }
+      });
+      setVideos(buildHomeVideoItemsFromSessions(latestSessions, latestScoreMap, latestMaxComboMap));
       setPendingUploadPayload(null);
       setPendingSourceLabel('');
       setSelectedMode(mode);
