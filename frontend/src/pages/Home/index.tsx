@@ -54,6 +54,7 @@ function HomePage() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const setSelectedMode = usePlayerStore((state) => state.setSelectedMode);
   const setSessionId = usePlayerStore((state) => state.setSessionId);
+  const setStreamingSource = usePlayerStore((state) => state.setStreamingSource);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isModeSelectOpen, setIsModeSelectOpen] = useState(false);
   const [pendingSourceLabel, setPendingSourceLabel] = useState('');
@@ -138,6 +139,7 @@ function HomePage() {
 
   const handleModeSelect = async (mode: 'spinner' | 'rain') => {
     if (!pendingUploadPayload) {
+      setStreamingSource(null);
       setSelectedMode(mode);
       setSessionId(replayVideoId ?? `mock-session-${mode}-${Date.now()}`);
       setIsModeSelectOpen(false);
@@ -168,7 +170,25 @@ function HomePage() {
       setPendingUploadPayload(null);
       setPendingSourceLabel('');
       setSelectedMode(mode);
-      setSessionId(getSessionResponseId(response.data));
+      const nextSessionId = getSessionResponseId(response.data);
+      const nextSourceType =
+        pendingUploadPayload.sourceType === 'url' && pendingUploadPayload.url
+          ? mapUrlSourceType(pendingUploadPayload.url)
+          : 'file';
+
+      setSessionId(nextSessionId);
+      setStreamingSource(
+        nextSourceType === 'youtube_url' || nextSourceType === 'file'
+          ? {
+              type: nextSourceType,
+              mode: sessionMode,
+              url: pendingUploadPayload.url,
+              file: pendingUploadPayload.file,
+              sessionId: nextSessionId,
+              language: 'ko',
+            }
+          : null,
+      );
       setIsModeSelectOpen(false);
       navigate(mode === 'spinner' ? ROUTES.PLAYER_SPINNER : ROUTES.PLAYER_RAIN);
     } catch (error) {

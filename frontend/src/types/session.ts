@@ -6,7 +6,7 @@ export interface SessionListItem {
   session_id?: number;
   id?: number;
   title: string;
-  thumbnail_url: string;
+  thumbnail_url: string | null;
   mode: SessionMode;
   ai_status: AiStatus;
   created_at: string;
@@ -41,9 +41,9 @@ export interface SessionDetailData {
   id?: number;
   title: string;
   source_type: SessionSourceType;
-  source_url: string;
-  thumbnail_url: string;
-  duration_sec: number;
+  source_url: string | null;
+  thumbnail_url: string | null;
+  duration_sec: number | null;
   mode: SessionMode;
   ai_status: AiStatus;
   created_at: string;

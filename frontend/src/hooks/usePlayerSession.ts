@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useAuthStore } from '../store/useAuthStore';
 import { getSessionDetail } from '../services/session.api';
 import { usePlayerStore } from '../store/usePlayerStore';
 import type { ApiErrorResponse, SessionDetailData, SessionStatusData } from '../types';
@@ -18,12 +19,24 @@ function getErrorMessage(error: unknown) {
 }
 
 export function usePlayerSession() {
+  const isHydrated = useAuthStore((state) => state.isHydrated);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const sessionId = usePlayerStore((state) => state.sessionId);
   const [sessionDetail, setSessionDetail] = useState<SessionDetailData | null>(null);
   const [isLoadingSession, setIsLoadingSession] = useState(false);
   const [sessionError, setSessionError] = useState('');
 
   const fetchSessionDetail = useCallback(async () => {
+    if (!isHydrated) {
+      return;
+    }
+
+    if (!isAuthenticated) {
+      setSessionDetail(null);
+      setSessionError('로그인이 필요합니다.');
+      return;
+    }
+
     if (!sessionId) {
       setSessionDetail(null);
       return;
@@ -40,7 +53,7 @@ export function usePlayerSession() {
     } finally {
       setIsLoadingSession(false);
     }
-  }, [sessionId]);
+  }, [isAuthenticated, isHydrated, sessionId]);
 
   useEffect(() => {
     void fetchSessionDetail();
@@ -51,7 +64,7 @@ export function usePlayerSession() {
 
   const { data: statusResponse } = useSessionPolling({
     sessionId,
-    enabled: Boolean(sessionId) && shouldPollStatus,
+    enabled: isHydrated && isAuthenticated && Boolean(sessionId) && shouldPollStatus,
   });
 
   const sessionStatus = useMemo<SessionStatusData | null>(
@@ -74,7 +87,9 @@ export function usePlayerSession() {
     sessionId: normalizedSessionId,
     sessionDetail,
     sessionStatus,
-    isLoadingSession,
+    isLoadingSession: !isHydrated || isLoadingSession,
     sessionError,
+    isAuthenticated,
+    isHydrated,
   };
 }

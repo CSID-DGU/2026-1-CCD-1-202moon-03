@@ -2,6 +2,15 @@ import type { SessionSourceType } from '../../../types';
 
 export type PlayerType = 'html5' | 'youtube';
 
+export interface MediaController {
+  play: () => Promise<void> | void;
+  pause: () => void;
+  seek: (time: number) => void;
+  setPlaybackRate: (rate: number) => void;
+  getCurrentTime: () => number;
+  getDuration: () => number;
+}
+
 export interface ResolvedPlayerSource {
   playerType: PlayerType;
   playerSrc: string;

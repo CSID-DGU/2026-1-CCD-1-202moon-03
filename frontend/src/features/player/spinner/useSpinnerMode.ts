@@ -1,24 +1,28 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { usePlayerSession } from '../../../hooks/usePlayerSession';
-import { resolvePlayerSource } from '../shared/playback';
-import type { SpinnerCaption, SpinnerAssistTool, SpinnerPlaybackRate } from './types';
-
-const VIDEO_SOURCE =
-  'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4';
+import { submitQuizAnswer } from '../../../services/quiz.api';
+import { getTransientStreamingSource, usePlayerStore } from '../../../store/usePlayerStore';
+import { resolveMediaUrl } from '../shared/playback';
+import { useGameSessionData } from '../shared/useGameSessionData';
+import type { MediaController, PlayerType } from '../shared/playback';
+import type { SpinnerAssistTool, SpinnerPlaybackRate } from './types';
 
 const SPEED_OPTIONS: SpinnerPlaybackRate[] = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
-const CAPTIONS: SpinnerCaption[] = [
-  { start: 0, end: 4, text: 'Use the spinner and keycap to keep your focus on the video.' },
-  { start: 4, end: 8, text: 'Repeat important sections and follow each sentence carefully.' },
-  { start: 8, end: 12, text: 'Adjust playback speed and practice at a pace that fits you.' },
-  { start: 12, end: 18, text: 'Stay with the current scene and continue the rhythm of study.' },
-];
-
 export function useSpinnerMode() {
-  const { sessionId, sessionDetail, sessionStatus, isLoadingSession, sessionError } =
-    usePlayerSession();
+  const {
+    sessionId,
+    sessionDetail,
+    gameData,
+    state,
+    errorMessage,
+    statusLabel,
+    currentAiStatus,
+    debug,
+  } = useGameSessionData();
+  const storeStreamingSource = usePlayerStore((state) => state.streamingSource);
+  const streamingSource = storeStreamingSource ?? getTransientStreamingSource();
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const controllerRef = useRef<MediaController | null>(null);
   const speedMenuRef = useRef<HTMLDivElement | null>(null);
   const keycapTimeoutRef = useRef<number | null>(null);
 
@@ -32,14 +36,23 @@ export function useSpinnerMode() {
   const [isCaptionVisible, setIsCaptionVisible] = useState(true);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [quizState, setQuizState] = useState<{
+    quizId: number;
+    question: string;
+    options: string[];
+    answerIndex: number;
+    feedback: string;
+    incorrectFeedback: string;
+    selectedIndex: number | null;
+    isCorrect: boolean | null;
+    isSubmitting: boolean;
+  } | null>(null);
+  const [quizCorrectCount, setQuizCorrectCount] = useState(0);
+  const [quizAnsweredCount, setQuizAnsweredCount] = useState(0);
+  const answeredQuizIdsRef = useRef<Set<number>>(new Set());
 
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video) {
-      return;
-    }
-
-    video.playbackRate = playbackRate;
+    controllerRef.current?.setPlaybackRate(playbackRate);
   }, [playbackRate]);
 
   useEffect(() => {
@@ -91,20 +104,6 @@ export function useSpinnerMode() {
     };
   }, []);
 
-  const handlePressKeycap = () => {
-    if (keycapTimeoutRef.current !== null) {
-      window.clearTimeout(keycapTimeoutRef.current);
-    }
-
-    setSelectedTool('keycap');
-    setKeycapPressCount((current) => current + 1);
-    setIsKeycapPressed(true);
-    keycapTimeoutRef.current = window.setTimeout(() => {
-      setIsKeycapPressed(false);
-      keycapTimeoutRef.current = null;
-    }, 160);
-  };
-
   useEffect(() => {
     const handleWindowKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
@@ -134,49 +133,82 @@ export function useSpinnerMode() {
 
   const captionText = useMemo(
     () =>
-      CAPTIONS.find((caption) => currentTime >= caption.start && currentTime < caption.end)?.text ??
-      CAPTIONS[CAPTIONS.length - 1]?.text ??
+      gameData.segments.find((segment) => currentTime >= segment.start && currentTime < segment.end)
+        ?.originalText ??
+      gameData.segments[gameData.segments.length - 1]?.originalText ??
       '',
-    [currentTime],
+    [currentTime, gameData.segments],
   );
 
-  const resolvedPlayerSource = useMemo(
-    () =>
-      resolvePlayerSource({
-        sourceType: sessionDetail?.source_type,
-        sourceUrl: sessionDetail?.source_url,
-        fallbackSrc: VIDEO_SOURCE,
-      }),
-    [sessionDetail?.source_type, sessionDetail?.source_url],
-  );
+  const localFileUrl = useMemo(() => {
+    if (!streamingSource?.file || String(streamingSource.sessionId ?? '') !== String(sessionId ?? '')) {
+      return '';
+    }
 
-  const handleSpin = () => {
-    setSelectedTool('spinner');
-    setSpinnerTurns((current) => current + 1);
-  };
+    return URL.createObjectURL(streamingSource.file);
+  }, [sessionId, streamingSource?.file, streamingSource?.sessionId]);
 
-  const handleSpinnerWheel = (deltaY: number) => {
-    setSelectedTool('spinner');
-    const deltaTurns = deltaY * -0.0024;
-    setSpinnerTurns((current) => current + deltaTurns);
+  useEffect(() => {
+    return () => {
+      if (localFileUrl) {
+        URL.revokeObjectURL(localFileUrl);
+      }
+    };
+  }, [localFileUrl]);
+
+  useEffect(() => {
+    if (quizState || state === 'failed') {
+      return;
+    }
+
+    const nextQuiz = gameData.quizzes.find(
+      (quiz) => !answeredQuizIdsRef.current.has(quiz.quizId) && currentTime >= quiz.triggerTime,
+    );
+
+    if (!nextQuiz) {
+      return;
+    }
+
+    controllerRef.current?.pause();
+    setQuizState({
+      quizId: nextQuiz.quizId,
+      question: nextQuiz.question,
+      options: nextQuiz.options,
+      answerIndex: nextQuiz.answerIndex,
+      feedback: nextQuiz.correctFeedback,
+      incorrectFeedback: nextQuiz.incorrectFeedback,
+      selectedIndex: null,
+      isCorrect: null,
+      isSubmitting: false,
+    });
+  }, [currentTime, gameData.quizzes, quizState, state]);
+
+  const handlePressKeycap = () => {
+    if (keycapTimeoutRef.current !== null) {
+      window.clearTimeout(keycapTimeoutRef.current);
+    }
+
+    setSelectedTool('keycap');
+    setKeycapPressCount((current) => current + 1);
+    setIsKeycapPressed(true);
+    keycapTimeoutRef.current = window.setTimeout(() => {
+      setIsKeycapPressed(false);
+      keycapTimeoutRef.current = null;
+    }, 160);
   };
 
   const handleTogglePlay = async () => {
-    const video = videoRef.current;
-    if (!video) {
+    const controller = controllerRef.current;
+    if (!controller || quizState || state === 'chapter_waiting' || state === 'stream_connecting') {
       return;
     }
 
-    if (video.paused) {
-      try {
-        await video.play();
-      } catch {
-        setIsPlaying(false);
-      }
+    if (isPlaying) {
+      controller.pause();
       return;
     }
 
-    video.pause();
+    await controller.play();
   };
 
   const handleSelectSpeed = (speed: SpinnerPlaybackRate) => {
@@ -184,44 +216,89 @@ export function useSpinnerMode() {
     setIsSpeedMenuOpen(false);
   };
 
-  const handleLoadedMetadata = () => {
-    const video = videoRef.current;
-    if (!video) {
-      return;
-    }
-
-    setDuration(video.duration || 0);
-  };
-
-  const handleTimeUpdate = () => {
-    const video = videoRef.current;
-    if (!video) {
-      return;
-    }
-
-    setCurrentTime(video.currentTime);
-  };
-
   const handleSeek = (nextTime: number) => {
-    const video = videoRef.current;
-    if (!video) {
+    controllerRef.current?.seek(nextTime);
+    setCurrentTime(nextTime);
+  };
+
+  const submitCurrentQuizAnswer = async (selectedIndex: number) => {
+    if (!sessionId || !quizState || quizState.selectedIndex !== null) {
       return;
     }
 
-    const safeTime = Math.min(Math.max(nextTime, 0), duration || 0);
-    video.currentTime = safeTime;
-    setCurrentTime(safeTime);
+    setQuizState((current) => (current ? { ...current, isSubmitting: true } : current));
+
+    try {
+      const response = await submitQuizAnswer(sessionId, quizState.quizId, {
+        selected_index: selectedIndex,
+      });
+      const isCorrect = response.data.is_correct;
+      const feedback = response.data.explanation || (isCorrect ? quizState.feedback : quizState.incorrectFeedback);
+
+      if (isCorrect) {
+        setQuizCorrectCount((current) => current + 1);
+      }
+
+      setQuizState((current) =>
+        current
+          ? {
+              ...current,
+              selectedIndex,
+              isCorrect,
+              feedback,
+              isSubmitting: false,
+            }
+          : current,
+      );
+    } catch {
+      const isCorrect = selectedIndex === quizState.answerIndex;
+      if (isCorrect) {
+        setQuizCorrectCount((current) => current + 1);
+      }
+      setQuizState((current) =>
+        current
+          ? {
+              ...current,
+              selectedIndex,
+              isCorrect,
+              feedback: isCorrect ? current.feedback : current.incorrectFeedback,
+              isSubmitting: false,
+            }
+          : current,
+      );
+    }
+  };
+
+  const continueFromQuiz = async () => {
+    if (!quizState) {
+      return;
+    }
+
+    answeredQuizIdsRef.current.add(quizState.quizId);
+    setQuizAnsweredCount((current) => current + 1);
+    setQuizState(null);
+    await controllerRef.current?.play();
   };
 
   return {
     sessionId,
-    playerType: resolvedPlayerSource.playerType,
-    playerSrc: resolvedPlayerSource.playerSrc,
+    playerType: (
+      sessionDetail?.source_type === 'youtube_url' ||
+      streamingSource?.type === 'youtube_url'
+        ? 'youtube'
+        : 'html5') as PlayerType,
+    playerSrc:
+      sessionDetail?.source_url
+        ? resolveMediaUrl(sessionDetail.source_url)
+        : streamingSource?.url || localFileUrl,
     sessionTitle: sessionDetail?.title || 'Spinner mode',
-    sessionAiStatus: sessionStatus?.ai_status ?? sessionDetail?.ai_status ?? null,
-    isLoadingSession,
-    sessionError,
+    sessionAiStatus: currentAiStatus,
+    playerStatus: state,
+    playerStatusLabel: statusLabel,
+    sessionError: errorMessage,
+    debug,
     videoRef,
+    controllerRef,
     speedMenuRef,
     selectedTool,
     spinnerTurns,
@@ -232,22 +309,41 @@ export function useSpinnerMode() {
     isSpeedMenuOpen,
     isCaptionVisible,
     currentTime,
-    duration,
+    duration: duration || gameData.durationSec,
     speedOptions: SPEED_OPTIONS,
     captionText,
+    quizState,
+    quizCorrectCount,
+    quizAnsweredCount,
+    totalQuizCount: gameData.quizzes.length,
     handleSelectTool: setSelectedTool,
-    handleSpin,
-    handleSpinnerWheel,
+    handleSpin: () => {
+      setSelectedTool('spinner');
+      setSpinnerTurns((current) => current + 1);
+    },
+    handleSpinnerWheel: (deltaY: number) => {
+      setSelectedTool('spinner');
+      setSpinnerTurns((current) => current + deltaY * -0.0024);
+    },
     handlePressKeycap,
     handleTogglePlay,
     handleToggleSpeedMenu: () => setIsSpeedMenuOpen((current) => !current),
     handleSelectSpeed,
     handleToggleCaption: () => setIsCaptionVisible((current) => !current),
-    handleTimeUpdate,
+    handleTimeUpdate: (time: number, nextDuration: number) => {
+      setCurrentTime(time);
+      if (nextDuration > 0) {
+        setDuration(nextDuration);
+      }
+    },
     handleSeek,
-    handleLoadedMetadata,
+    handleLoadedMetadata: (nextDuration: number) => {
+      setDuration(nextDuration);
+    },
     handlePlay: () => setIsPlaying(true),
     handlePause: () => setIsPlaying(false),
     handleEnded: () => setIsPlaying(false),
+    submitQuizAnswer: submitCurrentQuizAnswer,
+    continueFromQuiz,
   };
 }

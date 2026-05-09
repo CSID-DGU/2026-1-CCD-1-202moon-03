@@ -4,8 +4,11 @@ import { ROUTES } from '../../constants/routes';
 import ComboIndicator from '../../features/player/rain/ComboIndicator';
 import FallingKeywords from '../../features/player/rain/FallingKeywords';
 import RainCaptionInput from '../../features/player/rain/RainCaptionInput';
+import RainQuizModal from '../../features/player/rain/RainQuizModal';
 import ScoreBoard from '../../features/player/rain/ScoreBoard';
+import PlayerDebugPanel from '../../features/player/shared/PlayerDebugPanel';
 import { useRainMode } from '../../features/player/rain/useRainMode';
+import PlayerStatusOverlay from '../../features/player/shared/PlayerStatusOverlay';
 import SpinnerPlayer from '../../features/player/spinner/SpinnerPlayer';
 import { endGame } from '../../services/game.api';
 
@@ -16,12 +19,15 @@ function RainModePage() {
     sessionId,
     speedMenuRef,
     videoRef,
+    controllerRef,
     playerType,
     playerSrc,
     sessionTitle,
     sessionAiStatus,
-    isLoadingSession,
+    playerStatus,
+    playerStatusLabel,
     sessionError,
+    debug,
     characterName,
     duration,
     currentTime,
@@ -31,6 +37,7 @@ function RainModePage() {
     isCaptionVisible,
     speedOptions,
     captionText,
+    captionDisplay,
     fallingKeywords,
     activeKeyword,
     typedValue,
@@ -39,12 +46,18 @@ function RainModePage() {
     maxCombo,
     accuracy,
     comboAnimationKey,
+    quizState,
+    quizCorrectCount,
+    quizAnsweredCount,
+    totalQuizCount,
     setTypedValue,
     togglePlay,
     toggleSpeedMenu,
     selectSpeed,
     toggleCaption,
     submitTypedKeyword,
+    submitQuizAnswer,
+    continueFromQuiz,
     handleTimeUpdate,
     handleSeek,
     handleLoadedMetadata,
@@ -52,8 +65,6 @@ function RainModePage() {
     handlePause,
     handleEnded,
   } = useRainMode();
-
-  const { beforeText, afterText } = splitCaption(captionText);
 
   const handleFinishStudy = async () => {
     if (!sessionId) {
@@ -69,8 +80,8 @@ function RainModePage() {
         total_score: score,
         max_combo: maxCombo,
         typing_accuracy: Math.min(Math.max(accuracy / 100, 0), 1),
-        quiz_correct: 0,
-        quiz_total: 0,
+        quiz_correct: quizCorrectCount,
+        quiz_total: quizAnsweredCount || totalQuizCount,
       });
     } catch {
       // Keep local fallback values and continue to the result page.
@@ -100,8 +111,10 @@ function RainModePage() {
             </button>
             <div className="space-y-1">
               <p className="text-lg font-semibold text-white">{sessionTitle}</p>
-              {isLoadingSession ? <p className="text-sm text-slate-300">Loading session...</p> : null}
-              {sessionAiStatus ? <p className="text-sm text-slate-300">AI status: {sessionAiStatus}</p> : null}
+              {playerStatusLabel ? <p className="text-sm text-slate-300">{playerStatusLabel}</p> : null}
+              {!playerStatusLabel && sessionAiStatus ? (
+                <p className="text-sm text-slate-300">AI status: {sessionAiStatus}</p>
+              ) : null}
               {sessionError ? <p className="text-sm text-rose-300">{sessionError}</p> : null}
             </div>
           </div>
@@ -118,40 +131,49 @@ function RainModePage() {
 
         <div className="flex items-start gap-6">
           <div ref={speedMenuRef} className="min-w-0 flex-1">
-            <SpinnerPlayer
-              playerType={playerType}
-              playerSrc={playerSrc}
-              videoRef={videoRef}
-              currentTime={currentTime}
-              duration={duration}
-              isPlaying={isPlaying}
-              playbackRate={playbackRate}
-              isSpeedMenuOpen={isSpeedMenuOpen}
-              speedOptions={speedOptions}
-              isCaptionVisible={isCaptionVisible}
-              captionText={captionText}
-              overlayContent={<FallingKeywords keywords={fallingKeywords} />}
-              captionOverlay={
-                <RainCaptionInput
-                  beforeText={beforeText}
-                  afterText={afterText}
-                  value={typedValue}
-                  placeholder={activeKeyword?.text ?? ''}
-                  onChange={setTypedValue}
-                  onSubmit={submitTypedKeyword}
-                />
-              }
-              onTogglePlay={togglePlay}
-              onToggleSpeedMenu={toggleSpeedMenu}
-              onSelectSpeed={selectSpeed}
-              onToggleCaption={toggleCaption}
-              onTimeUpdate={handleTimeUpdate}
-              onSeek={handleSeek}
-              onLoadedMetadata={handleLoadedMetadata}
-              onPlay={handlePlay}
-              onPause={handlePause}
-              onEnded={handleEnded}
-            />
+            {playerStatus === 'ready' || playerStatus === 'stream_complete' ? (
+              <SpinnerPlayer
+                playerType={playerType}
+                playerSrc={playerSrc}
+                videoRef={videoRef}
+                controllerRef={controllerRef}
+                currentTime={currentTime}
+                duration={duration}
+                isPlaying={isPlaying}
+                playbackRate={playbackRate}
+                isSpeedMenuOpen={isSpeedMenuOpen}
+                speedOptions={speedOptions}
+                isCaptionVisible={isCaptionVisible}
+                captionText={captionText}
+                overlayContent={<FallingKeywords keywords={fallingKeywords} />}
+                captionOverlay={
+                  <RainCaptionInput
+                    beforeText={captionDisplay.beforeText}
+                    afterText={captionDisplay.afterText}
+                    value={typedValue}
+                    placeholder={activeKeyword?.hint ?? activeKeyword?.text ?? ''}
+                    onChange={setTypedValue}
+                    onSubmit={submitTypedKeyword}
+                  />
+                }
+                onTogglePlay={togglePlay}
+                onToggleSpeedMenu={toggleSpeedMenu}
+                onSelectSpeed={selectSpeed}
+                onToggleCaption={toggleCaption}
+                onTimeUpdate={handleTimeUpdate}
+                onSeek={handleSeek}
+                onLoadedMetadata={handleLoadedMetadata}
+                onPlay={handlePlay}
+                onPause={handlePause}
+                onEnded={handleEnded}
+              />
+            ) : (
+              <PlayerStatusOverlay
+                title={playerStatus === 'failed' ? '재생을 준비하지 못했어요' : '학습 영상을 준비 중이에요'}
+                description={sessionError || playerStatusLabel || '첫 챕터가 준비되면 바로 재생이 시작됩니다.'}
+                tone={playerStatus === 'failed' ? 'error' : 'neutral'}
+              />
+            )}
           </div>
 
           <div className="flex h-[590px] w-[240px] flex-col gap-3">
@@ -173,21 +195,15 @@ function RainModePage() {
           </div>
         </div>
       </div>
+
+      <RainQuizModal
+        quizState={quizState}
+        onSelectOption={(index) => void submitQuizAnswer(index)}
+        onContinue={() => void continueFromQuiz()}
+      />
+      <PlayerDebugPanel debug={debug} />
     </main>
   );
-}
-
-function splitCaption(caption: string) {
-  const trimmedCaption = caption.trim();
-  if (!trimmedCaption) {
-    return { beforeText: '', afterText: '' };
-  }
-
-  const midpoint = Math.max(1, Math.floor(trimmedCaption.length / 2));
-  const beforeText = trimmedCaption.slice(0, midpoint).trim();
-  const afterText = trimmedCaption.slice(midpoint).trim();
-
-  return { beforeText, afterText };
 }
 
 function formatDurationWithHours(seconds: number) {
