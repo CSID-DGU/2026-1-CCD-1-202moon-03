@@ -21,24 +21,30 @@ const RAIN_DIFFICULTY = {
   easy: {
     activeBlanks: 1,
     fallSpeed: 0.3,
-    minFallDuration: 3.5,
+    minFallDuration: 4.2,
   },
   normal: {
     activeBlanks: 2,
     fallSpeed: 0.5,
-    minFallDuration: 3,
+    minFallDuration: 3.8,
   },
   hard: {
     activeBlanks: 3,
     fallSpeed: 1.0,
-    minFallDuration: 2.4,
+    minFallDuration: 3.0,
   },
 };
 
 const FALL_PROGRESS_START = -12;
 const FALL_PROGRESS_END = 86;
-const MISS_GRACE_SECONDS = 2.2;
-const MISSED_DISPLAY_BUFFER = MISS_GRACE_SECONDS + 0.5;
+const TARGET_TIME_SEGMENT_TOLERANCE_SECONDS = 3;
+const MIN_MISS_LEAD_TIME_SECONDS = 0.25;
+const MAX_MISS_LEAD_TIME_SECONDS = 0.4;
+const MISS_LEAD_TIME_RATIO = 0.15;
+const MISSED_DISPLAY_BUFFER = 0.75;
+const SHORT_SEGMENT_THRESHOLD_SECONDS = 4;
+const SHORT_SEGMENT_EXTRA_FALL_DURATION = 0.5;
+const SHORT_SEGMENT_EXTRA_LEAD_TIME = 0.4;
 const RAIN_SPEED_OPTIONS: PlaybackRate[] = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
 function buildAnsweredQuizKey(quizId: number | null, triggerTime: number) {
@@ -64,6 +70,7 @@ type PreparedRainSummary = {
   unmatchedCount: number;
   droppedByBlankLimit: number;
   duplicateKeywordCandidates: number;
+  invalidTargetTimeCount: number;
 };
 
 function clampProgress(value: number) {
@@ -236,6 +243,7 @@ export function useRainMode(settings?: RainSettings) {
   const lastVideoTimeRef = useRef(0);
   const lastWallTimeRef = useRef(0);
   const rafIdRef = useRef<number | null>(null);
+  const settledProgressRef = useRef<Map<string, number>>(new Map());
   const [isPlayerReady, setIsPlayerReady] = useState(false);
   const [currentQuizState, setCurrentQuizState] = useState<RainQuizState | null>(null);
   const [quizCorrectCount, setQuizCorrectCount] = useState(0);
@@ -314,6 +322,7 @@ export function useRainMode(settings?: RainSettings) {
     answeredKeywordIdsRef.current = new Set();
     missedKeywordIdsRef.current = new Set();
     answeredAtRef.current = new Map();
+    settledProgressRef.current = new Map();
 
     const savedResult = sessionResults[sessionId];
     setScore(savedResult?.score ?? 0);
@@ -385,6 +394,7 @@ export function useRainMode(settings?: RainSettings) {
     let unmatchedCount = 0;
     let droppedByBlankLimit = 0;
     let duplicateKeywordCandidates = 0;
+    let invalidTargetTimeCount = 0;
 
     const events = gameData.fallEvents.reduce<PreparedRainEvent[]>((prepared, event) => {
       const segment = gameData.segments.find((item) => item.segmentId === event.segmentId);
@@ -447,10 +457,29 @@ export function useRainMode(settings?: RainSettings) {
       usedBlankKeys.add(blankKey);
 
       const targetTime = event.targetTime;
+      const isTargetTimeOutOfSegment =
+        targetTime < segment.start - TARGET_TIME_SEGMENT_TOLERANCE_SECONDS ||
+        targetTime > segment.end + TARGET_TIME_SEGMENT_TOLERANCE_SECONDS;
+
+      if (isTargetTimeOutOfSegment) {
+        invalidTargetTimeCount += 1;
+        return prepared;
+      }
+
+      const segmentDuration = Math.max(segment.end - segment.start, 0);
+      const isShortSegment = segmentDuration < SHORT_SEGMENT_THRESHOLD_SECONDS;
+      const adjustedMinFallDuration = isShortSegment
+        ? effectiveMinFallDuration + SHORT_SEGMENT_EXTRA_FALL_DURATION
+        : effectiveMinFallDuration;
+      const extraLeadTime = isShortSegment ? SHORT_SEGMENT_EXTRA_LEAD_TIME : 0;
       const baseFallDuration = Math.max(event.fallWindow / effectiveFallSpeed, 0.5 / effectiveFallSpeed);
-      const fallDuration = Math.max(baseFallDuration, effectiveMinFallDuration);
-      const fallStartTime = Math.max(0, targetTime - fallDuration);
-      const missDeadline = targetTime + MISS_GRACE_SECONDS;
+      const fallDuration = Math.max(baseFallDuration, adjustedMinFallDuration);
+      const fallStartTime = Math.max(0, targetTime - fallDuration - extraLeadTime);
+      const missLeadTime = Math.min(
+        MAX_MISS_LEAD_TIME_SECONDS,
+        Math.max(MIN_MISS_LEAD_TIME_SECONDS, segmentDuration * MISS_LEAD_TIME_RATIO),
+      );
+      const missDeadline = Math.max(targetTime, segment.end - missLeadTime);
       const stableLaneHash = `${event.segmentId}:${normalizedEventKeyword}:${event.targetTime}`
         .split('')
         .reduce((hash, char) => hash * 31 + char.charCodeAt(0), 7);
@@ -478,6 +507,7 @@ export function useRainMode(settings?: RainSettings) {
       unmatchedCount,
       droppedByBlankLimit,
       duplicateKeywordCandidates,
+      invalidTargetTimeCount,
     };
   }, [effectiveFallSpeed, effectiveMinFallDuration, gameData.fallEvents, gameData.segments, segmentBlankKeys]);
 
@@ -543,7 +573,7 @@ export function useRainMode(settings?: RainSettings) {
         (event) =>
           !answeredKeywordIdsRef.current.has(event.id) && !missedKeywordIdsRef.current.has(event.id),
       ),
-    [currentTime, preparedEvents],
+    [preparedEvents],
   );
 
   const activeKeyword = useMemo(() => {
@@ -551,12 +581,12 @@ export function useRainMode(settings?: RainSettings) {
       unresolvedEvents
         .filter(
           (event) =>
-            currentTime >= event.fallStartTime &&
-            currentTime <= event.missDeadline,
+            rafCurrentTime >= event.fallStartTime &&
+            rafCurrentTime <= event.missDeadline,
         )
         .sort((left, right) => left.targetTime - right.targetTime)[0] ??
       unresolvedEvents
-        .filter((event) => currentTime < event.fallStartTime)
+        .filter((event) => rafCurrentTime < event.fallStartTime)
         .sort((left, right) => left.targetTime - right.targetTime)[0];
 
     if (!currentEvent) {
@@ -569,11 +599,11 @@ export function useRainMode(settings?: RainSettings) {
       hint: `${currentEvent.blank.answer_length}글자`,
       lane: currentEvent.lane,
       leftPercent: currentEvent.leftPercent,
-      progress: resolveKeywordProgress(currentTime, currentEvent),
+      progress: resolveKeywordProgress(rafCurrentTime, currentEvent),
       status: 'active' as const,
       blank: currentEvent.blank,
     };
-  }, [currentTime, unresolvedEvents]);
+  }, [rafCurrentTime, unresolvedEvents]);
 
   useEffect(() => {
     const overdueEvents = preparedEvents
@@ -581,7 +611,7 @@ export function useRainMode(settings?: RainSettings) {
         (event) =>
           !answeredKeywordIdsRef.current.has(event.id) &&
           !missedKeywordIdsRef.current.has(event.id) &&
-          currentTime > event.missDeadline,
+          rafCurrentTime > event.missDeadline,
       )
       .sort((left, right) => left.targetTime - right.targetTime);
 
@@ -590,6 +620,9 @@ export function useRainMode(settings?: RainSettings) {
     }
 
     overdueEvents.forEach((event) => {
+      if (!settledProgressRef.current.has(event.id)) {
+        settledProgressRef.current.set(event.id, resolveKeywordProgress(rafCurrentTime, event));
+      }
       missedKeywordIdsRef.current.add(event.id);
     });
 
@@ -597,18 +630,28 @@ export function useRainMode(settings?: RainSettings) {
     setAttempts((previous) => previous + overdueEvents.length);
     setMissCount((previous) => previous + overdueEvents.length);
     setLastJudgement('miss');
-  }, [currentTime, preparedEvents, setCombo]);
+  }, [preparedEvents, rafCurrentTime, setCombo]);
 
   const fallingKeywords = useMemo<RainKeyword[]>(
     () =>
       preparedEvents
         .filter((event) => {
+          const isSameActiveSegment = activeSegment?.segmentId === event.segmentId;
+
           if (answeredKeywordIdsRef.current.has(event.id)) {
-            return performance.now() - (answeredAtRef.current.get(event.id) ?? 0) < 800;
+            return (
+              isSameActiveSegment &&
+              performance.now() - (answeredAtRef.current.get(event.id) ?? 0) < 800
+            );
           }
+
+          if (missedKeywordIdsRef.current.has(event.id)) {
+            return isSameActiveSegment;
+          }
+
           return (
             rafCurrentTime >= event.fallStartTime &&
-            rafCurrentTime <= event.missDeadline + (MISSED_DISPLAY_BUFFER - MISS_GRACE_SECONDS)
+            rafCurrentTime <= event.missDeadline + MISSED_DISPLAY_BUFFER
           );
         })
         .map((event) => {
@@ -624,7 +667,7 @@ export function useRainMode(settings?: RainSettings) {
               hint: `${event.blank.answer_length}글자`,
               lane: event.lane,
               leftPercent: event.leftPercent,
-              progress: FALL_PROGRESS_END,
+              progress: settledProgressRef.current.get(event.id) ?? resolveKeywordProgress(rafCurrentTime, event),
               status: 'cleared' as const,
             };
           }
@@ -636,7 +679,7 @@ export function useRainMode(settings?: RainSettings) {
               hint: `${event.blank.answer_length}글자`,
               lane: event.lane,
               leftPercent: event.leftPercent,
-              progress: FALL_PROGRESS_END,
+              progress: settledProgressRef.current.get(event.id) ?? resolveKeywordProgress(rafCurrentTime, event),
               status: 'missed' as const,
             };
           }
@@ -663,7 +706,7 @@ export function useRainMode(settings?: RainSettings) {
             status: activeKeyword?.id === event.id ? 'active' : 'pending',
           };
         }),
-    [activeKeyword?.id, rafCurrentTime, preparedEvents],
+    [activeKeyword?.id, activeSegment?.segmentId, rafCurrentTime, preparedEvents],
   );
 
   const visibleFallingKeywords = useMemo<RainKeyword[]>(() => {
@@ -676,8 +719,8 @@ export function useRainMode(settings?: RainSettings) {
         const isInFlight =
           keyword?.status !== 'cleared' &&
           keyword?.status !== 'missed' &&
-          currentTime >= event.fallStartTime &&
-          currentTime <= event.missDeadline;
+          rafCurrentTime >= event.fallStartTime &&
+          rafCurrentTime <= event.missDeadline;
 
         return {
           keyword,
@@ -695,7 +738,7 @@ export function useRainMode(settings?: RainSettings) {
       .slice(0, effectiveActiveBlanks)
       .map(({ keyword }) => keyword)
       .filter((keyword): keyword is RainKeyword => Boolean(keyword));
-  }, [currentTime, effectiveActiveBlanks, fallingKeywords, preparedEvents]);
+  }, [effectiveActiveBlanks, fallingKeywords, preparedEvents, rafCurrentTime]);
 
   const resolvedStatesByBlankKey = useMemo(() => {
     const nextState: Record<string, 'pending' | 'cleared' | 'missed'> = {};
@@ -909,6 +952,7 @@ export function useRainMode(settings?: RainSettings) {
     if (normalizedTyped === normalizeAnswer(targetEvent.keyword)) {
       answeredKeywordIdsRef.current.add(targetEvent.id);
       answeredAtRef.current.set(targetEvent.id, performance.now());
+      settledProgressRef.current.set(targetEvent.id, resolveKeywordProgress(rafCurrentTime, targetEvent));
       setTypedValuesByBlankKey((current) => ({ ...current, [blankKey]: targetEvent.keyword }));
 
       const nextScore = score + 120;
@@ -1041,9 +1085,9 @@ export function useRainMode(settings?: RainSettings) {
         (event) =>
           !answeredKeywordIdsRef.current.has(event.id) &&
           !missedKeywordIdsRef.current.has(event.id) &&
-          currentTime <= event.missDeadline,
+          rafCurrentTime <= event.missDeadline,
       ).length,
-    [currentTime, preparedEvents],
+    [preparedEvents, rafCurrentTime],
   );
   const nextTargetTime =
     unresolvedEvents
@@ -1054,6 +1098,8 @@ export function useRainMode(settings?: RainSettings) {
       .map((event) => event.fallDuration)
       .sort((left, right) => left - right)[0] ?? null;
   const visibleKeywordCount = visibleFallingKeywords.length;
+  const activePreparedEvent =
+    activeKeyword?.id ? preparedEvents.find((event) => event.id === activeKeyword.id) ?? null : null;
   const settingsSummary = `${isManualSettings ? 'Manual' : 'Auto'} · ${effectiveActiveBlanks} blanks · speed ${effectiveFallSpeed}`;
 
   const enhancedDebug = useMemo(
@@ -1063,7 +1109,7 @@ export function useRainMode(settings?: RainSettings) {
       activeBlanks: effectiveActiveBlanks,
       fallSpeed: effectiveFallSpeed,
       minFallDuration: effectiveMinFallDuration,
-      missGraceSeconds: MISS_GRACE_SECONDS,
+      missGraceSeconds: MAX_MISS_LEAD_TIME_SECONDS,
       activeKeywordId: activeKeyword?.id ?? null,
       pendingKeywordCount,
       visibleKeywordCount,
@@ -1071,10 +1117,14 @@ export function useRainMode(settings?: RainSettings) {
       nextFallDuration,
       missedKeywordCount: missCount,
       lastJudgement,
+      rafCurrentTime,
+      activeKeywordTargetTime: activePreparedEvent?.targetTime ?? null,
+      activeKeywordSegmentId: activePreparedEvent?.segmentId ?? null,
       preparedFallEvents: preparedEvents.length,
       unmatchedFallEvents: preparedRainSummary.unmatchedCount,
       droppedByBlankLimit: preparedRainSummary.droppedByBlankLimit,
       duplicateKeywordCandidates: preparedRainSummary.duplicateKeywordCandidates,
+      invalidTargetTimeCount: preparedRainSummary.invalidTargetTimeCount,
     }),
     [
       activeKeyword?.id,
@@ -1085,14 +1135,18 @@ export function useRainMode(settings?: RainSettings) {
       isManualSettings,
       lastJudgement,
       missCount,
-      MISS_GRACE_SECONDS,
+      MAX_MISS_LEAD_TIME_SECONDS,
+      activePreparedEvent?.segmentId,
+      activePreparedEvent?.targetTime,
       nextFallDuration,
       nextTargetTime,
       pendingKeywordCount,
       preparedEvents.length,
       preparedRainSummary.droppedByBlankLimit,
       preparedRainSummary.duplicateKeywordCandidates,
+      preparedRainSummary.invalidTargetTimeCount,
       preparedRainSummary.unmatchedCount,
+      rafCurrentTime,
       rainDifficulty,
       visibleKeywordCount,
     ],

@@ -31,8 +31,9 @@ function ModeSelect({ onBack, onSelect }: ModeSelectProps) {
         title: '피젯스피너 모드',
         tooltipTitle: '피젯스피너 모드',
         tooltipDescription: [
-          '피젯스피너를 회전시키거나 탭을 누르면서 영상을 시청해보세요.',
-          '집중도가 올라갈 수 있습니다.',
+          '영상 시청과 함께 피젯스피너를 회전시키거나 키캡을 누르며 학습을 진행합니다.',
+          '손의 반복적인 움직임이 집중 흐름 유지에 도움을 줄 수 있습니다.',
+          '피젯스피너를 돌리거나 키캡을 누르며 학습 리듬을 유지해보세요.',
         ],
         renderArt: () => <SpinnerModeArtwork />,
       },
@@ -57,7 +58,7 @@ function ModeSelect({ onBack, onSelect }: ModeSelectProps) {
           <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#1A9AF5] text-white shadow-[0_6px_16px_rgba(26,154,245,0.2)]">
             <BackIcon />
           </span>
-          <span className="font-paperlogy text-[32px] font-bold leading-none">홈으로</span>
+          <span className="font-paperlogy text-[32px] font-bold leading-none">이전으로</span>
         </button>
       </div>
 
