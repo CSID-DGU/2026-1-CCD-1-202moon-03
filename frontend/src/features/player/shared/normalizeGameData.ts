@@ -75,6 +75,7 @@ export function normalizeQuiz(quiz: GameQuizItem, fallbackIndex: number, chapter
 
   return {
     quizId: quiz.quiz_id ?? null,
+    quizIndex: quiz.quiz_index ?? fallbackIndex,
     triggerTime: quiz.trigger_time,
     segmentRange: quiz.segment_range,
     question: quiz.question,
@@ -89,7 +90,7 @@ export function normalizeQuiz(quiz: GameQuizItem, fallbackIndex: number, chapter
 export function buildChunkFromStoredGame(data: StartGameResponseData): NormalizedGameChunk {
   return {
     chapterIndex: 0,
-    segments: (data.subtitles ?? []).map((segment) => normalizeSegment(segment, 0)),
+    segments: (data.segments ?? data.subtitles ?? []).map((segment) => normalizeSegment(segment, 0)),
     fallEvents: (data.fall_events ?? []).map((event) => normalizeFallEvent(event, 0)),
     quizzes: (data.quizzes ?? []).map((quiz, index) => normalizeQuiz(quiz, index, 0)),
   };
@@ -130,7 +131,7 @@ export function mergeGameChunk(
     [...current.quizzes, ...chunk.quizzes].sort(
       (left, right) => left.triggerTime - right.triggerTime,
     ),
-    (quiz) => `${quiz.quizId}:${quiz.triggerTime}`,
+    (quiz) => `${quiz.quizIndex}:${quiz.triggerTime}`,
   );
   const loadedChapterIndexes = Array.from(
     new Set([...current.loadedChapterIndexes, chunk.chapterIndex]),

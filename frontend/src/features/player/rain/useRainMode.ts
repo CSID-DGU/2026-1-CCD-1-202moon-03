@@ -4,6 +4,7 @@ import { getTransientStreamingSource, usePlayerStore } from '../../../store/useP
 import { useRainStore } from '../../../store/useRainStore';
 import type { ApiErrorResponse, GameBlankItem } from '../../../types';
 import { useGameSessionData } from '../shared/useGameSessionData';
+import { useAuthenticatedVideoUrl } from '../shared/useAuthenticatedVideoUrl';
 import { useLocalFilePlayerSrc } from '../shared/useLocalFilePlayerSrc';
 import type { MediaController, PlayerType } from '../shared/playback';
 import { resolveMediaUrl } from '../shared/playback';
@@ -35,7 +36,6 @@ const RAIN_DIFFICULTY = {
 };
 
 const FALL_PROGRESS_START = -12;
-const FALL_TARGET_PROGRESS = 35;
 const FALL_PROGRESS_END = 86;
 const MISS_GRACE_SECONDS = 2.2;
 const MISSED_DISPLAY_BUFFER = MISS_GRACE_SECONDS + 0.5;
@@ -48,6 +48,7 @@ function buildAnsweredQuizKey(quizId: number | null, triggerTime: number) {
 type PreparedRainEvent = {
   id: string;
   lane: number;
+  leftPercent: number;
   blank: GameBlankItem;
   blankKey: string;
   keyword: string;
@@ -58,56 +59,45 @@ type PreparedRainEvent = {
   missDeadline: number;
 };
 
+type PreparedRainSummary = {
+  events: PreparedRainEvent[];
+  unmatchedCount: number;
+  droppedByBlankLimit: number;
+  duplicateKeywordCandidates: number;
+};
+
 function clampProgress(value: number) {
   return Math.max(FALL_PROGRESS_START, Math.min(value, FALL_PROGRESS_END));
 }
 
 function normalizeAnswer(value: string) {
-  return value.trim().toLowerCase();
+  return value
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function buildBlankKey(segmentId: number, blank: GameBlankItem) {
   return `${segmentId}:${blank.position}:${normalizeAnswer(blank.keyword)}`;
 }
 
-function getVisibleLanePositions(count: number) {
-  if (count <= 1) {
-    return [39];
-  }
-
-  if (count === 2) {
-    return [28, 56];
-  }
-
-  return [18, 39, 60];
-}
+const FIXED_LANE_POSITIONS: number[] = [18, 39, 60];
 
 function resolveKeywordProgress(currentTime: number, event: PreparedRainEvent) {
   if (currentTime <= event.fallStartTime) {
     return FALL_PROGRESS_START;
   }
 
-  if (currentTime <= event.targetTime) {
-    const timeUntilTarget = Math.max(event.targetTime - event.fallStartTime, 0.001);
-    const progressRatio = (currentTime - event.fallStartTime) / timeUntilTarget;
-
-    return clampProgress(
-      FALL_PROGRESS_START +
-        progressRatio * (FALL_TARGET_PROGRESS - FALL_PROGRESS_START),
-    );
+  if (currentTime >= event.missDeadline) {
+    return FALL_PROGRESS_END;
   }
 
-  if (currentTime <= event.missDeadline) {
-    const timeUntilMiss = Math.max(event.missDeadline - event.targetTime, 0.001);
-    const progressRatio = (currentTime - event.targetTime) / timeUntilMiss;
+  const totalDuration = Math.max(event.missDeadline - event.fallStartTime, 0.001);
+  const ratio = (currentTime - event.fallStartTime) / totalDuration;
 
-    return clampProgress(
-      FALL_TARGET_PROGRESS +
-        progressRatio * (FALL_PROGRESS_END - FALL_TARGET_PROGRESS),
-    );
-  }
-
-  return FALL_PROGRESS_END;
+  return clampProgress(FALL_PROGRESS_START + ratio * (FALL_PROGRESS_END - FALL_PROGRESS_START));
 }
 
 function buildCaptionDisplay(
@@ -192,14 +182,9 @@ function getQuizSubmitErrorMessage(error: unknown) {
   );
 }
 
-function resolveLocalQuizResult(
-  quiz: RainQuizState['quiz'],
-  selectedIndex: number,
-) {
-  const isCorrect = selectedIndex === quiz.answer_index;
-  const feedback = isCorrect ? quiz.correct_feedback || '' : quiz.incorrect_feedback || '';
-
-  return { isCorrect, feedback };
+function isDefaultSessionTitle(title?: string | null) {
+  const normalizedTitle = title?.trim() ?? '';
+  return !normalizedTitle || normalizedTitle === '새 학습 영상';
 }
 
 export function useRainMode(settings?: RainSettings) {
@@ -224,6 +209,7 @@ export function useRainMode(settings?: RainSettings) {
   const answeredQuizIdsRef = useRef<Set<string>>(new Set());
   const answeredKeywordIdsRef = useRef<Set<string>>(new Set());
   const missedKeywordIdsRef = useRef<Set<string>>(new Set());
+  const answeredAtRef = useRef<Map<string, number>>(new Map());
   const {
     score,
     combo,
@@ -246,12 +232,18 @@ export function useRainMode(settings?: RainSettings) {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [rafCurrentTime, setRafCurrentTime] = useState(0);
+  const lastVideoTimeRef = useRef(0);
+  const lastWallTimeRef = useRef(0);
+  const rafIdRef = useRef<number | null>(null);
   const [isPlayerReady, setIsPlayerReady] = useState(false);
   const [currentQuizState, setCurrentQuizState] = useState<RainQuizState | null>(null);
   const [quizCorrectCount, setQuizCorrectCount] = useState(0);
   const [quizAnsweredCount, setQuizAnsweredCount] = useState(0);
   const [missCount, setMissCount] = useState(0);
   const [lastJudgement, setLastJudgement] = useState<'hit' | 'miss' | 'wrong' | null>(null);
+  const quizCorrectCountRef = useRef(0);
+  const quizAnsweredCountRef = useRef(0);
   const isManualSettings = settings?.mode === 'manual';
   const selectedDifficulty = isManualSettings
     ? rainDifficulty
@@ -268,8 +260,45 @@ export function useRainMode(settings?: RainSettings) {
   const effectiveMinFallDuration = difficultySettings.minFallDuration;
 
   useEffect(() => {
+    quizCorrectCountRef.current = quizCorrectCount;
+  }, [quizCorrectCount]);
+
+  useEffect(() => {
+    quizAnsweredCountRef.current = quizAnsweredCount;
+  }, [quizAnsweredCount]);
+
+  useEffect(() => {
     controllerRef.current?.setPlaybackRate(playbackRate);
   }, [playbackRate]);
+
+  useEffect(() => {
+    if (!isPlaying) {
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
+      setRafCurrentTime(currentTime);
+      return;
+    }
+
+    lastVideoTimeRef.current = currentTime;
+    lastWallTimeRef.current = performance.now();
+
+    const tick = () => {
+      const elapsed = (performance.now() - lastWallTimeRef.current) / 1000;
+      setRafCurrentTime(lastVideoTimeRef.current + elapsed);
+      rafIdRef.current = requestAnimationFrame(tick);
+    };
+
+    rafIdRef.current = requestAnimationFrame(tick);
+
+    return () => {
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
+    };
+  }, [isPlaying, currentTime]);
 
   useEffect(() => {
     if (!sessionId) {
@@ -284,6 +313,7 @@ export function useRainMode(settings?: RainSettings) {
     answeredQuizIdsRef.current = new Set();
     answeredKeywordIdsRef.current = new Set();
     missedKeywordIdsRef.current = new Set();
+    answeredAtRef.current = new Map();
 
     const savedResult = sessionResults[sessionId];
     setScore(savedResult?.score ?? 0);
@@ -297,6 +327,8 @@ export function useRainMode(settings?: RainSettings) {
     setDuration(0);
     setIsPlaying(false);
     setCurrentQuizState(null);
+    quizCorrectCountRef.current = 0;
+    quizAnsweredCountRef.current = 0;
     setQuizCorrectCount(0);
     setQuizAnsweredCount(0);
     setMissCount(0);
@@ -348,43 +380,108 @@ export function useRainMode(settings?: RainSettings) {
     return map;
   }, [effectiveActiveBlanks, gameData.segments]);
 
-  const preparedEvents = useMemo<PreparedRainEvent[]>(
-    () =>
-      gameData.fallEvents
-        .map((event, index) => {
-          const segment = gameData.segments.find((item) => item.segmentId === event.segmentId);
-          const blank = segment?.blanks.find(
-            (item) =>
-              segmentBlankKeys.get(event.segmentId)?.has(buildBlankKey(event.segmentId, item)) &&
-              normalizeAnswer(item.keyword) === normalizeAnswer(event.keyword),
-          );
+  const preparedRainSummary = useMemo<PreparedRainSummary>(() => {
+    const usedBlankKeys = new Set<string>();
+    let unmatchedCount = 0;
+    let droppedByBlankLimit = 0;
+    let duplicateKeywordCandidates = 0;
 
-          if (!segment || !blank) {
-            return null;
-          }
+    const events = gameData.fallEvents.reduce<PreparedRainEvent[]>((prepared, event) => {
+      const segment = gameData.segments.find((item) => item.segmentId === event.segmentId);
 
-          const targetTime = event.targetTime;
-          const baseFallDuration = Math.max(event.fallWindow / effectiveFallSpeed, 0.5 / effectiveFallSpeed);
-          const fallDuration = Math.max(baseFallDuration, effectiveMinFallDuration);
-          const fallStartTime = Math.max(0, targetTime - fallDuration);
-          const missDeadline = targetTime + MISS_GRACE_SECONDS;
+      if (!segment) {
+        unmatchedCount += 1;
+        return prepared;
+      }
 
-          return {
-            id: `${event.segmentId}:${event.keyword}:${event.targetTime}:${index}`,
-            lane: index % 4,
-            blank,
-            blankKey: buildBlankKey(event.segmentId, blank),
-            keyword: event.keyword,
-            segmentId: event.segmentId,
-            targetTime,
-            fallStartTime,
-            fallDuration,
-            missDeadline,
-          };
-        })
-        .filter((event): event is PreparedRainEvent => event !== null),
-    [effectiveFallSpeed, effectiveMinFallDuration, gameData.fallEvents, gameData.segments, segmentBlankKeys],
-  );
+      const normalizedEventKeyword = normalizeAnswer(event.keyword);
+      const activeBlankSet = segmentBlankKeys.get(event.segmentId) ?? new Set<string>();
+
+      const matchingBlanks = segment.blanks.filter(
+        (item) => normalizeAnswer(item.keyword) === normalizedEventKeyword,
+      );
+
+      if (matchingBlanks.length > 1) {
+        duplicateKeywordCandidates += 1;
+      }
+
+      if (matchingBlanks.length === 0) {
+        unmatchedCount += 1;
+        return prepared;
+      }
+
+      const candidateBlanks = [...matchingBlanks].sort((left, right) => {
+        const leftKey = buildBlankKey(event.segmentId, left);
+        const rightKey = buildBlankKey(event.segmentId, right);
+        const leftIsActive = activeBlankSet.has(leftKey) ? 1 : 0;
+        const rightIsActive = activeBlankSet.has(rightKey) ? 1 : 0;
+
+        if (leftIsActive !== rightIsActive) {
+          return rightIsActive - leftIsActive;
+        }
+
+        const leftUnused = usedBlankKeys.has(leftKey) ? 0 : 1;
+        const rightUnused = usedBlankKeys.has(rightKey) ? 0 : 1;
+
+        if (leftUnused !== rightUnused) {
+          return rightUnused - leftUnused;
+        }
+
+        return left.position - right.position;
+      });
+
+      const blank = candidateBlanks[0];
+
+      if (!blank) {
+        unmatchedCount += 1;
+        return prepared;
+      }
+
+      const blankKey = buildBlankKey(event.segmentId, blank);
+
+      if (!activeBlankSet.has(blankKey)) {
+        droppedByBlankLimit += 1;
+        return prepared;
+      }
+
+      usedBlankKeys.add(blankKey);
+
+      const targetTime = event.targetTime;
+      const baseFallDuration = Math.max(event.fallWindow / effectiveFallSpeed, 0.5 / effectiveFallSpeed);
+      const fallDuration = Math.max(baseFallDuration, effectiveMinFallDuration);
+      const fallStartTime = Math.max(0, targetTime - fallDuration);
+      const missDeadline = targetTime + MISS_GRACE_SECONDS;
+      const stableLaneHash = `${event.segmentId}:${normalizedEventKeyword}:${event.targetTime}`
+        .split('')
+        .reduce((hash, char) => hash * 31 + char.charCodeAt(0), 7);
+      const lane = Math.abs(stableLaneHash) % FIXED_LANE_POSITIONS.length;
+
+      prepared.push({
+        id: `${event.segmentId}:${event.keyword}:${event.targetTime}`,
+        lane,
+        leftPercent: FIXED_LANE_POSITIONS[lane] ?? FIXED_LANE_POSITIONS[1],
+        blank,
+        blankKey,
+        keyword: event.keyword,
+        segmentId: event.segmentId,
+        targetTime,
+        fallStartTime,
+        fallDuration,
+        missDeadline,
+      });
+
+      return prepared;
+    }, []);
+
+    return {
+      events,
+      unmatchedCount,
+      droppedByBlankLimit,
+      duplicateKeywordCandidates,
+    };
+  }, [effectiveFallSpeed, effectiveMinFallDuration, gameData.fallEvents, gameData.segments, segmentBlankKeys]);
+
+  const preparedEvents = preparedRainSummary.events;
 
   const activeSegment = useMemo(
     () =>
@@ -393,10 +490,25 @@ export function useRainMode(settings?: RainSettings) {
   );
 
   const localFileUrl = useLocalFilePlayerSrc(sessionId, streamingSource);
+  const authenticatedVideoUrl = useAuthenticatedVideoUrl({
+    enabled:
+      !localFileUrl &&
+      sessionDetail?.source_type === 'file' &&
+      Boolean(sessionDetail?.video_url),
+    sourceUrl: sessionDetail?.video_url,
+  });
 
   const playerSrc = useMemo(() => {
     if (localFileUrl) {
       return localFileUrl;
+    }
+
+    if (authenticatedVideoUrl) {
+      return authenticatedVideoUrl;
+    }
+
+    if (sessionDetail?.video_url) {
+      return resolveMediaUrl(sessionDetail.video_url);
     }
 
     if (sessionDetail?.source_url) {
@@ -404,7 +516,21 @@ export function useRainMode(settings?: RainSettings) {
     }
 
     return streamingSource?.url || '';
-  }, [localFileUrl, sessionDetail?.source_url, streamingSource?.url]);
+  }, [
+    authenticatedVideoUrl,
+    localFileUrl,
+    sessionDetail?.video_url,
+    sessionDetail?.source_url,
+    streamingSource?.url,
+  ]);
+
+  const sessionTitle = useMemo(() => {
+    if (streamingSource?.type === 'file' && isDefaultSessionTitle(sessionDetail?.title)) {
+      return streamingSource.file?.name?.trim() || sessionDetail?.title || 'Rain mode';
+    }
+
+    return sessionDetail?.title || 'Rain mode';
+  }, [sessionDetail?.title, streamingSource]);
 
   useEffect(() => {
     autoPlaySessionRef.current = null;
@@ -442,6 +568,7 @@ export function useRainMode(settings?: RainSettings) {
       text: currentEvent.keyword,
       hint: `${currentEvent.blank.answer_length}글자`,
       lane: currentEvent.lane,
+      leftPercent: currentEvent.leftPercent,
       progress: resolveKeywordProgress(currentTime, currentEvent),
       status: 'active' as const,
       blank: currentEvent.blank,
@@ -475,16 +602,20 @@ export function useRainMode(settings?: RainSettings) {
   const fallingKeywords = useMemo<RainKeyword[]>(
     () =>
       preparedEvents
-        .filter(
-          (event) =>
-            currentTime >= event.fallStartTime &&
-            currentTime <= event.missDeadline + (MISSED_DISPLAY_BUFFER - MISS_GRACE_SECONDS),
-        )
+        .filter((event) => {
+          if (answeredKeywordIdsRef.current.has(event.id)) {
+            return performance.now() - (answeredAtRef.current.get(event.id) ?? 0) < 800;
+          }
+          return (
+            rafCurrentTime >= event.fallStartTime &&
+            rafCurrentTime <= event.missDeadline + (MISSED_DISPLAY_BUFFER - MISS_GRACE_SECONDS)
+          );
+        })
         .map((event) => {
           const isCleared = answeredKeywordIdsRef.current.has(event.id);
           const isMissed =
             missedKeywordIdsRef.current.has(event.id) ||
-            (!isCleared && currentTime > event.missDeadline);
+            (!isCleared && rafCurrentTime > event.missDeadline);
 
           if (isCleared) {
             return {
@@ -492,6 +623,7 @@ export function useRainMode(settings?: RainSettings) {
               text: event.keyword,
               hint: `${event.blank.answer_length}글자`,
               lane: event.lane,
+              leftPercent: event.leftPercent,
               progress: FALL_PROGRESS_END,
               status: 'cleared' as const,
             };
@@ -503,17 +635,19 @@ export function useRainMode(settings?: RainSettings) {
               text: event.keyword,
               hint: `${event.blank.answer_length}글자`,
               lane: event.lane,
+              leftPercent: event.leftPercent,
               progress: FALL_PROGRESS_END,
               status: 'missed' as const,
             };
           }
 
-          if (currentTime < event.fallStartTime) {
+          if (rafCurrentTime < event.fallStartTime) {
             return {
               id: event.id,
               text: event.keyword,
               hint: `${event.blank.answer_length}글자`,
               lane: event.lane,
+              leftPercent: event.leftPercent,
               progress: FALL_PROGRESS_START,
               status: 'pending' as const,
             };
@@ -524,17 +658,18 @@ export function useRainMode(settings?: RainSettings) {
             text: event.keyword,
             hint: `${event.blank.answer_length}글자`,
             lane: event.lane,
-            progress: resolveKeywordProgress(currentTime, event),
+            leftPercent: event.leftPercent,
+            progress: resolveKeywordProgress(rafCurrentTime, event),
             status: activeKeyword?.id === event.id ? 'active' : 'pending',
           };
         }),
-    [activeKeyword?.id, currentTime, preparedEvents],
+    [activeKeyword?.id, rafCurrentTime, preparedEvents],
   );
 
   const visibleFallingKeywords = useMemo<RainKeyword[]>(() => {
     const keywordById = new Map(fallingKeywords.map((keyword) => [keyword.id, keyword]));
 
-    const prioritizedIds = preparedEvents
+    return preparedEvents
       .filter((event) => keywordById.has(event.id))
       .map((event) => {
         const keyword = keywordById.get(event.id);
@@ -545,7 +680,7 @@ export function useRainMode(settings?: RainSettings) {
           currentTime <= event.missDeadline;
 
         return {
-          eventId: event.id,
+          keyword,
           priority: isInFlight ? 0 : 1,
           targetTime: event.targetTime,
         };
@@ -557,24 +692,9 @@ export function useRainMode(settings?: RainSettings) {
 
         return left.targetTime - right.targetTime;
       })
-      .slice(0, effectiveActiveBlanks);
-
-    const lanePositions = getVisibleLanePositions(prioritizedIds.length);
-
-    return prioritizedIds.reduce<RainKeyword[]>((keywords, { eventId }, index) => {
-        const keyword = keywordById.get(eventId);
-        if (!keyword) {
-          return keywords;
-        }
-
-        keywords.push({
-          ...keyword,
-          lane: index,
-          leftPercent: lanePositions[index] ?? lanePositions[lanePositions.length - 1] ?? 39,
-        });
-
-        return keywords;
-      }, []);
+      .slice(0, effectiveActiveBlanks)
+      .map(({ keyword }) => keyword)
+      .filter((keyword): keyword is RainKeyword => Boolean(keyword));
   }, [currentTime, effectiveActiveBlanks, fallingKeywords, preparedEvents]);
 
   const resolvedStatesByBlankKey = useMemo(() => {
@@ -706,6 +826,7 @@ export function useRainMode(settings?: RainSettings) {
     setCurrentQuizState({
       quiz: {
         quiz_id: nextQuiz.quizId ?? undefined,
+        quiz_index: nextQuiz.quizIndex,
         trigger_time: nextQuiz.triggerTime,
         segment_range: nextQuiz.segmentRange,
         question: nextQuiz.question,
@@ -722,6 +843,42 @@ export function useRainMode(settings?: RainSettings) {
     });
   }, [currentQuizState, currentTime, gameData.quizzes, state]);
 
+  useEffect(() => {
+    if (!currentQuizState || currentQuizState.quiz.quiz_id !== undefined) {
+      return;
+    }
+
+    const persistedQuiz =
+      gameData.quizzes.find(
+        (quiz) =>
+          quiz.quizId !== null &&
+          quiz.quizIndex === (currentQuizState.quiz.quiz_index ?? -1),
+      ) ??
+      gameData.quizzes.find(
+        (quiz) =>
+          quiz.quizId !== null &&
+          quiz.triggerTime === currentQuizState.quiz.trigger_time &&
+          quiz.question === currentQuizState.quiz.question,
+      );
+
+    if (!persistedQuiz) {
+      return;
+    }
+
+    setCurrentQuizState((current) =>
+      current
+        ? {
+            ...current,
+            quiz: {
+              ...current.quiz,
+              quiz_id: persistedQuiz.quizId ?? undefined,
+            },
+            submitError: '',
+          }
+        : current,
+    );
+  }, [currentQuizState, gameData.quizzes]);
+
   const handleTypedValueChange = (blankKey: string, value: string) => {
     setTypedValuesByBlankKey((current) => ({
       ...current,
@@ -734,12 +891,8 @@ export function useRainMode(settings?: RainSettings) {
     const typedValue = typedValuesByBlankKey[blankKey] ?? '';
     const normalizedTyped = normalizeAnswer(typedValue);
 
-    setTypedValuesByBlankKey((current) => ({
-      ...current,
-      [blankKey]: '',
-    }));
-
     if (!targetEvent || !normalizedTyped) {
+      setTypedValuesByBlankKey((current) => ({ ...current, [blankKey]: '' }));
       return;
     }
 
@@ -747,6 +900,7 @@ export function useRainMode(settings?: RainSettings) {
       answeredKeywordIdsRef.current.has(targetEvent.id) ||
       missedKeywordIdsRef.current.has(targetEvent.id)
     ) {
+      setTypedValuesByBlankKey((current) => ({ ...current, [blankKey]: '' }));
       return;
     }
 
@@ -754,6 +908,8 @@ export function useRainMode(settings?: RainSettings) {
 
     if (normalizedTyped === normalizeAnswer(targetEvent.keyword)) {
       answeredKeywordIdsRef.current.add(targetEvent.id);
+      answeredAtRef.current.set(targetEvent.id, performance.now());
+      setTypedValuesByBlankKey((current) => ({ ...current, [blankKey]: targetEvent.keyword }));
 
       const nextScore = score + 120;
       const nextCombo = combo + 1;
@@ -767,6 +923,7 @@ export function useRainMode(settings?: RainSettings) {
       return;
     }
 
+    setTypedValuesByBlankKey((current) => ({ ...current, [blankKey]: '' }));
     setCombo(0);
     setLastJudgement('wrong');
   };
@@ -779,35 +936,11 @@ export function useRainMode(settings?: RainSettings) {
     const quizId = currentQuizState.quiz.quiz_id;
 
     if (quizId === undefined || quizId === null || quizId <= 0) {
-      const { isCorrect, feedback } = resolveLocalQuizResult(currentQuizState.quiz, selectedIndex);
-
-      console.warn('[quiz submit][rain] fallback to local grading', {
-        sessionId,
-        quizId,
-        selectedIndex,
-      });
-
-      if (isCorrect) {
-        setQuizCorrectCount((current) => current + 1);
-      }
       setCurrentQuizState((current) =>
         current
           ? {
               ...current,
-              selectedIndex,
-              feedback,
-              submitError: '',
-              isCorrect,
-              isSubmitting: false,
-            }
-          : current,
-      );
-      return;
-      setCurrentQuizState((current) =>
-        current
-          ? {
-              ...current,
-              submitError: '퀴즈 정보를 찾지 못해 답안을 저장할 수 없습니다.',
+              submitError: '퀴즈 저장 전이라 아직 채점할 수 없어요.',
               isSubmitting: false,
             }
           : current,
@@ -848,6 +981,7 @@ export function useRainMode(settings?: RainSettings) {
           : currentQuizState.quiz.incorrect_feedback || '');
 
       if (isCorrect) {
+        quizCorrectCountRef.current += 1;
         setQuizCorrectCount((current) => current + 1);
       }
 
@@ -864,7 +998,6 @@ export function useRainMode(settings?: RainSettings) {
           : current,
       );
     } catch (error: unknown) {
-      const { isCorrect, feedback } = resolveLocalQuizResult(currentQuizState.quiz, selectedIndex);
 
       console.error('[quiz submit][rain] error', {
         sessionId,
@@ -873,24 +1006,11 @@ export function useRainMode(settings?: RainSettings) {
         error,
       });
 
-      console.warn('[quiz submit][rain] fallback to local grading after submit error', {
-        sessionId,
-        quizId,
-        selectedIndex,
-      });
-
-      if (isCorrect) {
-        setQuizCorrectCount((current) => current + 1);
-      }
-
       setCurrentQuizState((current) =>
         current
           ? {
               ...current,
-              selectedIndex,
-              feedback,
               submitError: getQuizSubmitErrorMessage(error),
-              isCorrect,
               isSubmitting: false,
             }
           : current,
@@ -909,6 +1029,7 @@ export function useRainMode(settings?: RainSettings) {
         currentQuizState.quiz.trigger_time,
       ),
     );
+    quizAnsweredCountRef.current += 1;
     setQuizAnsweredCount((current) => current + 1);
     setCurrentQuizState(null);
     await Promise.resolve(controllerRef.current?.play());
@@ -950,6 +1071,10 @@ export function useRainMode(settings?: RainSettings) {
       nextFallDuration,
       missedKeywordCount: missCount,
       lastJudgement,
+      preparedFallEvents: preparedEvents.length,
+      unmatchedFallEvents: preparedRainSummary.unmatchedCount,
+      droppedByBlankLimit: preparedRainSummary.droppedByBlankLimit,
+      duplicateKeywordCandidates: preparedRainSummary.duplicateKeywordCandidates,
     }),
     [
       activeKeyword?.id,
@@ -964,6 +1089,10 @@ export function useRainMode(settings?: RainSettings) {
       nextFallDuration,
       nextTargetTime,
       pendingKeywordCount,
+      preparedEvents.length,
+      preparedRainSummary.droppedByBlankLimit,
+      preparedRainSummary.duplicateKeywordCandidates,
+      preparedRainSummary.unmatchedCount,
       rainDifficulty,
       visibleKeywordCount,
     ],
@@ -980,7 +1109,7 @@ export function useRainMode(settings?: RainSettings) {
         : 'html5'
     ) as PlayerType,
     playerSrc,
-    sessionTitle: sessionDetail?.title || 'Rain mode',
+    sessionTitle,
     sessionAiStatus: currentAiStatus,
     playerStatus: state,
     playerStatusLabel: statusLabel,
@@ -1009,6 +1138,10 @@ export function useRainMode(settings?: RainSettings) {
     quizCorrectCount,
     quizAnsweredCount,
     totalQuizCount: gameData.quizzes.length,
+    getLatestQuizStats: () => ({
+      quizCorrectCount: quizCorrectCountRef.current,
+      quizAnsweredCount: quizAnsweredCountRef.current,
+    }),
     handleTypedValueChange,
     togglePlay: async () => {
       if (currentQuizState || state === 'chapter_waiting' || state === 'stream_connecting') {
@@ -1033,6 +1166,8 @@ export function useRainMode(settings?: RainSettings) {
     continueFromQuiz,
     handleTimeUpdate: (time: number, nextDuration: number) => {
       setCurrentTime(time);
+      lastVideoTimeRef.current = time;
+      lastWallTimeRef.current = performance.now();
       if (nextDuration > 0) {
         setDuration(nextDuration);
       }

@@ -13,7 +13,7 @@ function FallingKeywords({ keywords }: FallingKeywordsProps) {
         return (
           <div
             key={keyword.id}
-            className={`absolute rounded-[8px] border px-[14px] py-[8px] text-center font-paperlogy text-[18px] font-semibold leading-[1.5] shadow-[0_8px_20px_rgba(3,46,78,0.14)] transition-all duration-300 ${
+            className={`absolute rounded-[8px] border px-[14px] py-[8px] text-center font-paperlogy text-[18px] font-semibold leading-[1.5] shadow-[0_8px_20px_rgba(3,46,78,0.14)] ${
               keyword.status === 'active'
                 ? 'border-[#032E4E] bg-[#EAF5FF] text-[#1A9AF5]'
                 : keyword.status === 'missed'

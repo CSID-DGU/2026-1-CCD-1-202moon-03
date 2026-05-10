@@ -41,6 +41,7 @@ function SpinnerModePage() {
     quizCorrectCount,
     quizAnsweredCount,
     totalQuizCount,
+    getLatestQuizStats,
     handleSelectTool,
     handleSpin,
     handleSpinnerWheel,
@@ -69,10 +70,11 @@ function SpinnerModePage() {
     setIsEndingStudy(true);
 
     try {
+      const latestQuizStats = getLatestQuizStats();
       await endGame(sessionId, {
         watch_rate: duration > 0 ? Math.min(Math.max(currentTime / duration, 0), 1) : 0,
-        quiz_correct: quizCorrectCount,
-        quiz_total: quizAnsweredCount || totalQuizCount,
+        quiz_correct: latestQuizStats.quizCorrectCount,
+        quiz_total: latestQuizStats.quizAnsweredCount || totalQuizCount,
       });
     } catch {
       // Ignore save failures and continue to result.
@@ -183,6 +185,7 @@ function SpinnerModePage() {
             ? {
                 quiz: {
                   quiz_id: quizState.quizId ?? undefined,
+                  quiz_index: quizState.quizIndex,
                   trigger_time: quizState.triggerTime,
                   segment_range: quizState.segmentRange,
                   question: quizState.question,

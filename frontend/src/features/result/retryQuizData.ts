@@ -20,7 +20,7 @@ export function mapNormalizedQuizToRetryQuiz(
 ): RetryQuizItem {
   return {
     quiz_id: quiz.quizId ?? index,
-    quiz_index: index,
+    quiz_index: quiz.quizIndex ?? index,
     answer_index: quiz.answerIndex,
     question: quiz.question,
     options: quiz.options,

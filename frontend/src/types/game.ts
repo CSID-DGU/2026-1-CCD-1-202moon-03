@@ -56,7 +56,8 @@ export interface StartGameResponseData {
   session_id: number;
   mode?: SessionMode;
   duration_sec?: number;
-  subtitles: GameSubtitleItem[];
+  subtitles?: GameSubtitleItem[];
+  segments?: GameSubtitleItem[];
   fall_events?: GameFallEventItem[];
   quizzes: GameQuizItem[];
   config?: GameConfig;
@@ -140,6 +141,7 @@ export interface NormalizedFallEvent {
 
 export interface NormalizedQuiz {
   quizId: number | null;
+  quizIndex: number;
   triggerTime: number;
   segmentRange?: [number, number];
   question: string;

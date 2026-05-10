@@ -18,6 +18,7 @@ interface ResultViewModel {
   learnedAt: string;
   score: number | null;
   maxCombo: number | null;
+  typingAccuracy: number | null;
   watchRate: number;
   quizCorrect: number;
   quizTotal: number;
@@ -73,6 +74,7 @@ function buildViewModel({
     learnedAt: formatDate(result?.completed_at ?? detail?.created_at),
     score: result?.total_score ?? localRainResult?.score ?? null,
     maxCombo: result?.max_combo ?? localRainResult?.maxCombo ?? null,
+    typingAccuracy: result?.typing_accuracy ?? null,
     watchRate: result?.watch_rate ?? 0,
     quizCorrect: result?.quiz_correct ?? 0,
     quizTotal: result?.quiz_total ?? 0,

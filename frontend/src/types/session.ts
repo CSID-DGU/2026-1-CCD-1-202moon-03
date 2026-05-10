@@ -7,6 +7,10 @@ export interface SessionListItem {
   id?: number;
   title: string;
   thumbnail_url: string | null;
+  video_title?: string | null;
+  videoTitle?: string | null;
+  thumbnail?: string | null;
+  thumbnailUrl?: string | null;
   mode: SessionMode;
   ai_status: AiStatus;
   created_at: string;
@@ -30,6 +34,11 @@ export interface CreateSessionResponseData {
   session_id?: number;
   id?: number;
   title: string;
+  video_title?: string | null;
+  videoTitle?: string | null;
+  thumbnail_url?: string | null;
+  thumbnail?: string | null;
+  thumbnailUrl?: string | null;
   ai_status: AiStatus;
   mode: SessionMode;
 }
@@ -40,9 +49,14 @@ export interface SessionDetailData {
   session_id?: number;
   id?: number;
   title: string;
+  video_title?: string | null;
+  videoTitle?: string | null;
   source_type: SessionSourceType;
   source_url: string | null;
+  video_url: string | null;
   thumbnail_url: string | null;
+  thumbnail?: string | null;
+  thumbnailUrl?: string | null;
   duration_sec: number | null;
   mode: SessionMode;
   ai_status: AiStatus;

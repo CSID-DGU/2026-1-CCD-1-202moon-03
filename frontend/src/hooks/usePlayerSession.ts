@@ -47,6 +47,9 @@ export function usePlayerSession() {
 
     try {
       const response = await getSessionDetail(sessionId);
+      if (response.data.source_type === 'file' && !response.data.video_url) {
+        setSessionError('저장된 영상 URL을 불러오지 못했습니다.');
+      }
       setSessionDetail(response.data);
     } catch (error) {
       setSessionError(getErrorMessage(error));

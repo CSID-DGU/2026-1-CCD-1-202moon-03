@@ -25,6 +25,18 @@ export type PlayerDataState =
 
 type ActiveStreamStrategy = 'source' | 'resume' | null;
 
+function isQuizMissingPersistedId(quizId: number | null) {
+  return quizId === null || quizId <= 0;
+}
+
+function hasGameContent(data: Pick<NormalizedGameData, 'segments' | 'quizzes' | 'fallEvents'>) {
+  return data.segments.length > 0 || data.quizzes.length > 0 || data.fallEvents.length > 0;
+}
+
+function hasMissingPersistedQuizIds(quizzes: NormalizedGameData['quizzes']) {
+  return quizzes.some((quiz) => isQuizMissingPersistedId(quiz.quizId));
+}
+
 function getErrorMessage(error: unknown, fallbackMessage: string) {
   const apiError = error as { response?: { data?: ApiErrorResponse } };
 
@@ -49,6 +61,7 @@ export function useGameSessionData() {
   const streamingSource = storeStreamingSource ?? getTransientStreamingSource();
   const initializedStreamingSessionRef = useRef<string | null>(null);
   const loadedStoredGameSessionRef = useRef<string | null>(null);
+  const hydratedPersistedStreamSessionRef = useRef<string | null>(null);
   const latestGameDataRef = useRef<NormalizedGameData>(createEmptyNormalizedGameData());
   const saveStreamedQuizzes = useStreamedQuizStore((state) => state.saveStreamedQuizzes);
 
@@ -61,24 +74,46 @@ export function useGameSessionData() {
   const [lastMergedTotalSegments, setLastMergedTotalSegments] = useState<number | null>(null);
 
   const currentAiStatus = sessionStatus?.ai_status ?? sessionDetail?.ai_status ?? null;
+  const hasVideoUrl = Boolean(sessionDetail?.video_url);
   const isStreamingCurrentSession =
     Boolean(streamingSource?.sessionId) &&
     String(streamingSource?.sessionId) === String(sessionId ?? '');
   const hasCompletedStreamingData =
     gameData.isComplete &&
-    (gameData.segments.length > 0 ||
-      gameData.quizzes.length > 0 ||
-      gameData.fallEvents.length > 0 ||
-      gameData.loadedChapterIndexes.length > 0);
+    (hasGameContent(gameData) || gameData.loadedChapterIndexes.length > 0);
   const shouldResumeFileCurrentSession =
     Boolean(sessionId) &&
     !streamingSource &&
     sessionDetail?.source_type === 'file' &&
     !hasCompletedStreamingData &&
+    currentAiStatus !== null &&
     currentAiStatus !== 'done' &&
     currentAiStatus !== 'failed';
   const isStreamingFlowCurrentSession =
     activeStreamStrategy !== null || isStreamingCurrentSession || shouldResumeFileCurrentSession;
+  const hasStartGameData = hasGameContent(gameData);
+  const recoveryStrategy = useMemo(() => {
+    if (streamingSource?.type === 'file' && streamingSource.file) {
+      return 'transient_file';
+    }
+    if (shouldResumeFileCurrentSession || activeStreamStrategy === 'resume') {
+      return 'stream_resume';
+    }
+    if (currentAiStatus === 'done') {
+      return 'stored_game';
+    }
+    if (streamingSource?.type === 'youtube_url') {
+      return 'stream_source';
+    }
+
+    return null;
+  }, [
+    activeStreamStrategy,
+    currentAiStatus,
+    shouldResumeFileCurrentSession,
+    streamingSource?.file,
+    streamingSource?.type,
+  ]);
 
   useEffect(() => {
     console.log('[useGameSessionData] snapshot', {
@@ -124,6 +159,7 @@ export function useGameSessionData() {
     setState(!isHydrated ? 'auth_loading' : 'session_loading');
     initializedStreamingSessionRef.current = null;
     loadedStoredGameSessionRef.current = null;
+    hydratedPersistedStreamSessionRef.current = null;
   }, [isHydrated, sessionId]);
 
   useEffect(() => {
@@ -257,6 +293,51 @@ export function useGameSessionData() {
             setGameData(completedGameData);
             setState('stream_complete');
             console.log('[useGameSessionData] stream complete');
+
+            if (
+              sessionId &&
+              hydratedPersistedStreamSessionRef.current !== sessionId &&
+              hasMissingPersistedQuizIds(completedGameData.quizzes)
+            ) {
+              hydratedPersistedStreamSessionRef.current = sessionId;
+
+              try {
+                const response = await startGame(sessionId);
+                const normalizedGameData = createNormalizedGameFromStoredData(response.data);
+
+                const nextGameData =
+                  normalizedGameData.segments.length > 0
+                    ? normalizedGameData
+                    : {
+                        ...latestGameDataRef.current,
+                        quizzes:
+                          normalizedGameData.quizzes.length > 0
+                            ? normalizedGameData.quizzes
+                            : latestGameDataRef.current.quizzes,
+                      };
+
+                latestGameDataRef.current = nextGameData;
+                setGameData(nextGameData);
+
+                if (nextGameData.quizzes.length > 0) {
+                  saveStreamedQuizzes(
+                    sessionId,
+                    nextGameData.quizzes.map((quiz, index) =>
+                      mapNormalizedQuizToRetryQuiz(quiz, index),
+                    ),
+                  );
+                }
+
+                console.log('[useGameSessionData] hydrated persisted quizzes after stream complete', {
+                  sessionId,
+                  quizIds: nextGameData.quizzes.map((quiz) => quiz.quizId),
+                  quizIndexes: nextGameData.quizzes.map((quiz) => quiz.quizIndex),
+                });
+              } catch (error) {
+                hydratedPersistedStreamSessionRef.current = null;
+                console.log('[useGameSessionData] persisted quiz hydration failed', error);
+              }
+            }
             continue;
           }
 
@@ -347,6 +428,15 @@ export function useGameSessionData() {
       return;
     }
 
+    if (sessionDetail?.source_type === 'file' && !sessionDetail.video_url) {
+      setState('failed');
+      setErrorMessage('저장된 영상 URL을 불러오지 못했습니다.');
+      console.log('[useGameSessionData] stored branch missing video_url for file session', {
+        sessionId,
+      });
+      return;
+    }
+
     if (loadedStoredGameSessionRef.current === sessionId) {
       return;
     }
@@ -368,6 +458,17 @@ export function useGameSessionData() {
 
         const normalizedGameData = createNormalizedGameFromStoredData(response.data);
 
+        if (!hasGameContent(normalizedGameData)) {
+          loadedStoredGameSessionRef.current = null;
+          setState('failed');
+          setErrorMessage('저장된 게임 데이터를 불러오지 못했습니다.');
+          console.log('[useGameSessionData] stored game empty payload', {
+            sessionId,
+            responseData: response.data,
+          });
+          return;
+        }
+
         latestGameDataRef.current = normalizedGameData;
         setGameData(normalizedGameData);
         setState('ready');
@@ -386,10 +487,15 @@ export function useGameSessionData() {
         console.log('[useGameSessionData] stored game loaded', {
           sessionId,
           subtitles: response.data.subtitles?.length ?? 0,
+          segments: response.data.segments?.length ?? 0,
+          fall_events: response.data.fall_events?.length ?? 0,
           quizzes: response.data.quizzes?.length ?? 0,
+          normalizedSegments: normalizedGameData.segments.length,
+          normalizedFallEvents: normalizedGameData.fallEvents.length,
         });
       } catch (error) {
         if (!isCancelled) {
+          loadedStoredGameSessionRef.current = null;
           setState('failed');
           setErrorMessage(getErrorMessage(error, '게임 데이터를 불러오지 못했습니다.'));
           console.log('[useGameSessionData] stored game exception', error);
@@ -447,8 +553,11 @@ export function useGameSessionData() {
       isStreamingCurrentSession,
       activeStreamStrategy,
       shouldResumeFileCurrentSession,
+      recoveryStrategy,
       streamingSourceType: streamingSource?.type ?? null,
       streamingSourceSessionId: streamingSource?.sessionId ?? null,
+      hasVideoUrl,
+      hasStartGameData,
       loadedSegments: gameData.segments.length,
       loadedQuizzes: gameData.quizzes.length,
       loadedFallEvents: gameData.fallEvents.length,

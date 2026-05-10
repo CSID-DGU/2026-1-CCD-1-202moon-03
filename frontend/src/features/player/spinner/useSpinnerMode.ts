@@ -3,6 +3,7 @@ import { submitQuizAnswer } from '../../../services/quiz.api';
 import { getTransientStreamingSource, usePlayerStore } from '../../../store/usePlayerStore';
 import type { ApiErrorResponse } from '../../../types';
 import { resolveMediaUrl } from '../shared/playback';
+import { useAuthenticatedVideoUrl } from '../shared/useAuthenticatedVideoUrl';
 import { useGameSessionData } from '../shared/useGameSessionData';
 import { useLocalFilePlayerSrc } from '../shared/useLocalFilePlayerSrc';
 import type { MediaController, PlayerType } from '../shared/playback';
@@ -20,20 +21,13 @@ function getQuizSubmitErrorMessage(error: unknown) {
   return (
     apiError?.response?.data?.message ||
     apiError?.response?.data?.detail ||
-    '답안을 저장하지 못했습니다. 다시 시도해 주세요.'
+    '답안을 저장하지 못했어요. 다시 시도해 주세요.'
   );
 }
 
-function resolveLocalQuizResult(
-  answerIndex: number,
-  correctFeedback: string,
-  incorrectFeedback: string,
-  selectedIndex: number,
-) {
-  const isCorrect = selectedIndex === answerIndex;
-  const feedback = isCorrect ? correctFeedback : incorrectFeedback;
-
-  return { isCorrect, feedback };
+function isDefaultSessionTitle(title?: string | null) {
+  const normalizedTitle = title?.trim() ?? '';
+  return !normalizedTitle || normalizedTitle === '새 학습 영상';
 }
 
 export function useSpinnerMode() {
@@ -47,7 +41,7 @@ export function useSpinnerMode() {
     currentAiStatus,
     debug,
   } = useGameSessionData();
-  const storeStreamingSource = usePlayerStore((state) => state.streamingSource);
+  const storeStreamingSource = usePlayerStore((playerStore) => playerStore.streamingSource);
   const streamingSource = storeStreamingSource ?? getTransientStreamingSource();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const controllerRef = useRef<MediaController | null>(null);
@@ -68,6 +62,7 @@ export function useSpinnerMode() {
   const [duration, setDuration] = useState(0);
   const [quizState, setQuizState] = useState<{
     quizId: number | null;
+    quizIndex: number;
     triggerTime: number;
     question: string;
     options: string[];
@@ -83,6 +78,16 @@ export function useSpinnerMode() {
   const [quizCorrectCount, setQuizCorrectCount] = useState(0);
   const [quizAnsweredCount, setQuizAnsweredCount] = useState(0);
   const answeredQuizIdsRef = useRef<Set<string>>(new Set());
+  const quizCorrectCountRef = useRef(0);
+  const quizAnsweredCountRef = useRef(0);
+
+  useEffect(() => {
+    quizCorrectCountRef.current = quizCorrectCount;
+  }, [quizCorrectCount]);
+
+  useEffect(() => {
+    quizAnsweredCountRef.current = quizAnsweredCount;
+  }, [quizAnsweredCount]);
 
   useEffect(() => {
     controllerRef.current?.setPlaybackRate(playbackRate);
@@ -172,10 +177,25 @@ export function useSpinnerMode() {
   );
 
   const localFileUrl = useLocalFilePlayerSrc(sessionId, streamingSource);
+  const authenticatedVideoUrl = useAuthenticatedVideoUrl({
+    enabled:
+      !localFileUrl &&
+      sessionDetail?.source_type === 'file' &&
+      Boolean(sessionDetail?.video_url),
+    sourceUrl: sessionDetail?.video_url,
+  });
 
   const playerSrc = useMemo(() => {
     if (localFileUrl) {
       return localFileUrl;
+    }
+
+    if (authenticatedVideoUrl) {
+      return authenticatedVideoUrl;
+    }
+
+    if (sessionDetail?.video_url) {
+      return resolveMediaUrl(sessionDetail.video_url);
     }
 
     if (sessionDetail?.source_url) {
@@ -183,7 +203,21 @@ export function useSpinnerMode() {
     }
 
     return streamingSource?.url || '';
-  }, [localFileUrl, sessionDetail?.source_url, streamingSource?.url]);
+  }, [
+    authenticatedVideoUrl,
+    localFileUrl,
+    sessionDetail?.video_url,
+    sessionDetail?.source_url,
+    streamingSource?.url,
+  ]);
+
+  const sessionTitle = useMemo(() => {
+    if (streamingSource?.type === 'file' && isDefaultSessionTitle(sessionDetail?.title)) {
+      return streamingSource.file?.name?.trim() || sessionDetail?.title || 'Spinner mode';
+    }
+
+    return sessionDetail?.title || 'Spinner mode';
+  }, [sessionDetail?.title, streamingSource]);
 
   useEffect(() => {
     autoPlaySessionRef.current = null;
@@ -249,6 +283,7 @@ export function useSpinnerMode() {
     controllerRef.current?.pause();
     setQuizState({
       quizId: nextQuiz.quizId,
+      quizIndex: nextQuiz.quizIndex,
       triggerTime: nextQuiz.triggerTime,
       question: nextQuiz.question,
       options: nextQuiz.options,
@@ -262,6 +297,35 @@ export function useSpinnerMode() {
       isSubmitting: false,
     });
   }, [currentTime, gameData.quizzes, quizState, state]);
+
+  useEffect(() => {
+    if (!quizState || quizState.quizId !== null) {
+      return;
+    }
+
+    const persistedQuiz =
+      gameData.quizzes.find((quiz) => quiz.quizIndex === quizState.quizIndex && quiz.quizId !== null) ??
+      gameData.quizzes.find(
+        (quiz) =>
+          quiz.quizId !== null &&
+          quiz.triggerTime === quizState.triggerTime &&
+          quiz.question === quizState.question,
+      );
+
+    if (!persistedQuiz) {
+      return;
+    }
+
+    setQuizState((current) =>
+      current
+        ? {
+            ...current,
+            quizId: persistedQuiz.quizId,
+            submitError: '',
+          }
+        : current,
+    );
+  }, [gameData.quizzes, quizState]);
 
   const handlePressKeycap = () => {
     if (keycapTimeoutRef.current !== null) {
@@ -307,40 +371,11 @@ export function useSpinnerMode() {
     }
 
     if (quizState.quizId === null || quizState.quizId <= 0) {
-      const { isCorrect, feedback } = resolveLocalQuizResult(
-        quizState.answerIndex,
-        quizState.feedback,
-        quizState.incorrectFeedback,
-        selectedIndex,
-      );
-
-      console.warn('[quiz submit][spinner] fallback to local grading', {
-        sessionId,
-        quizId: quizState.quizId,
-        selectedIndex,
-      });
-
-      if (isCorrect) {
-        setQuizCorrectCount((current) => current + 1);
-      }
       setQuizState((current) =>
         current
           ? {
               ...current,
-              selectedIndex,
-              isCorrect,
-              feedback,
-              submitError: '',
-              isSubmitting: false,
-            }
-          : current,
-      );
-      return;
-      setQuizState((current) =>
-        current
-          ? {
-              ...current,
-              submitError: '퀴즈 정보를 찾지 못해 답안을 저장할 수 없습니다.',
+              submitError: '퀴즈 저장 전이라 아직 채점할 수 없어요.',
               isSubmitting: false,
             }
           : current,
@@ -374,9 +409,11 @@ export function useSpinnerMode() {
         response: response.data,
       });
       const isCorrect = response.data.is_correct;
-      const feedback = response.data.explanation || (isCorrect ? quizState.feedback : quizState.incorrectFeedback);
+      const feedback =
+        response.data.explanation || (isCorrect ? quizState.feedback : quizState.incorrectFeedback);
 
       if (isCorrect) {
+        quizCorrectCountRef.current += 1;
         setQuizCorrectCount((current) => current + 1);
       }
 
@@ -393,13 +430,6 @@ export function useSpinnerMode() {
           : current,
       );
     } catch (error: unknown) {
-      const { isCorrect, feedback } = resolveLocalQuizResult(
-        quizState.answerIndex,
-        quizState.feedback,
-        quizState.incorrectFeedback,
-        selectedIndex,
-      );
-
       console.error('[quiz submit][spinner] error', {
         sessionId,
         quizId: quizState.quizId,
@@ -407,23 +437,10 @@ export function useSpinnerMode() {
         error,
       });
 
-      console.warn('[quiz submit][spinner] fallback to local grading after submit error', {
-        sessionId,
-        quizId: quizState.quizId,
-        selectedIndex,
-      });
-
-      if (isCorrect) {
-        setQuizCorrectCount((current) => current + 1);
-      }
-
       setQuizState((current) =>
         current
           ? {
               ...current,
-              selectedIndex,
-              isCorrect,
-              feedback,
               submitError: getQuizSubmitErrorMessage(error),
               isSubmitting: false,
             }
@@ -438,6 +455,7 @@ export function useSpinnerMode() {
     }
 
     answeredQuizIdsRef.current.add(buildAnsweredQuizKey(quizState.quizId, quizState.triggerTime));
+    quizAnsweredCountRef.current += 1;
     setQuizAnsweredCount((current) => current + 1);
     setQuizState(null);
     await controllerRef.current?.play();
@@ -451,7 +469,7 @@ export function useSpinnerMode() {
         ? 'youtube'
         : 'html5') as PlayerType,
     playerSrc,
-    sessionTitle: sessionDetail?.title || 'Spinner mode',
+    sessionTitle,
     sessionAiStatus: currentAiStatus,
     playerStatus: state,
     playerStatusLabel: statusLabel,
@@ -476,6 +494,10 @@ export function useSpinnerMode() {
     quizCorrectCount,
     quizAnsweredCount,
     totalQuizCount: gameData.quizzes.length,
+    getLatestQuizStats: () => ({
+      quizCorrectCount: quizCorrectCountRef.current,
+      quizAnsweredCount: quizAnsweredCountRef.current,
+    }),
     handleSelectTool: setSelectedTool,
     handleSpin: () => {
       setSelectedTool('spinner');

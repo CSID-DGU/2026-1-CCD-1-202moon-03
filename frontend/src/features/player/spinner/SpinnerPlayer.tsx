@@ -402,7 +402,7 @@ function SpinnerPlayer({
       ) : null}
 
       {isCaptionVisible && (captionOverlay || captionText) ? (
-        <div className="pointer-events-auto absolute bottom-[40px] left-1/2 z-20 -translate-x-1/2 bg-[rgba(0,0,0,0.6)] px-[15px] py-[8px]">
+        <div className="pointer-events-auto absolute bottom-[40px] left-1/2 z-20 -translate-x-1/2 max-w-[80%] rounded-[8px] bg-[rgba(0,0,0,0.6)] px-[15px] py-[8px]">
           {captionOverlay ?? (
             <p className="text-[22px] font-semibold leading-[1.5] text-white">{captionText}</p>
           )}
