@@ -31,10 +31,14 @@ interface PlayerDebugPanelProps {
     nextFallDuration?: number | null;
     missedKeywordCount?: number;
     lastJudgement?: string | null;
+    rafCurrentTime?: number;
+    activeKeywordTargetTime?: number | null;
+    activeKeywordSegmentId?: number | null;
     preparedFallEvents?: number;
     unmatchedFallEvents?: number;
     droppedByBlankLimit?: number;
     duplicateKeywordCandidates?: number;
+    invalidTargetTimeCount?: number;
   };
 }
 
@@ -89,6 +93,15 @@ function PlayerDebugPanel({ debug }: PlayerDebugPanelProps) {
       {typeof debug.nextFallDuration === 'number' ? (
         <div>nextFallDuration: {debug.nextFallDuration.toFixed(2)}</div>
       ) : null}
+      {typeof debug.rafCurrentTime === 'number' ? (
+        <div>rafCurrentTime: {debug.rafCurrentTime.toFixed(2)}</div>
+      ) : null}
+      {typeof debug.activeKeywordTargetTime === 'number' ? (
+        <div>activeKeywordTargetTime: {debug.activeKeywordTargetTime.toFixed(2)}</div>
+      ) : null}
+      {typeof debug.activeKeywordSegmentId === 'number' ? (
+        <div>activeKeywordSegmentId: {debug.activeKeywordSegmentId}</div>
+      ) : null}
       {typeof debug.missedKeywordCount === 'number' ? (
         <div>missedKeywordCount: {debug.missedKeywordCount}</div>
       ) : null}
@@ -103,6 +116,9 @@ function PlayerDebugPanel({ debug }: PlayerDebugPanelProps) {
       ) : null}
       {typeof debug.duplicateKeywordCandidates === 'number' ? (
         <div>duplicateKeywordCandidates: {debug.duplicateKeywordCandidates}</div>
+      ) : null}
+      {typeof debug.invalidTargetTimeCount === 'number' ? (
+        <div>invalidTargetTimeCount: {debug.invalidTargetTimeCount}</div>
       ) : null}
       {debug.activeKeywordId !== undefined ? <div>activeKeywordId: {debug.activeKeywordId ?? '-'}</div> : null}
       {debug.lastJudgement !== undefined ? <div>lastJudgement: {debug.lastJudgement ?? '-'}</div> : null}
