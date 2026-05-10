@@ -12,8 +12,9 @@ function RainQuizModal({ quizState, onSelectOption, onContinue }: RainQuizModalP
     return null;
   }
 
-  const { quiz, selectedIndex, feedback, isCorrect, isSubmitting } = quizState;
+  const { quiz, selectedIndex, feedback, submitError, isCorrect, isSubmitting } = quizState;
   const isAnswered = selectedIndex !== null;
+  const canContinueWithoutAnswer = Boolean(submitError) && !isSubmitting;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(8,15,24,0.68)] px-6 py-10 backdrop-blur-[3px]">
@@ -64,8 +65,14 @@ function RainQuizModal({ quizState, onSelectOption, onContinue }: RainQuizModalP
           </div>
         ) : null}
 
+        {!feedback && submitError ? (
+          <div className="mt-6 rounded-[18px] bg-[#FEF2F2] px-5 py-4 text-[16px] leading-[1.6] text-[#991B1B]">
+            {submitError}
+          </div>
+        ) : null}
+
         <div className="mt-8 flex justify-end">
-          {isAnswered ? (
+          {isAnswered || canContinueWithoutAnswer ? (
             <Button type="button" variant="active" className="h-[56px] px-8 text-[18px]" onClick={onContinue}>
               계속하기
             </Button>

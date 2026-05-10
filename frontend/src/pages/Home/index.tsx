@@ -37,6 +37,11 @@ function getSessionResponseId(session: { session_id?: number; id?: number }) {
   return String(session.session_id ?? session.id ?? '');
 }
 
+function isDefaultSessionTitle(title?: string | null) {
+  const normalizedTitle = title?.trim() ?? '';
+  return !normalizedTitle || normalizedTitle === '새 학습 영상';
+}
+
 function extractApiErrorMessage(error: unknown, fallbackMessage: string) {
   if (isAxiosError<ApiErrorResponse>(error)) {
     if (error.response?.status === 413) {
@@ -192,11 +197,31 @@ function HomePage() {
               mode: sessionMode,
             });
 
+      console.log('[HomePage] createSession response', response.data);
+
+      const nextSessionId = getSessionResponseId(response.data);
+      const uploadedFileName = pendingUploadPayload.file?.name?.trim() ?? '';
+      const resolvedResponseTitle =
+        pendingUploadPayload.sourceType === 'file' && isDefaultSessionTitle(response.data.title)
+          ? uploadedFileName || response.data.title
+          : response.data.title;
+
       const [latestSessionResponse, latestHistoryResponse] = await Promise.allSettled([
         getSessionList(),
         getLearningHistory(),
       ]);
-      const latestSessions = latestSessionResponse.status === 'fulfilled' ? latestSessionResponse.value.data : [];
+      const latestSessions =
+        latestSessionResponse.status === 'fulfilled'
+          ? latestSessionResponse.value.data.map((session) =>
+              getSessionResponseId(session) === nextSessionId
+                ? {
+                    ...session,
+                    title: resolvedResponseTitle || session.title,
+                    thumbnail_url: response.data.thumbnail_url ?? session.thumbnail_url,
+                  }
+                : session,
+            )
+          : [];
       const latestHistory = latestHistoryResponse.status === 'fulfilled' ? latestHistoryResponse.value.data : [];
       const latestScoreMap: Record<string, number> = {};
       latestHistory.forEach((item) => {
@@ -214,7 +239,6 @@ function HomePage() {
       setPendingUploadPayload(null);
       setPendingSourceLabel('');
       setSelectedMode(mode);
-      const nextSessionId = getSessionResponseId(response.data);
       const nextSourceType =
         pendingUploadPayload.sourceType === 'url' && pendingUploadPayload.url
           ? mapUrlSourceType(pendingUploadPayload.url)

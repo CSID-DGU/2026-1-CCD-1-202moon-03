@@ -121,6 +121,7 @@ export async function* startStreamingSession({
       body: JSON.stringify({
         url: source.url,
         language: source.language ?? 'ko',
+        ...(source.sessionId ? { session_id: source.sessionId } : {}),
       }),
     });
 
@@ -133,6 +134,9 @@ export async function* startStreamingSession({
     formData.append('file', source.file);
   }
   formData.append('language', source.language ?? 'ko');
+  if (source.sessionId) {
+    formData.append('session_id', String(source.sessionId));
+  }
 
   const response = await fetch(buildAbsoluteUrl('/api/sessions/stream/file/'), {
     method: 'POST',

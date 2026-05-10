@@ -6,8 +6,11 @@ interface PlayerDebugPanelProps {
     isStreamingCurrentSession: boolean;
     activeStreamStrategy?: string | null;
     shouldResumeFileCurrentSession?: boolean;
+    recoveryStrategy?: string | null;
     streamingSourceType: string | null;
     streamingSourceSessionId: string | null;
+    hasVideoUrl?: boolean;
+    hasStartGameData?: boolean;
     loadedSegments: number;
     loadedQuizzes: number;
     loadedFallEvents: number;
@@ -28,6 +31,10 @@ interface PlayerDebugPanelProps {
     nextFallDuration?: number | null;
     missedKeywordCount?: number;
     lastJudgement?: string | null;
+    preparedFallEvents?: number;
+    unmatchedFallEvents?: number;
+    droppedByBlankLimit?: number;
+    duplicateKeywordCandidates?: number;
   };
 }
 
@@ -45,8 +52,15 @@ function PlayerDebugPanel({ debug }: PlayerDebugPanelProps) {
       {debug.shouldResumeFileCurrentSession !== undefined ? (
         <div>shouldResumeFileCurrentSession: {String(debug.shouldResumeFileCurrentSession)}</div>
       ) : null}
+      {debug.recoveryStrategy !== undefined ? (
+        <div>recoveryStrategy: {debug.recoveryStrategy ?? '-'}</div>
+      ) : null}
       <div>streamingSourceType: {debug.streamingSourceType ?? '-'}</div>
       <div>streamingSourceSessionId: {debug.streamingSourceSessionId ?? '-'}</div>
+      {debug.hasVideoUrl !== undefined ? <div>hasVideoUrl: {String(debug.hasVideoUrl)}</div> : null}
+      {debug.hasStartGameData !== undefined ? (
+        <div>hasStartGameData: {String(debug.hasStartGameData)}</div>
+      ) : null}
       <div>lastStreamEventType: {debug.lastStreamEventType || '-'}</div>
       <div>loadedSegments: {debug.loadedSegments}</div>
       <div>loadedQuizzes: {debug.loadedQuizzes}</div>
@@ -77,6 +91,18 @@ function PlayerDebugPanel({ debug }: PlayerDebugPanelProps) {
       ) : null}
       {typeof debug.missedKeywordCount === 'number' ? (
         <div>missedKeywordCount: {debug.missedKeywordCount}</div>
+      ) : null}
+      {typeof debug.preparedFallEvents === 'number' ? (
+        <div>preparedFallEvents: {debug.preparedFallEvents}</div>
+      ) : null}
+      {typeof debug.unmatchedFallEvents === 'number' ? (
+        <div>unmatchedFallEvents: {debug.unmatchedFallEvents}</div>
+      ) : null}
+      {typeof debug.droppedByBlankLimit === 'number' ? (
+        <div>droppedByBlankLimit: {debug.droppedByBlankLimit}</div>
+      ) : null}
+      {typeof debug.duplicateKeywordCandidates === 'number' ? (
+        <div>duplicateKeywordCandidates: {debug.duplicateKeywordCandidates}</div>
       ) : null}
       {debug.activeKeywordId !== undefined ? <div>activeKeywordId: {debug.activeKeywordId ?? '-'}</div> : null}
       {debug.lastJudgement !== undefined ? <div>lastJudgement: {debug.lastJudgement ?? '-'}</div> : null}

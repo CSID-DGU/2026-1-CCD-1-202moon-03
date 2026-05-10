@@ -74,7 +74,7 @@ const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProp
     }, [items, primaryInputKey]);
 
     return (
-      <div ref={rootRef} className="flex flex-wrap items-center gap-[9px]">
+      <div ref={rootRef} className="flex flex-wrap items-baseline gap-[9px]">
         {items.length === 0 ? (
           fallbackText ? (
             <p className="text-[22px] font-semibold leading-[1.5] text-white">{fallbackText}</p>
@@ -95,6 +95,7 @@ const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProp
                 type="text"
                 value={item.value}
                 placeholder={item.placeholder}
+                readOnly={item.resolvedState !== 'pending'}
                 onChange={(event) => onChange(item.key, event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key !== 'Enter') {

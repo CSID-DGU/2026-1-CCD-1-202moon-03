@@ -35,6 +35,10 @@ function buildThumbnailLabel(title: string) {
   return sanitized.slice(0, 4) || 'TADA';
 }
 
+function resolveSessionTitle(session: SessionListItem) {
+  return session.title?.trim() || session.video_title?.trim() || session.videoTitle?.trim() || '영상 제목';
+}
+
 function mapSessionModeToHomeMode(mode: SessionListItem['mode']): HomeVideoItem['mode'] {
   return mode === 'fidget' ? 'spinner' : 'rain';
 }
@@ -65,10 +69,11 @@ export function buildHomeVideoItemsFromSessions(
 
   return sessions.map((session, index) => {
     const id = getSessionItemId(session, index);
+    const title = resolveSessionTitle(session);
     return {
       id,
-      title: session.title,
-      thumbnailLabel: buildThumbnailLabel(session.title),
+      title,
+      thumbnailLabel: buildThumbnailLabel(title),
       thumbnailColor: thumbnailPalette[index % thumbnailPalette.length],
       mode: mapSessionModeToHomeMode(session.mode),
       learnedAt: formatDisplayDate(new Date(session.created_at)),

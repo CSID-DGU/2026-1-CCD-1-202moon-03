@@ -63,6 +63,7 @@ function RainModePage() {
     quizCorrectCount,
     quizAnsweredCount,
     totalQuizCount,
+    getLatestQuizStats,
     handleTypedValueChange,
     togglePlay,
     toggleSpeedMenu,
@@ -95,13 +96,14 @@ function RainModePage() {
     setIsEndingStudy(true);
 
     try {
+      const latestQuizStats = getLatestQuizStats();
       await endGame(sessionId, {
         watch_rate: duration > 0 ? Math.min(Math.max(currentTime / duration, 0), 1) : 0,
         total_score: score,
         max_combo: maxCombo,
         typing_accuracy: Math.min(Math.max(accuracy / 100, 0), 1),
-        quiz_correct: quizCorrectCount,
-        quiz_total: quizAnsweredCount || totalQuizCount,
+        quiz_correct: latestQuizStats.quizCorrectCount,
+        quiz_total: latestQuizStats.quizAnsweredCount || totalQuizCount,
       });
     } catch {
       // Keep local fallback values and continue to the result page.
