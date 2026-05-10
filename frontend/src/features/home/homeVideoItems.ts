@@ -1,8 +1,18 @@
 import type { SessionListItem } from '../../types';
 import { formatDisplayDate } from '../../utils/format';
-import { mockHomeVideos, type HomeVideoRecord } from './mockVideos';
 
-export interface HomeVideoItem extends HomeVideoRecord {
+export interface HomeVideoItem {
+  id: string;
+  title: string;
+  thumbnailLabel: string;
+  thumbnailColor: string;
+  mode: 'rain' | 'spinner';
+  learnedAt: string;
+  achievedAt?: string;
+  score?: number;
+  maxCombo?: number;
+  aiSummary: string;
+  keywords: string[];
   hasThumbnail: boolean;
   isPlaceholder?: boolean;
   thumbnailUrl?: string;
@@ -47,15 +57,8 @@ function getSessionItemId(session: SessionListItem, index: number) {
   return String(session.session_id ?? session.id ?? `session-${index}`);
 }
 
-function toHomeVideoItem(video: HomeVideoRecord): HomeVideoItem {
-  return {
-    ...video,
-    hasThumbnail: video.id === 'rain-lesson-01',
-  };
-}
-
 export function buildInitialHomeVideoItems(): HomeVideoItem[] {
-  return [...mockHomeVideos.map(toHomeVideoItem), ...placeholderItems];
+  return placeholderItems;
 }
 
 export function buildHomeVideoItemsFromSessions(
