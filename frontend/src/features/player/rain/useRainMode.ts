@@ -44,7 +44,7 @@ const TARGET_TIME_SEGMENT_TOLERANCE_SECONDS = 3;
 const MISS_GRACE_SECONDS = 4.0;
 const MISSED_DISPLAY_BUFFER = 0.75;
 const SHORT_SEGMENT_THRESHOLD_SECONDS = 4;
-const MIN_BLANK_SEGMENT_DURATION_SECONDS = 1.0;
+const MIN_BLANK_SEGMENT_DURATION_SECONDS = 2.0;
 const SHORT_SEGMENT_EXTRA_FALL_DURATION = 0.5;
 const SHORT_SEGMENT_EXTRA_LEAD_TIME = 0.4;
 const SEGMENT_TRANSITION_INPUT_HOLD_MS = 250;
@@ -263,9 +263,7 @@ export function useRainMode(settings?: RainSettings) {
   const quizAnsweredCountRef = useRef(0);
   const tabSwitchCountRef = useRef(0);
   const isManualSettings = settings?.mode === 'manual';
-  const selectedDifficulty = isManualSettings
-    ? rainDifficulty
-    : (settings?.difficulty ?? rainDifficulty);
+  const selectedDifficulty = settings?.difficulty ?? rainDifficulty;
   const difficultySettings = RAIN_DIFFICULTY[selectedDifficulty];
   const effectiveActiveBlanks = isManualSettings
     ? settings?.blankCount ?? difficultySettings.activeBlanks
@@ -296,7 +294,6 @@ export function useRainMode(settings?: RainSettings) {
         cancelAnimationFrame(rafIdRef.current);
         rafIdRef.current = null;
       }
-      setRafCurrentTime(currentTime);
       return;
     }
 
@@ -317,7 +314,15 @@ export function useRainMode(settings?: RainSettings) {
         rafIdRef.current = null;
       }
     };
-  }, [isPlaying, currentTime]);
+  }, [isPlaying]);
+
+  useEffect(() => {
+    lastVideoTimeRef.current = currentTime;
+    lastWallTimeRef.current = performance.now();
+    if (!isPlaying) {
+      setRafCurrentTime(currentTime);
+    }
+  }, [currentTime, isPlaying]);
 
   useEffect(() => {
     if (!sessionId) {
@@ -390,24 +395,54 @@ export function useRainMode(settings?: RainSettings) {
     };
   }, [isSpeedMenuOpen]);
 
-  const allowedSegmentIds = useMemo<Set<number> | null>(() => {
+  const allowedEventIds = useMemo<Set<string> | null>(() => {
     if (effectiveSegmentSampleRate <= 1) return null;
-    return new Set(
-      [...gameData.segments]
-        .sort((a, b) => a.start - b.start)
-        .filter((_, i) => i % effectiveSegmentSampleRate === 0)
-        .map((s) => s.segmentId),
+    const segmentDurationMap = new Map(
+      gameData.segments.map((s) => [s.segmentId, s.end - s.start]),
     );
-  }, [effectiveSegmentSampleRate, gameData.segments]);
+    return new Set(
+      [...gameData.fallEvents]
+        .filter((e) => (segmentDurationMap.get(e.segmentId) ?? 0) >= MIN_BLANK_SEGMENT_DURATION_SECONDS)
+        .sort((a, b) => a.targetTime - b.targetTime)
+        .filter((_, i) => i % effectiveSegmentSampleRate === 0)
+        .map((e) => `${e.segmentId}:${e.keyword}:${e.targetTime}`),
+    );
+  }, [effectiveSegmentSampleRate, gameData.fallEvents, gameData.segments]);
+
+  const allowedSegmentsFromEvents = useMemo<Set<number> | null>(() => {
+    if (!allowedEventIds) return null;
+    return new Set(
+      gameData.fallEvents
+        .filter((e) => allowedEventIds.has(`${e.segmentId}:${e.keyword}:${e.targetTime}`))
+        .map((e) => e.segmentId),
+    );
+  }, [allowedEventIds, gameData.fallEvents]);
+
+  // "segmentId:normalizedKeyword" 쌍 — 허용된 fall event에 대응하는 blank만 입력칸으로 만들기 위한 집합
+  const allowedBlankSignatures = useMemo<Set<string> | null>(() => {
+    if (!allowedEventIds) return null;
+    return new Set(
+      gameData.fallEvents
+        .filter((e) => allowedEventIds.has(`${e.segmentId}:${e.keyword}:${e.targetTime}`))
+        .map((e) => `${e.segmentId}:${normalizeAnswer(e.keyword)}`),
+    );
+  }, [allowedEventIds, gameData.fallEvents]);
 
   const segmentBlankKeys = useMemo(() => {
     const map = new Map<number, Set<string>>();
 
     gameData.segments.forEach((segment) => {
-      if (allowedSegmentIds && !allowedSegmentIds.has(segment.segmentId)) return;
+      if (allowedSegmentsFromEvents && !allowedSegmentsFromEvents.has(segment.segmentId)) return;
       if (segment.end - segment.start < MIN_BLANK_SEGMENT_DURATION_SECONDS) return;
 
-      const activeBlanks = segment.blanks.slice(0, effectiveActiveBlanks);
+      const blankPlaceholderCount = (segment.blankText.match(/_{2,}/g) ?? []).length;
+      const activeBlanks = segment.blanks
+        .filter(
+          (blank) =>
+            !allowedBlankSignatures ||
+            allowedBlankSignatures.has(`${segment.segmentId}:${normalizeAnswer(blank.keyword)}`),
+        )
+        .slice(0, Math.min(effectiveActiveBlanks, blankPlaceholderCount));
 
       map.set(
         segment.segmentId,
@@ -416,7 +451,7 @@ export function useRainMode(settings?: RainSettings) {
     });
 
     return map;
-  }, [allowedSegmentIds, effectiveActiveBlanks, gameData.segments]);
+  }, [allowedBlankSignatures, allowedSegmentsFromEvents, effectiveActiveBlanks, gameData.segments]);
 
   const preparedRainSummary = useMemo<PreparedRainSummary>(() => {
     const usedBlankKeys = new Set<string>();
@@ -433,7 +468,8 @@ export function useRainMode(settings?: RainSettings) {
         return prepared;
       }
 
-      if (allowedSegmentIds && !allowedSegmentIds.has(event.segmentId)) {
+      const eventId = `${event.segmentId}:${event.keyword}:${event.targetTime}`;
+      if (allowedEventIds && !allowedEventIds.has(eventId)) {
         return prepared;
       }
 
@@ -511,7 +547,7 @@ export function useRainMode(settings?: RainSettings) {
       const extraLeadTime = isShortSegment ? SHORT_SEGMENT_EXTRA_LEAD_TIME : 0;
       const baseFallDuration = Math.max(event.fallWindow / effectiveFallSpeed, 0.5 / effectiveFallSpeed);
       const fallDuration = Math.max(baseFallDuration, adjustedMinFallDuration);
-      const fallStartTime = Math.max(0, targetTime - fallDuration - extraLeadTime);
+      const fallStartTime = Math.max(segment.start - 2, targetTime - fallDuration - extraLeadTime);
       const missDeadline = Math.max(
         targetTime,
         Math.min(targetTime + MISS_GRACE_SECONDS, segment.end - 0.2),
@@ -542,7 +578,7 @@ export function useRainMode(settings?: RainSettings) {
       duplicateKeywordCandidates,
       invalidTargetTimeCount,
     };
-  }, [allowedSegmentIds, effectiveFallSpeed, effectiveMinFallDuration, gameData.fallEvents, gameData.segments, segmentBlankKeys]);
+  }, [allowedEventIds, effectiveFallSpeed, effectiveMinFallDuration, gameData.fallEvents, gameData.segments, segmentBlankKeys]);
 
   const preparedEvents = preparedRainSummary.events;
 
@@ -795,11 +831,41 @@ export function useRainMode(settings?: RainSettings) {
 
   const captionSegment = useMemo(() => {
     if (!activeSegment) return null;
-    if (allowedSegmentIds && !allowedSegmentIds.has(activeSegment.segmentId)) {
+
+    if (activeSegment.end - activeSegment.start < MIN_BLANK_SEGMENT_DURATION_SECONDS) {
       return { ...activeSegment, blankText: activeSegment.originalText, blanks: [] };
     }
-    return activeSegment;
-  }, [activeSegment, allowedSegmentIds]);
+
+    if (allowedSegmentsFromEvents && !allowedSegmentsFromEvents.has(activeSegment.segmentId)) {
+      return { ...activeSegment, blankText: activeSegment.originalText, blanks: [] };
+    }
+
+    if (!allowedBlankSignatures) return activeSegment;
+
+    // 허용된 fall event에 대응하는 blank만 입력칸으로 남기고,
+    // 나머지 blank 플레이스홀더(___) 는 실제 키워드 텍스트로 교체
+    const parts = activeSegment.blankText.split(/_{2,}/);
+    const sortedBlanks = [...activeSegment.blanks].sort((a, b) => a.position - b.position);
+    const filteredBlanks: typeof activeSegment.blanks = [];
+    let newBlankText = '';
+
+    for (let i = 0; i < parts.length - 1; i++) {
+      newBlankText += parts[i] ?? '';
+      const blank = sortedBlanks[i];
+      if (
+        blank &&
+        allowedBlankSignatures.has(`${activeSegment.segmentId}:${normalizeAnswer(blank.keyword)}`)
+      ) {
+        newBlankText += '___';
+        filteredBlanks.push(blank);
+      } else {
+        newBlankText += blank?.keyword ?? '';
+      }
+    }
+    newBlankText += parts[parts.length - 1] ?? '';
+
+    return { ...activeSegment, blankText: newBlankText, blanks: filteredBlanks };
+  }, [activeSegment, allowedBlankSignatures, allowedSegmentsFromEvents]);
 
   const captionDisplay = useMemo(
     () =>
