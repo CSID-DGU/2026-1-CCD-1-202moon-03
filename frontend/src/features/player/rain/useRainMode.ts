@@ -21,30 +21,33 @@ const RAIN_DIFFICULTY = {
   easy: {
     activeBlanks: 1,
     fallSpeed: 0.3,
-    minFallDuration: 4.2,
+    minFallDuration: 7.0,
+    segmentSampleRate: 5,
   },
   normal: {
     activeBlanks: 2,
     fallSpeed: 0.5,
-    minFallDuration: 3.8,
+    minFallDuration: 6.0,
+    segmentSampleRate: 3,
   },
   hard: {
-    activeBlanks: 3,
+    activeBlanks: 2,
     fallSpeed: 1.0,
-    minFallDuration: 3.0,
+    minFallDuration: 5.0,
+    segmentSampleRate: 1,
   },
 };
 
 const FALL_PROGRESS_START = -12;
 const FALL_PROGRESS_END = 86;
 const TARGET_TIME_SEGMENT_TOLERANCE_SECONDS = 3;
-const MIN_MISS_LEAD_TIME_SECONDS = 0.25;
-const MAX_MISS_LEAD_TIME_SECONDS = 0.4;
-const MISS_LEAD_TIME_RATIO = 0.15;
+const MISS_GRACE_SECONDS = 4.0;
 const MISSED_DISPLAY_BUFFER = 0.75;
 const SHORT_SEGMENT_THRESHOLD_SECONDS = 4;
+const MIN_BLANK_SEGMENT_DURATION_SECONDS = 1.0;
 const SHORT_SEGMENT_EXTRA_FALL_DURATION = 0.5;
 const SHORT_SEGMENT_EXTRA_LEAD_TIME = 0.4;
+const SEGMENT_TRANSITION_INPUT_HOLD_MS = 250;
 const RAIN_SPEED_OPTIONS: PlaybackRate[] = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
 function buildAnsweredQuizKey(quizId: number | null, triggerTime: number) {
@@ -217,6 +220,8 @@ export function useRainMode(settings?: RainSettings) {
   const answeredKeywordIdsRef = useRef<Set<string>>(new Set());
   const missedKeywordIdsRef = useRef<Set<string>>(new Set());
   const answeredAtRef = useRef<Map<string, number>>(new Map());
+  const segmentTransitionHoldRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const previousCaptionSegmentIdRef = useRef<number | null>(null);
   const {
     score,
     combo,
@@ -229,6 +234,9 @@ export function useRainMode(settings?: RainSettings) {
   } = useRainStore();
 
   const [typedValuesByBlankKey, setTypedValuesByBlankKey] = useState<Record<string, string>>({});
+  const [editingBlankKey, setEditingBlankKey] = useState<string | null>(null);
+  const [isCaptionComposing, setIsCaptionComposing] = useState(false);
+  const [prunedTypedValueCount, setPrunedTypedValueCount] = useState(0);
   const [playbackRate, setPlaybackRate] = useState<PlaybackRate>(1);
   const [isSpeedMenuOpen, setIsSpeedMenuOpen] = useState(false);
   const [isCaptionVisible, setIsCaptionVisible] = useState(true);
@@ -250,8 +258,10 @@ export function useRainMode(settings?: RainSettings) {
   const [quizAnsweredCount, setQuizAnsweredCount] = useState(0);
   const [missCount, setMissCount] = useState(0);
   const [lastJudgement, setLastJudgement] = useState<'hit' | 'miss' | 'wrong' | null>(null);
+  const [tabSwitchCount, setTabSwitchCount] = useState(0);
   const quizCorrectCountRef = useRef(0);
   const quizAnsweredCountRef = useRef(0);
+  const tabSwitchCountRef = useRef(0);
   const isManualSettings = settings?.mode === 'manual';
   const selectedDifficulty = isManualSettings
     ? rainDifficulty
@@ -266,6 +276,7 @@ export function useRainMode(settings?: RainSettings) {
     ? (MANUAL_SPEED_MAP[settings?.fallSpeed ?? 3] ?? 1.0)
     : difficultySettings.fallSpeed;
   const effectiveMinFallDuration = difficultySettings.minFallDuration;
+  const effectiveSegmentSampleRate = difficultySettings.segmentSampleRate;
 
   useEffect(() => {
     quizCorrectCountRef.current = quizCorrectCount;
@@ -332,14 +343,19 @@ export function useRainMode(settings?: RainSettings) {
     setAttempts(0);
     setCorrectCount(0);
     setTypedValuesByBlankKey({});
+    setEditingBlankKey(null);
+    setIsCaptionComposing(false);
+    setPrunedTypedValueCount(0);
     setCurrentTime(0);
     setDuration(0);
     setIsPlaying(false);
     setCurrentQuizState(null);
     quizCorrectCountRef.current = 0;
     quizAnsweredCountRef.current = 0;
+    tabSwitchCountRef.current = savedResult?.tabSwitchCount ?? 0;
     setQuizCorrectCount(0);
     setQuizAnsweredCount(0);
+    setTabSwitchCount(savedResult?.tabSwitchCount ?? 0);
     setMissCount(0);
     setLastJudgement(null);
 
@@ -374,10 +390,23 @@ export function useRainMode(settings?: RainSettings) {
     };
   }, [isSpeedMenuOpen]);
 
+  const allowedSegmentIds = useMemo<Set<number> | null>(() => {
+    if (effectiveSegmentSampleRate <= 1) return null;
+    return new Set(
+      [...gameData.segments]
+        .sort((a, b) => a.start - b.start)
+        .filter((_, i) => i % effectiveSegmentSampleRate === 0)
+        .map((s) => s.segmentId),
+    );
+  }, [effectiveSegmentSampleRate, gameData.segments]);
+
   const segmentBlankKeys = useMemo(() => {
     const map = new Map<number, Set<string>>();
 
     gameData.segments.forEach((segment) => {
+      if (allowedSegmentIds && !allowedSegmentIds.has(segment.segmentId)) return;
+      if (segment.end - segment.start < MIN_BLANK_SEGMENT_DURATION_SECONDS) return;
+
       const activeBlanks = segment.blanks.slice(0, effectiveActiveBlanks);
 
       map.set(
@@ -387,7 +416,7 @@ export function useRainMode(settings?: RainSettings) {
     });
 
     return map;
-  }, [effectiveActiveBlanks, gameData.segments]);
+  }, [allowedSegmentIds, effectiveActiveBlanks, gameData.segments]);
 
   const preparedRainSummary = useMemo<PreparedRainSummary>(() => {
     const usedBlankKeys = new Set<string>();
@@ -401,6 +430,14 @@ export function useRainMode(settings?: RainSettings) {
 
       if (!segment) {
         unmatchedCount += 1;
+        return prepared;
+      }
+
+      if (allowedSegmentIds && !allowedSegmentIds.has(event.segmentId)) {
+        return prepared;
+      }
+
+      if (segment.end - segment.start < MIN_BLANK_SEGMENT_DURATION_SECONDS) {
         return prepared;
       }
 
@@ -475,15 +512,11 @@ export function useRainMode(settings?: RainSettings) {
       const baseFallDuration = Math.max(event.fallWindow / effectiveFallSpeed, 0.5 / effectiveFallSpeed);
       const fallDuration = Math.max(baseFallDuration, adjustedMinFallDuration);
       const fallStartTime = Math.max(0, targetTime - fallDuration - extraLeadTime);
-      const missLeadTime = Math.min(
-        MAX_MISS_LEAD_TIME_SECONDS,
-        Math.max(MIN_MISS_LEAD_TIME_SECONDS, segmentDuration * MISS_LEAD_TIME_RATIO),
+      const missDeadline = Math.max(
+        targetTime,
+        Math.min(targetTime + MISS_GRACE_SECONDS, segment.end - 0.2),
       );
-      const missDeadline = Math.max(targetTime, segment.end - missLeadTime);
-      const stableLaneHash = `${event.segmentId}:${normalizedEventKeyword}:${event.targetTime}`
-        .split('')
-        .reduce((hash, char) => hash * 31 + char.charCodeAt(0), 7);
-      const lane = Math.abs(stableLaneHash) % FIXED_LANE_POSITIONS.length;
+      const lane = blank.position % FIXED_LANE_POSITIONS.length;
 
       prepared.push({
         id: `${event.segmentId}:${event.keyword}:${event.targetTime}`,
@@ -509,7 +542,7 @@ export function useRainMode(settings?: RainSettings) {
       duplicateKeywordCandidates,
       invalidTargetTimeCount,
     };
-  }, [effectiveFallSpeed, effectiveMinFallDuration, gameData.fallEvents, gameData.segments, segmentBlankKeys]);
+  }, [allowedSegmentIds, effectiveFallSpeed, effectiveMinFallDuration, gameData.fallEvents, gameData.segments, segmentBlankKeys]);
 
   const preparedEvents = preparedRainSummary.events;
 
@@ -760,42 +793,118 @@ export function useRainMode(settings?: RainSettings) {
     return nextState;
   }, [correctCount, currentTime, missCount, preparedEvents]);
 
+  const captionSegment = useMemo(() => {
+    if (!activeSegment) return null;
+    if (allowedSegmentIds && !allowedSegmentIds.has(activeSegment.segmentId)) {
+      return { ...activeSegment, blankText: activeSegment.originalText, blanks: [] };
+    }
+    return activeSegment;
+  }, [activeSegment, allowedSegmentIds]);
+
   const captionDisplay = useMemo(
     () =>
       buildCaptionDisplay(
-        activeSegment
+        captionSegment
           ? {
-              segmentId: activeSegment.segmentId,
-              blankText: activeSegment.blankText,
-              blanks: activeSegment.blanks.slice(0, effectiveActiveBlanks),
+              segmentId: captionSegment.segmentId,
+              blankText: captionSegment.blankText,
+              blanks: captionSegment.blanks.slice(0, effectiveActiveBlanks),
             }
           : null,
         typedValuesByBlankKey,
         resolvedStatesByBlankKey,
       ),
-    [activeSegment, effectiveActiveBlanks, resolvedStatesByBlankKey, typedValuesByBlankKey],
+    [captionSegment, effectiveActiveBlanks, resolvedStatesByBlankKey, typedValuesByBlankKey],
   );
 
   useEffect(() => {
+    const captionSegmentId = activeSegment?.segmentId ?? null;
+    const previousCaptionSegmentId = previousCaptionSegmentIdRef.current;
+    previousCaptionSegmentIdRef.current = captionSegmentId;
+
+    if (captionSegmentId === previousCaptionSegmentId) {
+      return;
+    }
+
+    if (segmentTransitionHoldRef.current) {
+      clearTimeout(segmentTransitionHoldRef.current);
+      segmentTransitionHoldRef.current = null;
+    }
+
     const visibleBlankKeys = new Set(
-      captionDisplay.items.filter((item): item is RainCaptionInputItem => item.type === 'input').map((item) => item.key),
+      (activeSegment?.blanks.slice(0, effectiveActiveBlanks) ?? []).map((blank) =>
+        buildBlankKey(activeSegment?.segmentId ?? -1, blank),
+      ),
     );
 
-    setTypedValuesByBlankKey((current) => {
-      const nextEntries = Object.entries(current).filter(([key]) => visibleBlankKeys.has(key));
-      if (nextEntries.length === Object.keys(current).length) {
-        return current;
-      }
+    const runPrune = () => {
+      setTypedValuesByBlankKey((current) => {
+        const nextEntries = Object.entries(current).filter(([key]) => {
+          if (visibleBlankKeys.has(key)) {
+            return true;
+          }
 
-      return Object.fromEntries(nextEntries);
-    });
-  }, [captionDisplay.items]);
+          if (editingBlankKey && key === editingBlankKey) {
+            return true;
+          }
+
+          return false;
+        });
+
+        const prunedCount = Object.keys(current).length - nextEntries.length;
+        if (prunedCount > 0) {
+          setPrunedTypedValueCount((previous) => previous + prunedCount);
+        }
+
+        if (nextEntries.length === Object.keys(current).length) {
+          return current;
+        }
+
+        return Object.fromEntries(nextEntries);
+      });
+    };
+
+    if (editingBlankKey && !visibleBlankKeys.has(editingBlankKey)) {
+      segmentTransitionHoldRef.current = setTimeout(() => {
+        runPrune();
+        segmentTransitionHoldRef.current = null;
+      }, isCaptionComposing ? SEGMENT_TRANSITION_INPUT_HOLD_MS * 2 : SEGMENT_TRANSITION_INPUT_HOLD_MS);
+      return;
+    }
+
+    runPrune();
+  }, [activeSegment?.segmentId, activeSegment?.blanks, editingBlankKey, effectiveActiveBlanks, isCaptionComposing]);
+
+  useEffect(() => {
+    return () => {
+      if (segmentTransitionHoldRef.current) {
+        clearTimeout(segmentTransitionHoldRef.current);
+      }
+    };
+  }, []);
 
   const accuracy = attempts === 0 ? 100 : Math.round((correctCount / attempts) * 100);
 
   useEffect(() => {
     setAccuracy(accuracy);
   }, [accuracy, setAccuracy]);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        return;
+      }
+
+      tabSwitchCountRef.current += 1;
+      setTabSwitchCount(tabSwitchCountRef.current);
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
 
   useEffect(() => {
     if (!sessionId) {
@@ -806,8 +915,9 @@ export function useRainMode(settings?: RainSettings) {
       score,
       maxCombo,
       accuracy,
+      tabSwitchCount,
     });
-  }, [accuracy, maxCombo, saveSessionResult, score, sessionId]);
+  }, [accuracy, maxCombo, saveSessionResult, score, sessionId, tabSwitchCount]);
 
   useEffect(() => {
     const isFirstChapterReady = gameData.loadedChapterIndexes.includes(0);
@@ -929,9 +1039,9 @@ export function useRainMode(settings?: RainSettings) {
     }));
   };
 
-  const handleTypingSubmit = (blankKey: string) => {
+  const handleTypingSubmit = (blankKey: string, value: string) => {
     const targetEvent = preparedEvents.find((event) => event.blankKey === blankKey);
-    const typedValue = typedValuesByBlankKey[blankKey] ?? '';
+    const typedValue = value;
     const normalizedTyped = normalizeAnswer(typedValue);
 
     if (!targetEvent || !normalizedTyped) {
@@ -1109,7 +1219,7 @@ export function useRainMode(settings?: RainSettings) {
       activeBlanks: effectiveActiveBlanks,
       fallSpeed: effectiveFallSpeed,
       minFallDuration: effectiveMinFallDuration,
-      missGraceSeconds: MAX_MISS_LEAD_TIME_SECONDS,
+      missGraceSeconds: MISS_GRACE_SECONDS,
       activeKeywordId: activeKeyword?.id ?? null,
       pendingKeywordCount,
       visibleKeywordCount,
@@ -1125,17 +1235,24 @@ export function useRainMode(settings?: RainSettings) {
       droppedByBlankLimit: preparedRainSummary.droppedByBlankLimit,
       duplicateKeywordCandidates: preparedRainSummary.duplicateKeywordCandidates,
       invalidTargetTimeCount: preparedRainSummary.invalidTargetTimeCount,
+      editingBlankKey,
+      isCaptionComposing,
+      captionSegmentId: activeSegment?.segmentId ?? null,
+      prunedTypedValueCount,
+      tabSwitchCount,
     }),
     [
       activeKeyword?.id,
+      activeSegment?.segmentId,
       debug,
+      editingBlankKey,
       effectiveFallSpeed,
       effectiveActiveBlanks,
       effectiveMinFallDuration,
       isManualSettings,
       lastJudgement,
       missCount,
-      MAX_MISS_LEAD_TIME_SECONDS,
+      MISS_GRACE_SECONDS,
       activePreparedEvent?.segmentId,
       activePreparedEvent?.targetTime,
       nextFallDuration,
@@ -1146,9 +1263,12 @@ export function useRainMode(settings?: RainSettings) {
       preparedRainSummary.duplicateKeywordCandidates,
       preparedRainSummary.invalidTargetTimeCount,
       preparedRainSummary.unmatchedCount,
+      prunedTypedValueCount,
       rafCurrentTime,
       rainDifficulty,
+      tabSwitchCount,
       visibleKeywordCount,
+      isCaptionComposing,
     ],
   );
 
@@ -1177,7 +1297,7 @@ export function useRainMode(settings?: RainSettings) {
     isSpeedMenuOpen,
     isCaptionVisible,
     speedOptions: RAIN_SPEED_OPTIONS,
-    captionText: activeSegment?.blankText ?? '',
+    captionText: captionSegment?.blankText ?? '',
     captionDisplay,
     fallingKeywords: visibleFallingKeywords,
     activeKeyword,
@@ -1191,12 +1311,23 @@ export function useRainMode(settings?: RainSettings) {
     quizState: currentQuizState,
     quizCorrectCount,
     quizAnsweredCount,
+    tabSwitchCount,
     totalQuizCount: gameData.quizzes.length,
     getLatestQuizStats: () => ({
       quizCorrectCount: quizCorrectCountRef.current,
       quizAnsweredCount: quizAnsweredCountRef.current,
     }),
     handleTypedValueChange,
+    handleCaptionCompositionStateChange: (blankKey: string | null, composing: boolean) => {
+      setEditingBlankKey(blankKey);
+      setIsCaptionComposing(composing);
+    },
+    handleCaptionFocusBlankKeyChange: (blankKey: string | null) => {
+      setEditingBlankKey(blankKey);
+      if (blankKey === null) {
+        setIsCaptionComposing(false);
+      }
+    },
     togglePlay: async () => {
       if (currentQuizState || state === 'chapter_waiting' || state === 'stream_connecting') {
         return;

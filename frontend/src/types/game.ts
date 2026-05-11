@@ -178,6 +178,7 @@ export interface EndGameRequest {
   typing_accuracy?: number;
   quiz_correct: number;
   quiz_total: number;
+  tab_switch_count?: number;
 }
 
 export interface EndGameResponseData {
@@ -188,6 +189,7 @@ export interface EndGameResponseData {
   typing_accuracy?: number;
   quiz_correct: number;
   quiz_total: number;
+  tab_switch_count?: number;
 }
 
 export type EndGameResponse = ApiResponse<EndGameResponseData>;

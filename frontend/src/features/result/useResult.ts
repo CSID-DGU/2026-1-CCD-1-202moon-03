@@ -22,6 +22,7 @@ interface ResultViewModel {
   watchRate: number;
   quizCorrect: number;
   quizTotal: number;
+  tabSwitchCount: number;
   thumbnailUrl: string;
   hasThumbnail: boolean;
 }
@@ -50,6 +51,18 @@ function formatDate(value?: string) {
   return parsedDate.toLocaleDateString('ko-KR');
 }
 
+function getSummaryText(summary: SessionSummaryData | null) {
+  if (!summary) {
+    return '';
+  }
+
+  const summaryWithAlias = summary as SessionSummaryData & {
+    ai_summary?: string | null;
+  };
+
+  return summary.summary || summaryWithAlias.ai_summary || '';
+}
+
 function buildViewModel({
   videoId,
   detail,
@@ -61,10 +74,10 @@ function buildViewModel({
   detail: SessionDetailData | null;
   result: SessionResultData | null;
   summary: SessionSummaryData | null;
-  localRainResult?: { score: number; maxCombo: number; accuracy: number } | null;
+  localRainResult?: { score: number; maxCombo: number; accuracy: number; tabSwitchCount?: number } | null;
 }): ResultViewModel {
   const resolvedSummary =
-    result?.ai_summary || summary?.summary || '아직 생성된 AI 요약이 없습니다.';
+    result?.ai_summary || getSummaryText(summary) || '아직 생성된 AI 요약이 없습니다.';
 
   return {
     sessionId: String(result?.session_id ?? detail?.session_id ?? detail?.id ?? videoId),
@@ -78,6 +91,7 @@ function buildViewModel({
     watchRate: result?.watch_rate ?? 0,
     quizCorrect: result?.quiz_correct ?? 0,
     quizTotal: result?.quiz_total ?? 0,
+    tabSwitchCount: localRainResult?.tabSwitchCount ?? 0,
     thumbnailUrl: detail?.thumbnail_url || '',
     hasThumbnail: Boolean(detail?.thumbnail_url),
   };

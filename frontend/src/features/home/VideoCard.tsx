@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import featuredThumbnail from '../../assets/home-thumbnail.png';
 import { ROUTES } from '../../constants/routes';
 import type { HomeVideoItem } from './homeVideoItems';
 import { HomeVideoMenu } from './HomeVideoMenu';
@@ -40,7 +39,7 @@ function VideoCard({
           >
             {video.hasThumbnail ? (
               <img
-                src={video.thumbnailUrl || featuredThumbnail}
+                src={video.thumbnailUrl}
                 alt={video.title}
                 className="h-full w-full object-cover"
               />

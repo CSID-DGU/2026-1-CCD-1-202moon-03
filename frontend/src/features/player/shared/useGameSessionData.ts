@@ -59,7 +59,7 @@ export function useGameSessionData() {
   } = usePlayerSession();
   const storeStreamingSource = usePlayerStore((state) => state.streamingSource);
   const streamingSource = storeStreamingSource ?? getTransientStreamingSource();
-  const initializedStreamingSessionRef = useRef<string | null>(null);
+  const initializedStreamingRequestKeyRef = useRef<string | null>(null);
   const loadedStoredGameSessionRef = useRef<string | null>(null);
   const hydratedPersistedStreamSessionRef = useRef<string | null>(null);
   const latestGameDataRef = useRef<NormalizedGameData>(createEmptyNormalizedGameData());
@@ -72,6 +72,8 @@ export function useGameSessionData() {
   const [lastStreamEventType, setLastStreamEventType] = useState('');
   const [lastChunkSegments, setLastChunkSegments] = useState<number | null>(null);
   const [lastMergedTotalSegments, setLastMergedTotalSegments] = useState<number | null>(null);
+  const [lastStreamRequestType, setLastStreamRequestType] = useState<ActiveStreamStrategy>(null);
+  const [hasStartedStreamRequest, setHasStartedStreamRequest] = useState(false);
 
   const currentAiStatus = sessionStatus?.ai_status ?? sessionDetail?.ai_status ?? null;
   const hasVideoUrl = Boolean(sessionDetail?.video_url);
@@ -155,9 +157,11 @@ export function useGameSessionData() {
     setLastStreamEventType('');
     setLastChunkSegments(null);
     setLastMergedTotalSegments(null);
+    setLastStreamRequestType(null);
+    setHasStartedStreamRequest(false);
     setActiveStreamStrategy(null);
     setState(!isHydrated ? 'auth_loading' : 'session_loading');
-    initializedStreamingSessionRef.current = null;
+    initializedStreamingRequestKeyRef.current = null;
     loadedStoredGameSessionRef.current = null;
     hydratedPersistedStreamSessionRef.current = null;
   }, [isHydrated, sessionId]);
@@ -182,16 +186,16 @@ export function useGameSessionData() {
       return;
     }
 
-    if (initializedStreamingSessionRef.current === sessionId) {
-      return;
-    }
-
     let isCancelled = false;
     const streamStrategy: Exclude<ActiveStreamStrategy, null> = shouldUseSourceStreaming
       ? 'source'
       : 'resume';
+    const requestKey = `${streamStrategy}:${sessionId}`;
 
-    initializedStreamingSessionRef.current = sessionId;
+    if (initializedStreamingRequestKeyRef.current === requestKey) {
+      return;
+    }
+
     setActiveStreamStrategy(streamStrategy);
     setState('stream_connecting');
     setErrorMessage('');
@@ -199,10 +203,15 @@ export function useGameSessionData() {
       sessionId,
       streamStrategy,
       streamingSource,
+      requestKey,
     });
 
     const run = async () => {
       try {
+        initializedStreamingRequestKeyRef.current = requestKey;
+        setLastStreamRequestType(streamStrategy);
+        setHasStartedStreamRequest(true);
+
         const eventStream =
           streamStrategy === 'source' && streamingSource
             ? startStreamingSession({ source: streamingSource })
@@ -342,6 +351,8 @@ export function useGameSessionData() {
           }
 
           if (event.type === 'error') {
+            initializedStreamingRequestKeyRef.current = null;
+            setHasStartedStreamRequest(false);
             setState('failed');
             setErrorMessage(event.message);
             console.log('[useGameSessionData] stream error', event.message);
@@ -352,6 +363,8 @@ export function useGameSessionData() {
         if (!isCancelled) {
           setState('failed');
           setErrorMessage(getErrorMessage(error, '스트리밍 연결에 실패했습니다.'));
+          initializedStreamingRequestKeyRef.current = null;
+          setHasStartedStreamRequest(false);
           console.log('[useGameSessionData] stream exception', error);
         }
       }
@@ -361,6 +374,10 @@ export function useGameSessionData() {
 
     return () => {
       isCancelled = true;
+      if (initializedStreamingRequestKeyRef.current === requestKey) {
+        initializedStreamingRequestKeyRef.current = null;
+      }
+      setHasStartedStreamRequest(false);
     };
   }, [
     isStreamingCurrentSession,
@@ -442,6 +459,8 @@ export function useGameSessionData() {
     }
 
     let isCancelled = false;
+    initializedStreamingRequestKeyRef.current = null;
+    setHasStartedStreamRequest(false);
     loadedStoredGameSessionRef.current = sessionId;
     setActiveStreamStrategy(null);
     setState('session_loading');
@@ -552,8 +571,11 @@ export function useGameSessionData() {
       currentAiStatus,
       isStreamingCurrentSession,
       activeStreamStrategy,
+      actualStreamRequestKey: initializedStreamingRequestKeyRef.current,
       shouldResumeFileCurrentSession,
       recoveryStrategy,
+      hasStartedStreamRequest,
+      lastStreamRequestType,
       streamingSourceType: streamingSource?.type ?? null,
       streamingSourceSessionId: streamingSource?.sessionId ?? null,
       hasVideoUrl,
