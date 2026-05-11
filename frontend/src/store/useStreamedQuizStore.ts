@@ -7,6 +7,7 @@ interface StreamedQuizState {
   saveStreamedQuizzes: (sessionId: string, quizzes: RetryQuizItem[]) => void;
   getStreamedQuizzes: (sessionId: string) => StoredRetryQuizSession | null;
   clearStreamedQuizzes: (sessionId: string) => void;
+  clearAllStreamedQuizzes: () => void;
 }
 
 export const useStreamedQuizStore = create<StreamedQuizState>()(
@@ -31,6 +32,7 @@ export const useStreamedQuizStore = create<StreamedQuizState>()(
           delete nextSessions[sessionId];
           return { streamedQuizSessions: nextSessions };
         }),
+      clearAllStreamedQuizzes: () => set({ streamedQuizSessions: {} }),
     }),
     {
       name: 'streamed-quiz-store',

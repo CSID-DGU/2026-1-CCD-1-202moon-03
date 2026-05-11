@@ -18,6 +18,7 @@ interface RainState {
   setAccuracy: (accuracy: number) => void;
   saveSessionResult: (sessionId: string, result: RainSessionResult) => void;
   resetRainState: () => void;
+  clearRainStore: () => void;
 }
 
 const initialState = {
@@ -42,6 +43,7 @@ export const useRainStore = create<RainState>()(
           },
         })),
       resetRainState: () => set((state) => ({ ...initialState, sessionResults: state.sessionResults })),
+      clearRainStore: () => set({ ...initialState, sessionResults: {} }),
     }),
     {
       name: 'rain-game-store',

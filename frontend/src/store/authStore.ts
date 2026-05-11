@@ -2,6 +2,10 @@ import { create } from 'zustand';
 import { ROUTES } from '../constants/routes';
 import { login as loginRequest, logout as logoutRequest, refreshAccessToken } from '../services/auth.api';
 import { getMyProfile } from '../services/user.api';
+import { usePlayerStore } from './usePlayerStore';
+import { useRainStore } from './useRainStore';
+import { useStreamedQuizStore } from './useStreamedQuizStore';
+import { useVideoStore } from './useVideoStore';
 import type { AuthUser, LoginRequest, LoginResponse, LogoutRequest, UserProfileData } from '../types';
 
 const REFRESH_TOKEN_STORAGE_KEY = 'refreshToken';
@@ -52,6 +56,10 @@ function redirectToLogin() {
 
 function clearStoredAuth(set: (partial: Partial<AuthState>) => void) {
   window.localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
+  usePlayerStore.getState().resetPlayerState();
+  useRainStore.getState().clearRainStore();
+  useStreamedQuizStore.getState().clearAllStreamedQuizzes();
+  useVideoStore.getState().resetVideoState();
   set({
     accessToken: null,
     user: null,

@@ -35,7 +35,7 @@ function RainModePage() {
   const [judgment, setJudgment] = useState<{ key: number; combo: number } | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [rainSettings, setRainSettings] = useState<RainSettings>({
-    mode: 'auto',
+    mode: 'manual',
     difficulty: 'normal',
     blankCount: 3,
     fallSpeed: 1,

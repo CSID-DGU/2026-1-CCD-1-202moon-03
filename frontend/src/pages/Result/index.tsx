@@ -8,6 +8,43 @@ import QuizRetryModal from '../../features/result/QuizRetryModal';
 import { useQuizRetry } from '../../features/result/useQuizRetry';
 import { useResult } from '../../features/result/useResult';
 
+function stripInlineMarkdown(value: string) {
+  return value
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/\*(.*?)\*/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1')
+    .trim();
+}
+
+function renderSummaryText(summary: string) {
+  return summary.split('\n').map((line, index) => {
+    const trimmed = line.trim();
+
+    if (!trimmed) {
+      return <div key={`summary-space-${index}`} className="h-3" />;
+    }
+
+    const headingMatch = trimmed.match(/^#{1,6}\s*(.+)$/);
+    if (headingMatch) {
+      return (
+        <p
+          key={`summary-heading-${index}`}
+          className="mt-3 text-[17px] font-bold leading-[1.5] text-[#15171C] first:mt-0"
+        >
+          {stripInlineMarkdown(headingMatch[1])}
+        </p>
+      );
+    }
+
+    return (
+      <p key={`summary-paragraph-${index}`} className="text-[14px] leading-[1.7] text-[#15171C]">
+        {stripInlineMarkdown(trimmed)}
+      </p>
+    );
+  });
+}
+
 function ResultPage() {
   const navigate = useNavigate();
   const { result, isLoading, error } = useResult();
@@ -72,7 +109,7 @@ function ResultPage() {
               영상 다시보기
             </Button>
 
-            <div className="flex flex-1 flex-col justify-end rounded-[12px] bg-[#F4F6F7] px-6 py-6 text-[16px] leading-[1.5] text-[#15171C]">
+            <div className="rounded-[12px] bg-[#F4F6F7] px-6 py-6 text-[16px] leading-[1.5] text-[#15171C]">
               <MetaRow label="모드" value={result.mode === 'rain' ? '집중호우' : '피젯'} />
               <MetaRow label="학습일자" value={result.learnedAt} />
               {result.mode === 'rain' ? (
@@ -92,7 +129,7 @@ function ResultPage() {
             </div>
 
             <div className="flex flex-1 flex-col rounded-[12px] bg-[#F4F6F7] p-4">
-              <p className="text-[14px] leading-[1.5] text-[#15171C]">{result.summary}</p>
+              <div className="space-y-1">{renderSummaryText(result.summary)}</div>
             </div>
 
             <Button
