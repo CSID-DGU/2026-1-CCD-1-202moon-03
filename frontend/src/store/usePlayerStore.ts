@@ -23,9 +23,17 @@ interface PlayerState {
   setSessionId: (sessionId: string | null) => void;
   setStreamingSource: (streamingSource: StreamingPlayerSource | null) => void;
   setRainDifficulty: (rainDifficulty: RainDifficulty) => void;
+  resetPlayerState: () => void;
 }
 
 let transientStreamingSource: StreamingPlayerSource | null = null;
+
+const initialState = {
+  selectedMode: null as PlayerMode,
+  sessionId: null as string | null,
+  streamingSource: null as StreamingPlayerSource | null,
+  rainDifficulty: 'normal' as RainDifficulty,
+};
 
 export function getTransientStreamingSource() {
   return transientStreamingSource;
@@ -34,10 +42,7 @@ export function getTransientStreamingSource() {
 export const usePlayerStore = create<PlayerState>()(
   persist(
     (set) => ({
-      selectedMode: null,
-      sessionId: null,
-      streamingSource: null,
-      rainDifficulty: 'normal',
+      ...initialState,
       setSelectedMode: (selectedMode) => set({ selectedMode }),
       setSessionId: (sessionId) => set({ sessionId }),
       setStreamingSource: (streamingSource) => {
@@ -45,6 +50,10 @@ export const usePlayerStore = create<PlayerState>()(
         set({ streamingSource });
       },
       setRainDifficulty: (rainDifficulty) => set({ rainDifficulty }),
+      resetPlayerState: () => {
+        transientStreamingSource = null;
+        set(initialState);
+      },
     }),
     {
       name: 'player-session-store',
