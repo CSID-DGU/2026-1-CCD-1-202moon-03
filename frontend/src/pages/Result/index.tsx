@@ -73,12 +73,13 @@ function ResultPage() {
             </Button>
 
             <div className="flex flex-1 flex-col justify-end rounded-[12px] bg-[#F4F6F7] px-6 py-6 text-[16px] leading-[1.5] text-[#15171C]">
-              <MetaRow label="모드" value={result.mode === 'rain' ? '집중호우' : '피젯 모드'} />
+              <MetaRow label="모드" value={result.mode === 'rain' ? '집중호우' : '피젯'} />
               <MetaRow label="학습일자" value={result.learnedAt} />
               {result.mode === 'rain' ? (
                 <>
                   <MetaRow label="점수" value={`${result.score ?? 0}점`} />
                   <MetaRow label="최대 콤보" value={`${result.maxCombo ?? 0}`} />
+                  <MetaRow label="탭 이탈" value={`${result.tabSwitchCount}회`} />
                 </>
               ) : null}
             </div>

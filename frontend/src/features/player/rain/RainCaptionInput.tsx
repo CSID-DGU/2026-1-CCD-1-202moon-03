@@ -17,11 +17,23 @@ interface RainCaptionInputProps {
   items: RainCaptionDisplay['items'];
   fallbackText: string;
   onChange: (blankKey: string, value: string) => void;
-  onSubmit: (blankKey: string) => void;
+  onSubmit: (blankKey: string, value: string) => void;
+  onCompositionStateChange?: (blankKey: string | null, isComposing: boolean) => void;
+  onFocusBlankKeyChange?: (blankKey: string | null) => void;
 }
 
 const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProps>(
-  ({ items, fallbackText, onChange, onSubmit }, ref) => {
+  (
+    {
+      items,
+      fallbackText,
+      onChange,
+      onSubmit,
+      onCompositionStateChange,
+      onFocusBlankKeyChange,
+    },
+    ref,
+  ) => {
     const rootRef = useRef<HTMLDivElement | null>(null);
     const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
     const isComposingRef = useRef(false);
@@ -105,6 +117,8 @@ const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProp
         isComposingRef.current = false;
         composingBlankKeyRef.current = null;
         previousPrimaryInputKeyRef.current = null;
+        onCompositionStateChange?.(null, false);
+        onFocusBlankKeyChange?.(null);
         return;
       }
 
@@ -132,17 +146,23 @@ const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProp
     }, [focusPrimaryInput, primaryInputKey]);
 
     return (
-      <div ref={rootRef} className="flex flex-wrap items-baseline gap-[9px]">
+      <div
+        ref={rootRef}
+        className="break-keep text-[22px] font-semibold leading-[1.7] text-white whitespace-pre-wrap"
+      >
         {items.length === 0 ? (
           fallbackText ? (
-            <p className="text-[22px] font-semibold leading-[1.5] text-white">{fallbackText}</p>
+            <p className="text-[22px] font-semibold leading-[1.7] text-white">{fallbackText}</p>
           ) : null
         ) : (
           items.map((item) =>
             item.type === 'text' ? (
-              <p key={item.key} className="text-[22px] font-semibold leading-[1.5] text-white">
+              <span
+                key={item.key}
+                className="break-keep whitespace-pre-wrap text-white"
+              >
                 {item.text}
-              </p>
+              </span>
             ) : (
               <input
                 key={item.key}
@@ -154,6 +174,9 @@ const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProp
                 value={draftValuesByKey[item.key] ?? item.value}
                 placeholder={item.placeholder}
                 readOnly={item.resolvedState !== 'pending'}
+                onFocus={() => {
+                  onFocusBlankKeyChange?.(item.key);
+                }}
                 onChange={(event) => {
                   const nextValue = event.target.value;
                   setDraftValuesByKey((current) => ({
@@ -168,15 +191,19 @@ const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProp
                 onCompositionStart={() => {
                   isComposingRef.current = true;
                   composingBlankKeyRef.current = item.key;
+                  onCompositionStateChange?.(item.key, true);
                 }}
                 onCompositionEnd={(event) => {
                   isComposingRef.current = false;
                   composingBlankKeyRef.current = null;
+                  onCompositionStateChange?.(item.key, false);
                   onChange(item.key, event.currentTarget.value);
                 }}
                 onBlur={() => {
                   isComposingRef.current = false;
                   composingBlankKeyRef.current = null;
+                  onCompositionStateChange?.(item.key, false);
+                  onFocusBlankKeyChange?.(null);
                 }}
                 onKeyDown={(event) => {
                   if (isComposingRef.current || event.nativeEvent.isComposing) {
@@ -188,12 +215,12 @@ const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProp
                   }
 
                   event.preventDefault();
-                  onSubmit(item.key);
+                  onSubmit(item.key, draftValuesByKey[item.key] ?? item.value);
                   requestAnimationFrame(() => {
                     focusPrimaryInput();
                   });
                 }}
-                className={`w-[100px] rounded-[8px] border px-[14px] py-[8px] text-center font-semibold leading-[1.5] outline-none placeholder:text-[#9CA3AF] ${
+                className={`mx-1 inline-block w-[100px] rounded-[8px] border px-[10px] py-[6px] text-center text-[18px] font-semibold leading-[1.2] outline-none placeholder:text-[18px] placeholder:text-[#9CA3AF] ${
                   item.resolvedState === 'cleared'
                     ? 'border-[#16A34A] bg-[#F0FDF4] text-[#166534]'
                     : item.resolvedState === 'missed'

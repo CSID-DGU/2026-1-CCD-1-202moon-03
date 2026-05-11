@@ -40,6 +40,7 @@ function SpinnerModePage() {
     quizState,
     quizCorrectCount,
     quizAnsweredCount,
+    tabSwitchCount,
     totalQuizCount,
     getLatestQuizStats,
     handleSelectTool,
@@ -75,6 +76,7 @@ function SpinnerModePage() {
         watch_rate: duration > 0 ? Math.min(Math.max(currentTime / duration, 0), 1) : 0,
         quiz_correct: latestQuizStats.quizCorrectCount,
         quiz_total: latestQuizStats.quizAnsweredCount || totalQuizCount,
+        tab_switch_count: tabSwitchCount,
       });
     } catch {
       // Ignore save failures and continue to result.

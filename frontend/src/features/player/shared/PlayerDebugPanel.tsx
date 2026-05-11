@@ -1,3 +1,5 @@
+import { useState } from 'react';
+
 interface PlayerDebugPanelProps {
   debug: {
     sessionId: string | null;
@@ -5,8 +7,11 @@ interface PlayerDebugPanelProps {
     currentAiStatus: string | null;
     isStreamingCurrentSession: boolean;
     activeStreamStrategy?: string | null;
+    actualStreamRequestKey?: string | null;
     shouldResumeFileCurrentSession?: boolean;
     recoveryStrategy?: string | null;
+    hasStartedStreamRequest?: boolean;
+    lastStreamRequestType?: string | null;
     streamingSourceType: string | null;
     streamingSourceSessionId: string | null;
     hasVideoUrl?: boolean;
@@ -39,13 +44,41 @@ interface PlayerDebugPanelProps {
     droppedByBlankLimit?: number;
     duplicateKeywordCandidates?: number;
     invalidTargetTimeCount?: number;
+    editingBlankKey?: string | null;
+    isCaptionComposing?: boolean;
+    captionSegmentId?: number | null;
+    prunedTypedValueCount?: number;
+    tabSwitchCount?: number;
   };
 }
 
 function PlayerDebugPanel({ debug }: PlayerDebugPanelProps) {
+  const [isOpen, setIsOpen] = useState(true);
+
+  if (!isOpen) {
+    return (
+      <button
+        type="button"
+        onClick={() => setIsOpen(true)}
+        className="fixed bottom-4 right-4 z-[100] rounded-[12px] border border-[#334155] bg-[rgba(15,23,42,0.92)] px-4 py-2 text-[12px] font-semibold text-sky-300 shadow-[0_14px_36px_rgba(0,0,0,0.35)]"
+      >
+        Debug 열기
+      </button>
+    );
+  }
+
   return (
     <div className="fixed bottom-4 right-4 z-[100] w-[320px] rounded-[14px] border border-[#334155] bg-[rgba(15,23,42,0.92)] p-4 text-left text-[12px] leading-[1.5] text-slate-200 shadow-[0_14px_36px_rgba(0,0,0,0.35)]">
-      <p className="mb-2 font-semibold text-sky-300">Debug</p>
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <p className="font-semibold text-sky-300">Debug</p>
+        <button
+          type="button"
+          onClick={() => setIsOpen(false)}
+          className="rounded-[8px] border border-[#334155] px-2 py-1 text-[11px] font-semibold text-slate-300 transition-colors hover:bg-white/5"
+        >
+          숨기기
+        </button>
+      </div>
       <div>sessionId: {debug.sessionId ?? '-'}</div>
       <div>state: {debug.state}</div>
       <div>aiStatus: {debug.currentAiStatus ?? '-'}</div>
@@ -53,11 +86,20 @@ function PlayerDebugPanel({ debug }: PlayerDebugPanelProps) {
       {debug.activeStreamStrategy !== undefined ? (
         <div>activeStreamStrategy: {debug.activeStreamStrategy ?? '-'}</div>
       ) : null}
+      {debug.actualStreamRequestKey !== undefined ? (
+        <div>actualStreamRequestKey: {debug.actualStreamRequestKey ?? '-'}</div>
+      ) : null}
       {debug.shouldResumeFileCurrentSession !== undefined ? (
         <div>shouldResumeFileCurrentSession: {String(debug.shouldResumeFileCurrentSession)}</div>
       ) : null}
       {debug.recoveryStrategy !== undefined ? (
         <div>recoveryStrategy: {debug.recoveryStrategy ?? '-'}</div>
+      ) : null}
+      {debug.hasStartedStreamRequest !== undefined ? (
+        <div>hasStartedStreamRequest: {String(debug.hasStartedStreamRequest)}</div>
+      ) : null}
+      {debug.lastStreamRequestType !== undefined ? (
+        <div>lastStreamRequestType: {debug.lastStreamRequestType ?? '-'}</div>
       ) : null}
       <div>streamingSourceType: {debug.streamingSourceType ?? '-'}</div>
       <div>streamingSourceSessionId: {debug.streamingSourceSessionId ?? '-'}</div>
@@ -119,6 +161,21 @@ function PlayerDebugPanel({ debug }: PlayerDebugPanelProps) {
       ) : null}
       {typeof debug.invalidTargetTimeCount === 'number' ? (
         <div>invalidTargetTimeCount: {debug.invalidTargetTimeCount}</div>
+      ) : null}
+      {debug.editingBlankKey !== undefined ? (
+        <div>editingBlankKey: {debug.editingBlankKey ?? '-'}</div>
+      ) : null}
+      {debug.isCaptionComposing !== undefined ? (
+        <div>isCaptionComposing: {String(debug.isCaptionComposing)}</div>
+      ) : null}
+      {typeof debug.captionSegmentId === 'number' ? (
+        <div>captionSegmentId: {debug.captionSegmentId}</div>
+      ) : null}
+      {typeof debug.prunedTypedValueCount === 'number' ? (
+        <div>prunedTypedValueCount: {debug.prunedTypedValueCount}</div>
+      ) : null}
+      {typeof debug.tabSwitchCount === 'number' ? (
+        <div>tabSwitchCount: {debug.tabSwitchCount}</div>
       ) : null}
       {debug.activeKeywordId !== undefined ? <div>activeKeywordId: {debug.activeKeywordId ?? '-'}</div> : null}
       {debug.lastJudgement !== undefined ? <div>lastJudgement: {debug.lastJudgement ?? '-'}</div> : null}

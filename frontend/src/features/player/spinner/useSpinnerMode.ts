@@ -77,9 +77,11 @@ export function useSpinnerMode() {
   } | null>(null);
   const [quizCorrectCount, setQuizCorrectCount] = useState(0);
   const [quizAnsweredCount, setQuizAnsweredCount] = useState(0);
+  const [tabSwitchCount, setTabSwitchCount] = useState(0);
   const answeredQuizIdsRef = useRef<Set<string>>(new Set());
   const quizCorrectCountRef = useRef(0);
   const quizAnsweredCountRef = useRef(0);
+  const tabSwitchCountRef = useRef(0);
 
   useEffect(() => {
     quizCorrectCountRef.current = quizCorrectCount;
@@ -88,6 +90,23 @@ export function useSpinnerMode() {
   useEffect(() => {
     quizAnsweredCountRef.current = quizAnsweredCount;
   }, [quizAnsweredCount]);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        return;
+      }
+
+      tabSwitchCountRef.current += 1;
+      setTabSwitchCount(tabSwitchCountRef.current);
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
 
   useEffect(() => {
     controllerRef.current?.setPlaybackRate(playbackRate);
@@ -461,6 +480,14 @@ export function useSpinnerMode() {
     await controllerRef.current?.play();
   };
 
+  const enhancedDebug = useMemo(
+    () => ({
+      ...debug,
+      tabSwitchCount,
+    }),
+    [debug, tabSwitchCount],
+  );
+
   return {
     sessionId,
     playerType: (
@@ -474,7 +501,7 @@ export function useSpinnerMode() {
     playerStatus: state,
     playerStatusLabel: statusLabel,
     sessionError: errorMessage,
-    debug,
+    debug: enhancedDebug,
     videoRef,
     controllerRef,
     speedMenuRef,
@@ -493,6 +520,7 @@ export function useSpinnerMode() {
     quizState,
     quizCorrectCount,
     quizAnsweredCount,
+    tabSwitchCount,
     totalQuizCount: gameData.quizzes.length,
     getLatestQuizStats: () => ({
       quizCorrectCount: quizCorrectCountRef.current,

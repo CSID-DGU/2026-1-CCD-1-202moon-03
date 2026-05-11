@@ -5,6 +5,7 @@ interface RainSessionResult {
   score: number;
   maxCombo: number;
   accuracy: number;
+  tabSwitchCount?: number;
 }
 
 interface RainState {
