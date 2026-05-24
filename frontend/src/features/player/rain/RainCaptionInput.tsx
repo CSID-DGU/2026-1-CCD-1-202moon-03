@@ -13,13 +13,24 @@ export interface RainCaptionInputHandle {
   focusPrimaryInput: () => void;
 }
 
+function getAnswerBoxWidth(answerLength: number) {
+  return Math.max(100, answerLength * 22 + 20);
+}
+
+function getCompactAnswerLength(value: string) {
+  return value.replace(/\s+/g, '').length;
+}
+
 interface RainCaptionInputProps {
   items: RainCaptionDisplay['items'];
   fallbackText: string;
+  measurementRoot?: HTMLElement | null;
+  allowWrap?: boolean;
   onChange: (blankKey: string, value: string) => void;
   onSubmit: (blankKey: string, value: string) => void;
   onCompositionStateChange?: (blankKey: string | null, isComposing: boolean) => void;
   onFocusBlankKeyChange?: (blankKey: string | null) => void;
+  onInputLayoutChange?: (positions: Record<string, number>) => void;
 }
 
 const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProps>(
@@ -27,10 +38,13 @@ const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProp
     {
       items,
       fallbackText,
+      measurementRoot,
+      allowWrap = false,
       onChange,
       onSubmit,
       onCompositionStateChange,
       onFocusBlankKeyChange,
+      onInputLayoutChange,
     },
     ref,
   ) => {
@@ -145,21 +159,95 @@ const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProp
       }
     }, [focusPrimaryInput, primaryInputKey]);
 
+    useEffect(() => {
+      const root = rootRef.current;
+      if (!root) {
+        return;
+      }
+
+      let frameId = 0;
+
+      const reportInputLayouts = () => {
+        const rootElement = rootRef.current;
+        if (!rootElement) {
+          return;
+        }
+
+        const measurementRect = (measurementRoot ?? rootElement).getBoundingClientRect();
+        if (measurementRect.width <= 0) {
+          onInputLayoutChange?.({});
+          return;
+        }
+
+        const nextPositions: Record<string, number> = {};
+
+        for (const item of items) {
+          if (item.type !== 'input') {
+            continue;
+          }
+
+          const input = inputRefs.current[item.key];
+          if (!input) {
+            continue;
+          }
+
+          const inputRect = input.getBoundingClientRect();
+          const centerX = inputRect.left + inputRect.width / 2 - measurementRect.left;
+          nextPositions[item.key] = Math.min(Math.max(centerX, 0), measurementRect.width);
+        }
+
+        onInputLayoutChange?.(nextPositions);
+      };
+
+      const scheduleReport = () => {
+        window.cancelAnimationFrame(frameId);
+        frameId = window.requestAnimationFrame(reportInputLayouts);
+      };
+
+      scheduleReport();
+
+      const resizeObserver =
+        typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => scheduleReport()) : null;
+
+      resizeObserver?.observe(root);
+      Object.values(inputRefs.current).forEach((input) => {
+        if (input) {
+          resizeObserver?.observe(input);
+        }
+      });
+
+      window.addEventListener('resize', scheduleReport);
+
+      return () => {
+        window.cancelAnimationFrame(frameId);
+        resizeObserver?.disconnect();
+        window.removeEventListener('resize', scheduleReport);
+      };
+    }, [items, measurementRoot, onInputLayoutChange]);
+
     return (
       <div
         ref={rootRef}
-        className="break-keep text-[22px] font-semibold leading-[1.7] text-white whitespace-pre-wrap"
+        className={`min-w-full items-center text-[22px] font-semibold leading-[1.45] text-white ${
+          allowWrap ? 'flex flex-wrap gap-y-2 whitespace-normal' : 'inline-flex whitespace-nowrap'
+        }`}
       >
         {items.length === 0 ? (
           fallbackText ? (
-            <p className="text-[22px] font-semibold leading-[1.7] text-white">{fallbackText}</p>
+            <p
+              className={`m-0 text-[22px] font-semibold leading-[1.45] text-white ${
+                allowWrap ? 'whitespace-normal break-words' : 'whitespace-nowrap'
+              }`}
+            >
+              {fallbackText}
+            </p>
           ) : null
         ) : (
           items.map((item) =>
             item.type === 'text' ? (
               <span
                 key={item.key}
-                className="break-keep whitespace-pre-wrap text-white"
+                className={`${allowWrap ? 'whitespace-normal break-words' : 'whitespace-nowrap'} text-white`}
               >
                 {item.text}
               </span>
@@ -220,7 +308,8 @@ const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProp
                     focusPrimaryInput();
                   });
                 }}
-                className={`mx-1 inline-block w-[100px] rounded-[8px] border px-[10px] py-[6px] text-center text-[18px] font-semibold leading-[1.2] outline-none placeholder:text-[18px] placeholder:text-[#9CA3AF] ${
+                style={{ width: `${getAnswerBoxWidth(getCompactAnswerLength(item.blank.keyword))}px` }}
+                className={`mx-1 inline-block h-[42px] w-[100px] shrink-0 rounded-[8px] border px-[10px] py-[6px] align-middle text-center text-[18px] font-semibold leading-[1.2] outline-none placeholder:text-[18px] placeholder:text-[#9CA3AF] ${
                   item.resolvedState === 'cleared'
                     ? 'border-[#16A34A] bg-[#F0FDF4] text-[#166534]'
                     : item.resolvedState === 'missed'

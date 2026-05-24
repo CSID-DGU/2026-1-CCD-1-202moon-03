@@ -2,18 +2,35 @@ import type { RainKeyword } from './types';
 
 interface FallingKeywordsProps {
   keywords: RainKeyword[];
+  inputPositions?: Record<string, number>;
 }
 
-function FallingKeywords({ keywords }: FallingKeywordsProps) {
+function getAnswerBoxWidth(answerLength?: number) {
+  return Math.max(100, (answerLength ?? 0) * 22 + 20);
+}
+
+function FallingKeywords({ keywords, inputPositions = {} }: FallingKeywordsProps) {
   return (
     <div className="relative h-full w-full overflow-hidden rounded-[24px]">
       {keywords.map((keyword) => {
-        const leftOffset = keyword.leftPercent ?? 12 + keyword.lane * 18;
+        const measuredLeft = keyword.blankKey ? inputPositions[keyword.blankKey] : undefined;
+        const fallbackPercent = keyword.leftPercent ?? 12 + keyword.lane * 18;
+
+        if (keyword.blankKey && typeof measuredLeft !== 'number') {
+          return null;
+        }
+
+        const translateY =
+          keyword.status === 'cleared'
+            ? 'translate(-50%, -50%) scale(0.92)'
+            : keyword.status === 'missed'
+              ? 'translate(-50%, -50%) scale(1.04)'
+              : 'translate(-50%, -50%)';
 
         return (
           <div
             key={keyword.id}
-            className={`absolute rounded-[8px] border px-[14px] py-[8px] text-center font-paperlogy text-[18px] font-semibold leading-[1.5] shadow-[0_8px_20px_rgba(3,46,78,0.14)] ${
+            className={`absolute inline-flex h-[42px] w-[100px] items-center justify-center whitespace-nowrap rounded-[8px] border px-[10px] py-[6px] text-center font-paperlogy text-[18px] font-semibold leading-[1.2] shadow-[0_8px_20px_rgba(3,46,78,0.14)] ${
               keyword.status === 'active'
                 ? 'border-[#032E4E] bg-[#EAF5FF] text-[#1A9AF5]'
                 : keyword.status === 'missed'
@@ -23,15 +40,10 @@ function FallingKeywords({ keywords }: FallingKeywordsProps) {
                   : 'border-[#D7DCE4] bg-white/88 text-[#25272E]'
             }`}
             style={{
-              left: `${leftOffset}%`,
+              left: typeof measuredLeft === 'number' ? `${measuredLeft}px` : `${fallbackPercent}%`,
               top: `${keyword.progress}%`,
-              minWidth: '100px',
-              transform:
-                keyword.status === 'cleared'
-                  ? 'translateY(-50%) scale(0.92)'
-                  : keyword.status === 'missed'
-                    ? 'translateY(-50%) scale(1.04)'
-                    : 'translateY(-50%)',
+              width: `${getAnswerBoxWidth(keyword.answerLength)}px`,
+              transform: translateY,
             }}
           >
             {keyword.text}

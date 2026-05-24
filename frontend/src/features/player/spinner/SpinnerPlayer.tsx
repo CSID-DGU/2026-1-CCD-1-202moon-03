@@ -54,7 +54,9 @@ interface SpinnerPlayerProps {
   captionText: string;
   selectedTool?: SpinnerAssistTool;
   overlayContent?: ReactNode;
-  captionOverlay?: ReactNode;
+  subtitleContent?: ReactNode;
+  renderSubtitleContent?: (isWrapped: boolean) => ReactNode;
+  onMeasurementRootChange?: (element: HTMLElement | null) => void;
   onTogglePlay: () => void;
   onToggleSpeedMenu: () => void;
   onSelectSpeed: (speed: SpinnerPlaybackRate) => void;
@@ -135,7 +137,9 @@ function SpinnerPlayer({
   isCaptionVisible,
   captionText,
   overlayContent,
-  captionOverlay,
+  subtitleContent,
+  renderSubtitleContent,
+  onMeasurementRootChange,
   onTogglePlay,
   onToggleSpeedMenu,
   onSelectSpeed,
@@ -148,13 +152,18 @@ function SpinnerPlayer({
   onPause,
   onEnded,
 }: SpinnerPlayerProps) {
+  const sectionRef = useRef<HTMLElement | null>(null);
   const seekTrackRef = useRef<HTMLDivElement | null>(null);
+  const subtitleBarRef = useRef<HTMLDivElement | null>(null);
+  const subtitleContentRef = useRef<HTMLDivElement | null>(null);
   const hideControlsTimeoutRef = useRef<number | null>(null);
   const youtubeContainerRef = useRef<HTMLDivElement | null>(null);
   const youtubePlayerRef = useRef<YouTubePlayer | null>(null);
   const youtubeProgressTimerRef = useRef<number | null>(null);
   const [areControlsVisible, setAreControlsVisible] = useState(true);
+  const [isSubtitleWrapped, setIsSubtitleWrapped] = useState(false);
   const isYoutubePlayer = playerType === 'youtube';
+  const hasCustomSubtitleContent = Boolean(subtitleContent || renderSubtitleContent);
 
   const clearHideControlsTimeout = () => {
     if (hideControlsTimeoutRef.current !== null) {
@@ -241,6 +250,64 @@ function SpinnerPlayer({
   }, [isPlaying]);
 
   useEffect(() => clearHideControlsTimeout, []);
+
+  useEffect(() => {
+    onMeasurementRootChange?.(sectionRef.current);
+
+    return () => {
+      onMeasurementRootChange?.(null);
+    };
+  }, [onMeasurementRootChange]);
+
+  useEffect(() => {
+    if (!isCaptionVisible || (!captionText && !hasCustomSubtitleContent)) {
+      setIsSubtitleWrapped(false);
+      return;
+    }
+
+    let frameId = 0;
+
+    const measureWrap = () => {
+      const subtitleBar = subtitleBarRef.current;
+      const subtitleContentElement = subtitleContentRef.current;
+
+      if (!subtitleBar || !subtitleContentElement) {
+        return;
+      }
+
+      const nextWrapped =
+        subtitleContentElement.scrollWidth > subtitleBar.clientWidth ||
+        subtitleContentElement.scrollHeight > 54;
+
+      setIsSubtitleWrapped((current) => (current === nextWrapped ? current : nextWrapped));
+    };
+
+    const scheduleMeasure = () => {
+      window.cancelAnimationFrame(frameId);
+      frameId = window.requestAnimationFrame(measureWrap);
+    };
+
+    scheduleMeasure();
+
+    const resizeObserver =
+      typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => scheduleMeasure()) : null;
+
+    if (subtitleBarRef.current) {
+      resizeObserver?.observe(subtitleBarRef.current);
+    }
+
+    if (subtitleContentRef.current) {
+      resizeObserver?.observe(subtitleContentRef.current);
+    }
+
+    window.addEventListener('resize', scheduleMeasure);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      resizeObserver?.disconnect();
+      window.removeEventListener('resize', scheduleMeasure);
+    };
+  }, [captionText, hasCustomSubtitleContent, isCaptionVisible, renderSubtitleContent, subtitleContent]);
 
   useEffect(() => {
     if (!isYoutubePlayer) {
@@ -370,120 +437,134 @@ function SpinnerPlayer({
   ]);
 
   return (
-    <section
-      className="relative h-[590px] overflow-hidden rounded-[11.455px] bg-[#DDDDDD]"
-      onMouseMove={handleMouseMove}
-    >
-      {isYoutubePlayer ? (
-        <div ref={youtubeContainerRef} className="absolute inset-0 h-full w-full" />
-      ) : (
-        <video
-          ref={videoRef}
-          className="absolute inset-0 h-full w-full object-cover"
-          src={playerSrc}
-          preload="metadata"
-          playsInline
-          onTimeUpdate={(event) =>
-            onTimeUpdate(event.currentTarget.currentTime, event.currentTarget.duration || 0)
-          }
-          onLoadedMetadata={(event) => onLoadedMetadata(event.currentTarget.duration || 0)}
-          onPlay={onPlay}
-          onPause={onPause}
-          onEnded={onEnded}
-        />
-      )}
-
-      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0)_0%,rgba(0,0,0,0)_70%,rgba(0,0,0,0.42)_100%)]" />
-
-      {overlayContent ? (
-        <div className="pointer-events-none absolute inset-x-0 bottom-[152px] top-[24px] z-10">
-          {overlayContent}
-        </div>
-      ) : null}
-
-      {isCaptionVisible && (captionOverlay || captionText) ? (
-        <div className="pointer-events-auto absolute bottom-[40px] left-1/2 z-20 -translate-x-1/2 max-w-[80%] rounded-[8px] bg-[rgba(0,0,0,0.6)] px-[15px] py-[8px]">
-          {captionOverlay ?? (
-            <p className="text-[22px] font-semibold leading-[1.5] text-white">{captionText}</p>
-          )}
-        </div>
-      ) : null}
-
+    <section ref={sectionRef} className="flex w-[min(1048px,98vw)] flex-col items-center">
       <div
-        className={`absolute bottom-0 left-0 right-0 transition-opacity duration-300 ${
-          areControlsVisible ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
-        }`}
+        className="relative aspect-video w-full overflow-hidden rounded-t-[11.455px] bg-black"
+        onMouseMove={handleMouseMove}
       >
+        {isYoutubePlayer ? (
+          <div ref={youtubeContainerRef} className="absolute inset-0 h-full w-full" />
+        ) : (
+          <video
+            ref={videoRef}
+            className="absolute inset-0 h-full w-full object-contain"
+            src={playerSrc}
+            preload="metadata"
+            playsInline
+            onTimeUpdate={(event) =>
+              onTimeUpdate(event.currentTarget.currentTime, event.currentTarget.duration || 0)
+            }
+            onLoadedMetadata={(event) => onLoadedMetadata(event.currentTarget.duration || 0)}
+            onPlay={onPlay}
+            onPause={onPause}
+            onEnded={onEnded}
+          />
+        )}
+
+        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0)_0%,rgba(0,0,0,0)_70%,rgba(0,0,0,0.42)_100%)]" />
+
+        {overlayContent ? (
+          <div className="pointer-events-none absolute inset-x-0 bottom-[152px] top-[24px] z-10">
+            {overlayContent}
+          </div>
+        ) : null}
+
         <div
-          ref={seekTrackRef}
-          className="relative h-3 w-full cursor-pointer"
-          onPointerDown={handleSeekPointerDown}
-          role="slider"
-          aria-label="Video progress"
-          aria-valuemin={0}
-          aria-valuemax={Math.round(duration)}
-          aria-valuenow={Math.round(currentTime)}
+          className={`absolute bottom-0 left-0 right-0 transition-opacity duration-300 ${
+            areControlsVisible ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
+          }`}
         >
-          <div className="absolute left-0 right-0 top-1/2 h-1 -translate-y-1/2 bg-[rgba(0,0,0,0.2)]" />
           <div
-            className="absolute left-0 top-1/2 h-1 -translate-y-1/2 bg-[#1A9AF5]"
-            style={{ width: `${duration > 0 ? Math.min((currentTime / duration) * 100, 100) : 0}%` }}
-          />
-          <div
-            className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-[#1A9AF5] shadow-[0_2px_12px_rgba(26,154,245,0.45)]"
-            style={{ left: `${duration > 0 ? Math.min((currentTime / duration) * 100, 100) : 0}%` }}
-          />
-        </div>
-
-        <div className="relative flex items-center justify-between px-6 pb-[18px] pt-3">
-          <div className="absolute inset-0 bg-[rgba(0,0,0,0.28)] backdrop-blur-[6px]" />
-
-          <div className="relative z-10 flex items-center gap-3">
-            <button type="button" onClick={onTogglePlay} className="p-1 text-white">
-              {isPlaying ? <PauseIcon /> : <PlayIcon />}
-            </button>
-
-            <div className="flex items-center gap-1 text-[16px] leading-6">
-              <span className="font-semibold text-[#1A9AF5]">{formatTime(currentTime)}</span>
-              <span className="font-medium text-white">/</span>
-              <span className="font-medium text-white">{formatTime(duration)}</span>
-            </div>
+            ref={seekTrackRef}
+            className="relative h-3 w-full cursor-pointer"
+            onPointerDown={handleSeekPointerDown}
+            role="slider"
+            aria-label="Video progress"
+            aria-valuemin={0}
+            aria-valuemax={Math.round(duration)}
+            aria-valuenow={Math.round(currentTime)}
+          >
+            <div className="absolute left-0 right-0 top-1/2 h-1 -translate-y-1/2 bg-[rgba(0,0,0,0.2)]" />
+            <div
+              className="absolute left-0 top-1/2 h-1 -translate-y-1/2 bg-[#1A9AF5]"
+              style={{ width: `${duration > 0 ? Math.min((currentTime / duration) * 100, 100) : 0}%` }}
+            />
+            <div
+              className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-[#1A9AF5] shadow-[0_2px_12px_rgba(26,154,245,0.45)]"
+              style={{ left: `${duration > 0 ? Math.min((currentTime / duration) * 100, 100) : 0}%` }}
+            />
           </div>
 
-          <div className="relative z-10 flex items-center gap-6 text-white">
-            <div className="relative flex items-center">
-              <button type="button" onClick={onToggleSpeedMenu} className="flex items-center gap-2 p-1">
-                <TriangleDownIcon />
-                <span className="min-w-[28px] text-center text-[16px] font-medium leading-6">
-                  {playbackRate}x
-                </span>
-                <TriangleUpIcon />
+          <div className="relative flex items-center justify-between px-6 pb-[18px] pt-3">
+            <div className="absolute inset-0 bg-[rgba(0,0,0,0.28)] backdrop-blur-[6px]" />
+
+            <div className="relative z-10 flex items-center gap-3">
+              <button type="button" onClick={onTogglePlay} className="p-1 text-white">
+                {isPlaying ? <PauseIcon /> : <PlayIcon />}
               </button>
 
-              {isSpeedMenuOpen ? (
-                <div className="absolute bottom-8 left-1/2 w-[60px] -translate-x-1/2 overflow-hidden rounded-[8px] bg-[rgba(0,0,0,0.4)]">
-                  {[...speedOptions].reverse().map((speed) => (
-                    <button
-                      key={speed}
-                      type="button"
-                      onClick={() => onSelectSpeed(speed)}
-                      className={`flex w-full items-center justify-center px-3 py-2 text-center text-[14px] leading-[1.5] text-white ${
-                        speed === playbackRate ? 'bg-[rgba(255,255,255,0.24)] font-semibold' : 'font-normal'
-                      }`}
-                    >
-                      {speed}x
-                    </button>
-                  ))}
-                </div>
-              ) : null}
+              <div className="flex items-center gap-1 text-[16px] leading-6">
+                <span className="font-semibold text-[#1A9AF5]">{formatTime(currentTime)}</span>
+                <span className="font-medium text-white">/</span>
+                <span className="font-medium text-white">{formatTime(duration)}</span>
+              </div>
             </div>
 
-            <button type="button" onClick={onToggleCaption} className="p-1 text-white">
-              <SubtitleIcon isActive={isCaptionVisible} />
-            </button>
+            <div className="relative z-10 flex items-center gap-6 text-white">
+              <div className="relative flex items-center">
+                <button type="button" onClick={onToggleSpeedMenu} className="flex items-center gap-2 p-1">
+                  <TriangleDownIcon />
+                  <span className="min-w-[28px] text-center text-[16px] font-medium leading-6">
+                    {playbackRate}x
+                  </span>
+                  <TriangleUpIcon />
+                </button>
+
+                {isSpeedMenuOpen ? (
+                  <div className="absolute bottom-8 left-1/2 w-[60px] -translate-x-1/2 overflow-hidden rounded-[8px] bg-[rgba(0,0,0,0.4)]">
+                    {[...speedOptions].reverse().map((speed) => (
+                      <button
+                        key={speed}
+                        type="button"
+                        onClick={() => onSelectSpeed(speed)}
+                        className={`flex w-full items-center justify-center px-3 py-2 text-center text-[14px] leading-[1.5] text-white ${
+                          speed === playbackRate ? 'bg-[rgba(255,255,255,0.24)] font-semibold' : 'font-normal'
+                        }`}
+                      >
+                        {speed}x
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+
+              <button type="button" onClick={onToggleCaption} className="p-1 text-white">
+                <SubtitleIcon isActive={isCaptionVisible} />
+              </button>
+            </div>
           </div>
         </div>
       </div>
+
+      {isCaptionVisible && (subtitleContent || renderSubtitleContent || captionText) ? (
+        <div
+          ref={subtitleBarRef}
+          className={`flex w-full items-center rounded-b-[11.455px] bg-[rgba(0,0,0,0.78)] px-6 text-white transition-[padding,height] duration-150 ${
+            isSubtitleWrapped ? 'py-3 min-h-[118px]' : 'py-4 min-h-[76px]'
+          }`}
+        >
+          <div
+            ref={subtitleContentRef}
+            className={`w-full text-center text-[22px] font-semibold leading-[1.45] text-white ${
+              isSubtitleWrapped ? 'whitespace-normal' : 'overflow-hidden whitespace-nowrap'
+            }`}
+          >
+            {renderSubtitleContent
+              ? renderSubtitleContent(isSubtitleWrapped)
+              : subtitleContent ?? <p>{captionText}</p>}
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

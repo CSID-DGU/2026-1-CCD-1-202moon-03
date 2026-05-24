@@ -85,7 +85,7 @@ function normalizeAnswer(value: string) {
     .normalize('NFKC')
     .toLowerCase()
     .replace(/[^\p{L}\p{N}\s]/gu, ' ')
-    .replace(/\s+/g, ' ')
+    .replace(/\s+/g, '')
     .trim();
 }
 
@@ -162,7 +162,7 @@ function buildCaptionDisplay(
       key: blankKey,
       blank,
       value: typedValuesByBlankKey[blankKey] ?? '',
-      placeholder: `${blank.answer_length}글자`,
+      placeholder: `${normalizeAnswer(blank.keyword).length}글자`,
       resolvedState: resolvedStatesByBlankKey[blankKey] ?? 'pending',
     } satisfies RainCaptionInputItem);
   }
@@ -664,9 +664,11 @@ export function useRainMode(settings?: RainSettings) {
 
     return {
       id: currentEvent.id,
-      text: currentEvent.keyword,
+      text: currentEvent.keyword.replace(/\s+/g, ''),
       hint: `${currentEvent.blank.answer_length}글자`,
+      answerLength: currentEvent.keyword.replace(/\s+/g, '').length,
       lane: currentEvent.lane,
+      blankKey: currentEvent.blankKey,
       leftPercent: currentEvent.leftPercent,
       progress: resolveKeywordProgress(rafCurrentTime, currentEvent),
       status: 'active' as const,
@@ -732,9 +734,11 @@ export function useRainMode(settings?: RainSettings) {
           if (isCleared) {
             return {
               id: event.id,
-              text: event.keyword,
+              text: event.keyword.replace(/\s+/g, ''),
               hint: `${event.blank.answer_length}글자`,
+              answerLength: event.keyword.replace(/\s+/g, '').length,
               lane: event.lane,
+              blankKey: event.blankKey,
               leftPercent: event.leftPercent,
               progress: settledProgressRef.current.get(event.id) ?? resolveKeywordProgress(rafCurrentTime, event),
               status: 'cleared' as const,
@@ -744,9 +748,11 @@ export function useRainMode(settings?: RainSettings) {
           if (isMissed) {
             return {
               id: event.id,
-              text: event.keyword,
+              text: event.keyword.replace(/\s+/g, ''),
               hint: `${event.blank.answer_length}글자`,
+              answerLength: event.keyword.replace(/\s+/g, '').length,
               lane: event.lane,
+              blankKey: event.blankKey,
               leftPercent: event.leftPercent,
               progress: settledProgressRef.current.get(event.id) ?? resolveKeywordProgress(rafCurrentTime, event),
               status: 'missed' as const,
@@ -756,9 +762,11 @@ export function useRainMode(settings?: RainSettings) {
           if (rafCurrentTime < event.fallStartTime) {
             return {
               id: event.id,
-              text: event.keyword,
+              text: event.keyword.replace(/\s+/g, ''),
               hint: `${event.blank.answer_length}글자`,
+              answerLength: event.keyword.replace(/\s+/g, '').length,
               lane: event.lane,
+              blankKey: event.blankKey,
               leftPercent: event.leftPercent,
               progress: FALL_PROGRESS_START,
               status: 'pending' as const,
@@ -767,9 +775,11 @@ export function useRainMode(settings?: RainSettings) {
 
           return {
             id: event.id,
-            text: event.keyword,
+            text: event.keyword.replace(/\s+/g, ''),
             hint: `${event.blank.answer_length}글자`,
+            answerLength: event.keyword.replace(/\s+/g, '').length,
             lane: event.lane,
+            blankKey: event.blankKey,
             leftPercent: event.leftPercent,
             progress: resolveKeywordProgress(rafCurrentTime, event),
             status: activeKeyword?.id === event.id ? 'active' : 'pending',
@@ -1129,7 +1139,10 @@ export function useRainMode(settings?: RainSettings) {
       answeredKeywordIdsRef.current.add(targetEvent.id);
       answeredAtRef.current.set(targetEvent.id, performance.now());
       settledProgressRef.current.set(targetEvent.id, resolveKeywordProgress(rafCurrentTime, targetEvent));
-      setTypedValuesByBlankKey((current) => ({ ...current, [blankKey]: targetEvent.keyword }));
+      setTypedValuesByBlankKey((current) => ({
+        ...current,
+        [blankKey]: targetEvent.keyword.replace(/\s+/g, ''),
+      }));
 
       const nextScore = score + 120;
       const nextCombo = combo + 1;

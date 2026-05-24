@@ -34,6 +34,8 @@ function RainModePage() {
   const [isEndingStudy, setIsEndingStudy] = useState(false);
   const [judgment, setJudgment] = useState<{ key: number; combo: number } | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [measurementRoot, setMeasurementRoot] = useState<HTMLElement | null>(null);
+  const [inputPositions, setInputPositions] = useState<Record<string, number>>({});
   const [rainSettings, setRainSettings] = useState<RainSettings>({
     mode: 'manual',
     difficulty: 'normal',
@@ -141,8 +143,9 @@ function RainModePage() {
 
   return (
     <main className="min-h-screen bg-[#15171C]">
-      <div className="mx-auto flex w-full max-w-[1440px] flex-col px-[60px] pb-[60px] pt-[40px]">
-        <div className="flex items-start justify-between pb-[40px]">
+      <div className="overflow-x-auto">
+        <div className="mx-auto flex w-full max-w-[1440px] min-w-fit flex-col px-[60px] pb-[60px] pt-[40px]">
+          <div className="flex items-start justify-between pb-[40px]">
           <div className="space-y-2">
             <button
               type="button"
@@ -185,8 +188,8 @@ function RainModePage() {
           </div>
         </div>
 
-        <div className="flex items-start gap-6">
-          <div ref={speedMenuRef} className="min-w-0 flex-1">
+        <div className="flex items-start gap-4">
+          <div ref={speedMenuRef} className="shrink-0">
             {playerStatus === 'ready' || playerStatus === 'stream_complete' ? (
               <SpinnerPlayer
                 playerType={playerType}
@@ -201,9 +204,10 @@ function RainModePage() {
                 speedOptions={speedOptions}
                 isCaptionVisible={isCaptionVisible}
                 captionText={captionText}
+                onMeasurementRootChange={setMeasurementRoot}
                 overlayContent={
                   <div className="relative h-full w-full">
-                    <FallingKeywords keywords={fallingKeywords} />
+                    <FallingKeywords keywords={fallingKeywords} inputPositions={inputPositions} />
                     {judgment ? (
                       <div
                         key={judgment.key}
@@ -222,17 +226,24 @@ function RainModePage() {
                     ) : null}
                   </div>
                 }
-                captionOverlay={hasCaptionContent ? (
-                  <RainCaptionInput
-                    ref={captionInputRef}
-                    items={captionDisplay.items}
-                    fallbackText={captionText}
-                    onChange={handleTypedValueChange}
-                    onCompositionStateChange={handleCaptionCompositionStateChange}
-                    onFocusBlankKeyChange={handleCaptionFocusBlankKeyChange}
-                    onSubmit={submitTypedKeyword}
-                  />
-                ) : null}
+                renderSubtitleContent={
+                  hasCaptionContent
+                    ? (isWrapped) => (
+                        <RainCaptionInput
+                          ref={captionInputRef}
+                          items={captionDisplay.items}
+                          fallbackText={captionText}
+                          measurementRoot={measurementRoot}
+                          allowWrap={isWrapped}
+                          onChange={handleTypedValueChange}
+                          onCompositionStateChange={handleCaptionCompositionStateChange}
+                          onFocusBlankKeyChange={handleCaptionFocusBlankKeyChange}
+                          onInputLayoutChange={setInputPositions}
+                          onSubmit={submitTypedKeyword}
+                        />
+                      )
+                    : undefined
+                }
                 onTogglePlay={async () => {
                   await togglePlay();
                   refocusCaptionInput();
@@ -273,11 +284,13 @@ function RainModePage() {
                 }}
               />
             ) : (
-              <PlayerStatusOverlay
+              <div className="w-[min(1400px,98vw)]">
+                <PlayerStatusOverlay
                 title={playerStatus === 'failed' ? '재생을 준비하지 못했어요' : '학습 영상을 준비 중이에요'}
                 description={sessionError || playerStatusLabel || '첫 챕터가 준비되면 바로 재생이 시작됩니다.'}
                 tone={playerStatus === 'failed' ? 'error' : 'neutral'}
-              />
+                />
+              </div>
             )}
           </div>
 
@@ -298,6 +311,7 @@ function RainModePage() {
               />
             </div>
           </div>
+        </div>
         </div>
       </div>
 
