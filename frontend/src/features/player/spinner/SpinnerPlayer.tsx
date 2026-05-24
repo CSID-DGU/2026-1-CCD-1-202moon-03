@@ -437,7 +437,7 @@ function SpinnerPlayer({
   ]);
 
   return (
-    <section ref={sectionRef} className="flex w-[min(1048px,98vw)] flex-col items-center">
+    <section ref={sectionRef} className="flex w-[min(1120px,98vw)] flex-col items-center">
       <div
         className="relative aspect-video w-full overflow-hidden rounded-t-[11.455px] bg-black"
         onMouseMove={handleMouseMove}

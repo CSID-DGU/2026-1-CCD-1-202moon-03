@@ -7,6 +7,7 @@ import { useAuthenticatedVideoUrl } from '../shared/useAuthenticatedVideoUrl';
 import { useGameSessionData } from '../shared/useGameSessionData';
 import { useLocalFilePlayerSrc } from '../shared/useLocalFilePlayerSrc';
 import type { MediaController, PlayerType } from '../shared/playback';
+import { useKeycapInteraction } from './useKeycapInteraction';
 import type { SpinnerAssistTool, SpinnerPlaybackRate } from './types';
 
 const SPEED_OPTIONS: SpinnerPlaybackRate[] = [0.5, 0.75, 1, 1.25, 1.5, 2];
@@ -46,14 +47,18 @@ export function useSpinnerMode() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const controllerRef = useRef<MediaController | null>(null);
   const speedMenuRef = useRef<HTMLDivElement | null>(null);
-  const keycapTimeoutRef = useRef<number | null>(null);
   const autoPlaySessionRef = useRef<string | null>(null);
   const [isPlayerReady, setIsPlayerReady] = useState(false);
+  const {
+    isPressed: isKeycapPressed,
+    lastPressAt: keycapLastPressAt,
+    pressTick: keycapPressTick,
+    triggerPress: triggerKeycapPress,
+    visualState: keycapVisualState,
+  } = useKeycapInteraction();
 
   const [selectedTool, setSelectedTool] = useState<SpinnerAssistTool>('spinner');
   const [spinnerTurns, setSpinnerTurns] = useState(0);
-  const [isKeycapPressed, setIsKeycapPressed] = useState(false);
-  const [keycapPressCount, setKeycapPressCount] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackRate, setPlaybackRate] = useState<SpinnerPlaybackRate>(1);
   const [isSpeedMenuOpen, setIsSpeedMenuOpen] = useState(false);
@@ -137,14 +142,6 @@ export function useSpinnerMode() {
       document.removeEventListener('keydown', handleEscape);
     };
   }, [isSpeedMenuOpen]);
-
-  useEffect(() => {
-    return () => {
-      if (keycapTimeoutRef.current !== null) {
-        window.clearTimeout(keycapTimeoutRef.current);
-      }
-    };
-  }, []);
 
   useEffect(() => {
     const handleWindowWheel = (event: WheelEvent) => {
@@ -347,17 +344,8 @@ export function useSpinnerMode() {
   }, [gameData.quizzes, quizState]);
 
   const handlePressKeycap = () => {
-    if (keycapTimeoutRef.current !== null) {
-      window.clearTimeout(keycapTimeoutRef.current);
-    }
-
     setSelectedTool('keycap');
-    setKeycapPressCount((current) => current + 1);
-    setIsKeycapPressed(true);
-    keycapTimeoutRef.current = window.setTimeout(() => {
-      setIsKeycapPressed(false);
-      keycapTimeoutRef.current = null;
-    }, 160);
+    triggerKeycapPress();
   };
 
   const handleTogglePlay = async () => {
@@ -483,9 +471,12 @@ export function useSpinnerMode() {
   const enhancedDebug = useMemo(
     () => ({
       ...debug,
+      keycapLastPressAt,
+      keycapPressTick,
+      keycapVisualState,
       tabSwitchCount,
     }),
-    [debug, tabSwitchCount],
+    [debug, keycapLastPressAt, keycapPressTick, keycapVisualState, tabSwitchCount],
   );
 
   return {
@@ -508,7 +499,8 @@ export function useSpinnerMode() {
     selectedTool,
     spinnerTurns,
     isKeycapPressed,
-    keycapPressCount,
+    keycapPressTick,
+    keycapVisualState,
     isPlaying,
     playbackRate,
     isSpeedMenuOpen,

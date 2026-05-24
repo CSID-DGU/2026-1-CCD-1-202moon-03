@@ -66,8 +66,6 @@ function RainSettingsModal({
     return null;
   }
 
-  const isManualMode = draft.mode === 'manual';
-
   const applyDifficultyToManualSettings = (difficulty: RainSettings['difficulty']) =>
     AUTO_DIFFICULTY_TO_MANUAL_SETTINGS[difficulty];
 
@@ -76,7 +74,7 @@ function RainSettingsModal({
       <div className="fixed inset-0 z-40" onClick={onClose} />
       <div
         ref={modalRef}
-        className="absolute right-0 top-full z-50 mt-2 w-[220px] rounded-[16px] bg-white p-5 shadow-[0_8px_32px_rgba(0,0,0,0.18)]"
+        className="absolute right-0 top-full z-50 mt-2 w-[236px] rounded-[16px] bg-white p-5 shadow-[0_8px_32px_rgba(0,0,0,0.18)]"
       >
         <div className="mb-4 flex items-center justify-between">
           <span className="text-[15px] font-semibold text-[#15171C]">모드</span>
@@ -114,39 +112,45 @@ function RainSettingsModal({
           </div>
         </div>
 
-        {isManualMode && (
-          <div className="mb-5 flex items-center justify-between">
-            <span className="text-[15px] font-semibold text-[#15171C]">난이도</span>
-            <div className="flex overflow-hidden rounded-[8px] border border-[#E5E7EC]">
-              {(['easy', 'normal', 'hard'] as const).map((difficulty) => (
-                <button
-                  key={difficulty}
-                  type="button"
-                  onClick={() =>
-                    setDraft((prev) => ({
-                      ...prev,
-                      difficulty,
-                      ...(prev.mode === 'manual'
-                        ? applyDifficultyToManualSettings(difficulty)
-                        : {}),
-                    }))
-                  }
-                  className={`px-2 py-1 text-[12px] font-semibold transition-colors ${
-                    draft.difficulty === difficulty
-                      ? 'bg-[#1A9AF5] text-white'
-                      : 'bg-white text-[#7D828B]'
-                  }`}
-                >
-                  {difficulty === 'easy'
-                    ? '쉬움'
-                    : difficulty === 'normal'
-                      ? '보통'
-                      : '어려움'}
-                </button>
-              ))}
-            </div>
+        <div className="mb-5 flex items-center justify-between">
+          <span className="text-[15px] font-semibold text-[#15171C]">
+            {draft.mode === 'auto' ? '초기 프리셋' : '난이도'}
+          </span>
+          <div className="flex overflow-hidden rounded-[8px] border border-[#E5E7EC]">
+            {(['easy', 'normal', 'hard'] as const).map((difficulty) => (
+              <button
+                key={difficulty}
+                type="button"
+                onClick={() =>
+                  setDraft((prev) => ({
+                    ...prev,
+                    difficulty,
+                    ...(prev.mode === 'manual'
+                      ? applyDifficultyToManualSettings(difficulty)
+                      : {}),
+                  }))
+                }
+                className={`px-2 py-1 text-[12px] font-semibold transition-colors ${
+                  draft.difficulty === difficulty
+                    ? 'bg-[#1A9AF5] text-white'
+                    : 'bg-white text-[#7D828B]'
+                }`}
+              >
+                {difficulty === 'easy'
+                  ? '쉬움'
+                  : difficulty === 'normal'
+                    ? '보통'
+                    : '어려움'}
+              </button>
+            ))}
           </div>
-        )}
+        </div>
+
+        {draft.mode === 'auto' ? (
+          <p className="mb-5 text-[12px] leading-[1.5] text-[#7D828B]">
+            설문 기반 초기 프리셋으로 시작한 뒤, 최근 입력 성과에 따라 난이도가 자동으로 조절됩니다.
+          </p>
+        ) : null}
 
         <button
           type="button"

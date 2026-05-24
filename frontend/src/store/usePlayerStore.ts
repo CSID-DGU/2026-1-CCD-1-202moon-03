@@ -32,7 +32,7 @@ const initialState = {
   selectedMode: null as PlayerMode,
   sessionId: null as string | null,
   streamingSource: null as StreamingPlayerSource | null,
-  rainDifficulty: 'normal' as RainDifficulty,
+  rainDifficulty: 'hard' as RainDifficulty,
 };
 
 export function getTransientStreamingSource() {

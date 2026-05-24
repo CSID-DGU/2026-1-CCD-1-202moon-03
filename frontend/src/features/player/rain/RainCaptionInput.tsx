@@ -26,7 +26,7 @@ interface RainCaptionInputProps {
   fallbackText: string;
   measurementRoot?: HTMLElement | null;
   allowWrap?: boolean;
-  onChange: (blankKey: string, value: string) => void;
+  onCommit: (blankKey: string, value: string) => void;
   onSubmit: (blankKey: string, value: string) => void;
   onCompositionStateChange?: (blankKey: string | null, isComposing: boolean) => void;
   onFocusBlankKeyChange?: (blankKey: string | null) => void;
@@ -40,7 +40,7 @@ const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProp
       fallbackText,
       measurementRoot,
       allowWrap = false,
-      onChange,
+      onCommit,
       onSubmit,
       onCompositionStateChange,
       onFocusBlankKeyChange,
@@ -84,12 +84,15 @@ const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProp
       [primaryInputKey],
     );
 
+    const commitDraftValue = useCallback(
+      (blankKey: string, fallbackValue: string) => {
+        onCommit(blankKey, inputRefs.current[blankKey]?.value ?? draftValuesByKey[blankKey] ?? fallbackValue);
+      },
+      [draftValuesByKey, onCommit],
+    );
+
     useEffect(() => {
       const activeKeys = new Set(items.filter((item) => item.type === 'input').map((item) => item.key));
-      const activeElement = document.activeElement as HTMLInputElement | null;
-      const focusedBlankKey = rootRef.current?.contains(activeElement)
-        ? activeElement?.dataset.blankKey ?? null
-        : null;
 
       setDraftValuesByKey((current) => {
         let changed = false;
@@ -100,12 +103,9 @@ const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProp
             continue;
           }
 
-          const isComposingCurrentInput =
-            isComposingRef.current && composingBlankKeyRef.current === item.key;
-          const isFocusedCurrentInput = focusedBlankKey === item.key;
-
+          const hasCurrentDraft = Object.prototype.hasOwnProperty.call(current, item.key);
           const nextValue =
-            isComposingCurrentInput || isFocusedCurrentInput
+            item.resolvedState === 'pending' && hasCurrentDraft
               ? current[item.key] ?? item.value
               : item.value;
           next[item.key] = nextValue;
@@ -124,7 +124,31 @@ const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProp
 
         return changed ? next : current;
       });
-    }, [items]);
+
+      for (const item of items) {
+        if (item.type !== 'input') {
+          continue;
+        }
+
+        const input = inputRefs.current[item.key];
+        if (!input) {
+          continue;
+        }
+
+        if (item.resolvedState !== 'pending' && input.value !== item.value) {
+          input.value = item.value;
+          continue;
+        }
+
+        if (
+          item.resolvedState === 'pending' &&
+          !Object.prototype.hasOwnProperty.call(draftValuesByKey, item.key) &&
+          input.value !== item.value
+        ) {
+          input.value = item.value;
+        }
+      }
+    }, [draftValuesByKey, items]);
 
     useEffect(() => {
       if (!primaryInputKey) {
@@ -259,7 +283,7 @@ const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProp
                 }}
                 data-blank-key={item.key}
                 type="text"
-                value={draftValuesByKey[item.key] ?? item.value}
+                defaultValue={draftValuesByKey[item.key] ?? item.value}
                 placeholder={item.placeholder}
                 readOnly={item.resolvedState !== 'pending'}
                 onFocus={() => {
@@ -271,10 +295,6 @@ const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProp
                     ...current,
                     [item.key]: nextValue,
                   }));
-
-                  if (!isComposingRef.current || composingBlankKeyRef.current !== item.key) {
-                    onChange(item.key, nextValue);
-                  }
                 }}
                 onCompositionStart={() => {
                   isComposingRef.current = true;
@@ -285,11 +305,11 @@ const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProp
                   isComposingRef.current = false;
                   composingBlankKeyRef.current = null;
                   onCompositionStateChange?.(item.key, false);
-                  onChange(item.key, event.currentTarget.value);
                 }}
                 onBlur={() => {
                   isComposingRef.current = false;
                   composingBlankKeyRef.current = null;
+                  commitDraftValue(item.key, item.value);
                   onCompositionStateChange?.(item.key, false);
                   onFocusBlankKeyChange?.(null);
                 }}
@@ -303,7 +323,10 @@ const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProp
                   }
 
                   event.preventDefault();
-                  onSubmit(item.key, draftValuesByKey[item.key] ?? item.value);
+                  const submitValue =
+                    inputRefs.current[item.key]?.value ?? draftValuesByKey[item.key] ?? item.value;
+                  onCommit(item.key, submitValue);
+                  onSubmit(item.key, submitValue);
                   requestAnimationFrame(() => {
                     focusPrimaryInput();
                   });

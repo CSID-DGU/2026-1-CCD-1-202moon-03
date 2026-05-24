@@ -27,8 +27,8 @@ function SpinnerModePage() {
     speedMenuRef,
     selectedTool,
     spinnerTurns,
-    isKeycapPressed,
-    keycapPressCount,
+    keycapPressTick,
+    keycapVisualState,
     isPlaying,
     playbackRate,
     isSpeedMenuOpen,
@@ -89,7 +89,7 @@ function SpinnerModePage() {
   return (
     <main className="min-h-screen bg-[#15171C]">
       <div className="overflow-x-auto">
-        <div className="mx-auto flex w-full max-w-[1440px] min-w-fit flex-col px-[60px] pb-[60px] pt-[40px]">
+        <div className="mx-auto flex w-full max-w-[1440px] min-w-fit flex-col px-[40px] pb-[48px] pt-[32px]">
           <div className="flex items-start justify-between pb-[40px]">
             <div className="space-y-2">
             <button
@@ -131,7 +131,7 @@ function SpinnerModePage() {
           </div>
         </div>
 
-        <div className="flex items-start gap-4">
+        <div className="flex items-start gap-3">
           <div ref={speedMenuRef} className="shrink-0">
             {playerStatus === 'ready' || playerStatus === 'stream_complete' ? (
               <SpinnerPlayer
@@ -161,7 +161,7 @@ function SpinnerModePage() {
                 onEnded={handleEnded}
               />
             ) : (
-              <div className="w-[min(1400px,98vw)]">
+              <div className="w-[min(1120px,98vw)]">
                 <PlayerStatusOverlay
                 title={playerStatus === 'failed' ? '재생을 준비하지 못했어요' : '학습 영상을 준비 중이에요'}
                 description={sessionError || playerStatusLabel || '첫 챕터가 준비되면 바로 재생이 시작됩니다.'}
@@ -174,8 +174,8 @@ function SpinnerModePage() {
           <SpinnerPracticePanel
             selectedTool={selectedTool}
             spinnerTurns={spinnerTurns}
-            isKeycapPressed={isKeycapPressed}
-            keycapPressCount={keycapPressCount}
+            keycapPressTick={keycapPressTick}
+            keycapVisualState={keycapVisualState}
             onSelectTool={handleSelectTool}
             onSpin={handleSpin}
             onSpinnerWheel={handleSpinnerWheel}

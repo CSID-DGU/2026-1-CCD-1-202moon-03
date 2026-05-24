@@ -1,28 +1,28 @@
 import { Link } from 'react-router-dom';
+import tadacLogo from '../../assets/icons/TADAC.svg';
+import mypageIcon from '../../assets/icons/mypageIcon.svg';
 import { ROUTES } from '../../constants/routes';
-import { useAuthStore } from '../../store/useAuthStore';
-import mascotDefault from '../../assets/icons/mascot_default.svg';
 
 function Header() {
-  const user = useAuthStore((state) => state.user);
-  const profileLabel = user?.name ? user.name.slice(0, 2).toUpperCase() : 'MY';
-
   return (
-    <header className="-mx-6 -mt-10 border-b border-[#E3E7EE] bg-white">
+    <header className="-mx-6 -mt-10 relative bg-white">
       <div className="mx-auto flex h-[84px] w-full max-w-[1440px] items-center justify-between px-8 sm:px-12 lg:px-16">
-        <Link to={ROUTES.HOME} className="flex items-center gap-1">
-          <img src={mascotDefault} alt="" aria-hidden="true" className="h-16 w-16" />
-          <span className="text-[30px] font-bold tracking-[-0.04em] text-[#161A23]">TADAC</span>
+        <Link to={ROUTES.HOME} aria-label="TADAC 홈으로 이동" className="flex items-center">
+          <img src={tadacLogo} alt="TADAC" className="h-10 w-auto sm:h-11" />
         </Link>
 
         <Link
           to={ROUTES.MYPAGE}
           aria-label="마이페이지로 이동"
-          className="flex h-11 w-11 items-center justify-center rounded-full bg-[#D9DFEA] text-[13px] font-semibold text-[#2D3545] transition-transform duration-200 hover:scale-[1.03]"
+          className="flex h-12 w-12 items-center justify-center rounded-full transition-colors duration-200 hover:bg-[#F3F7FC]"
         >
-          {profileLabel}
+          <img src={mypageIcon} alt="" aria-hidden="true" className="h-9 w-9" />
         </Link>
       </div>
+      <div
+        aria-hidden="true"
+        className="absolute bottom-0 left-1/2 h-px w-screen -translate-x-1/2 bg-[#E3E7EE]"
+      />
     </header>
   );
 }

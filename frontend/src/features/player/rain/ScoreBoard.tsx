@@ -14,8 +14,8 @@ function ScoreBoard({
   coreKeyword,
 }: ScoreBoardProps) {
   return (
-    <div className="h-full rounded-[12px] border border-[#E5E7EC] bg-[#F4F6F7] px-4 py-4">
-      <div className="space-y-5 text-[16px] leading-6 text-[#15171C]">
+    <div className="flex h-full items-center rounded-[12px] border border-[#E5E7EC] bg-[#F4F6F7] px-3 py-3">
+      <div className="w-full space-y-4 text-[14px] leading-5 text-[#15171C]">
         <MetricRow label="점수" value={`${score.toLocaleString()}점`} />
         <MetricRow label="최대 콤보수" value={`${maxCombo}`} />
         <MetricRow label="정확도" value={`${accuracy}%`} />
@@ -33,9 +33,9 @@ interface MetricRowProps {
 
 function MetricRow({ label, value }: MetricRowProps) {
   return (
-    <div className="flex items-center justify-between gap-4">
-      <p className="text-[16px] font-normal text-[#15171C]">{label}</p>
-      <p className="text-right text-[16px] font-semibold text-[#15171C]">{value}</p>
+    <div className="flex items-center justify-between gap-3">
+      <p className="text-[14px] font-normal text-[#15171C]">{label}</p>
+      <p className="text-right text-[14px] font-semibold text-[#15171C]">{value}</p>
     </div>
   );
 }
