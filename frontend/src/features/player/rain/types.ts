@@ -12,7 +12,9 @@ export interface RainKeyword {
   id: string;
   text: string;
   hint: string;
+  answerLength?: number;
   lane: number;
+  blankKey?: string;
   leftPercent?: number;
   progress: number;
   status: 'pending' | 'active' | 'cleared' | 'missed';

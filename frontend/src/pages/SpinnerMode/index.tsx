@@ -27,8 +27,14 @@ function SpinnerModePage() {
     speedMenuRef,
     selectedTool,
     spinnerTurns,
-    isKeycapPressed,
-    keycapPressCount,
+    keycapGlowTheme,
+    keycapPressTick,
+    keycapVisualState,
+    mascotVisualState,
+    mascotPromptType,
+    mascotMessage,
+    isStretchGuideOpen,
+    stretchCountdownSeconds,
     isPlaying,
     playbackRate,
     isSpeedMenuOpen,
@@ -46,7 +52,10 @@ function SpinnerModePage() {
     handleSelectTool,
     handleSpin,
     handleSpinnerWheel,
-    handlePressKeycap,
+    handleKeycapPressEnd,
+    handleKeycapPressStart,
+    handleMascotClick,
+    handleDismissStretchGuide,
     handleTogglePlay,
     handleToggleSpeedMenu,
     handleSelectSpeed,
@@ -88,9 +97,10 @@ function SpinnerModePage() {
 
   return (
     <main className="min-h-screen bg-[#15171C]">
-      <div className="mx-auto flex w-full max-w-[1440px] flex-col px-[60px] pb-[60px] pt-[40px]">
-        <div className="flex items-start justify-between pb-[40px]">
-          <div className="space-y-2">
+      <div className="overflow-x-auto">
+        <div className="mx-auto flex w-full max-w-[1440px] min-w-fit flex-col px-[40px] pb-[48px] pt-[32px]">
+          <div className="flex items-start justify-between pb-[40px]">
+            <div className="space-y-2">
             <button
               type="button"
               onClick={() => void handleFinishStudy()}
@@ -130,8 +140,8 @@ function SpinnerModePage() {
           </div>
         </div>
 
-        <div className="flex items-start gap-6">
-          <div ref={speedMenuRef} className="min-w-0 flex-1">
+        <div className="flex items-start gap-3">
+          <div ref={speedMenuRef} className="shrink-0">
             {playerStatus === 'ready' || playerStatus === 'stream_complete' ? (
               <SpinnerPlayer
                 playerType={playerType}
@@ -160,24 +170,36 @@ function SpinnerModePage() {
                 onEnded={handleEnded}
               />
             ) : (
-              <PlayerStatusOverlay
+              <div className="w-[min(1120px,98vw)]">
+                <PlayerStatusOverlay
                 title={playerStatus === 'failed' ? '재생을 준비하지 못했어요' : '학습 영상을 준비 중이에요'}
                 description={sessionError || playerStatusLabel || '첫 챕터가 준비되면 바로 재생이 시작됩니다.'}
                 tone={playerStatus === 'failed' ? 'error' : 'neutral'}
-              />
+                />
+              </div>
             )}
           </div>
 
           <SpinnerPracticePanel
             selectedTool={selectedTool}
             spinnerTurns={spinnerTurns}
-            isKeycapPressed={isKeycapPressed}
-            keycapPressCount={keycapPressCount}
+            keycapGlowTheme={keycapGlowTheme}
+            keycapPressTick={keycapPressTick}
+            keycapVisualState={keycapVisualState}
+            mascotVisualState={mascotVisualState}
+            mascotPromptType={mascotPromptType}
+            mascotMessage={mascotMessage}
+            isStretchGuideOpen={isStretchGuideOpen}
+            stretchCountdownSeconds={stretchCountdownSeconds}
             onSelectTool={handleSelectTool}
             onSpin={handleSpin}
             onSpinnerWheel={handleSpinnerWheel}
-            onPressKeycap={handlePressKeycap}
+            onKeycapPressEnd={handleKeycapPressEnd}
+            onKeycapPressStart={handleKeycapPressStart}
+            onMascotClick={handleMascotClick}
+            onDismissStretchGuide={handleDismissStretchGuide}
           />
+        </div>
         </div>
       </div>
 

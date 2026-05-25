@@ -10,7 +10,7 @@ function PlayerStatusOverlay({
   tone = 'neutral',
 }: PlayerStatusOverlayProps) {
   return (
-    <div className="flex h-[590px] items-center justify-center rounded-[16px] border border-[#2D3340] bg-[#1B2029] px-8 text-center">
+    <div className="flex w-full aspect-video items-center justify-center rounded-[16px] border border-[#2D3340] bg-[#1B2029] px-8 text-center">
       <div className="max-w-[420px] space-y-3">
         <p
           className={`text-[28px] font-bold tracking-[-0.03em] ${

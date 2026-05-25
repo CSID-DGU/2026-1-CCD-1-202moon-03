@@ -20,19 +20,19 @@ import type { RainSettings } from './RainSettingsModal';
 const RAIN_DIFFICULTY = {
   easy: {
     activeBlanks: 1,
-    fallSpeed: 0.3,
+    fallSpeed: 0.7,
     minFallDuration: 7.0,
     segmentSampleRate: 5,
   },
   normal: {
     activeBlanks: 2,
-    fallSpeed: 0.5,
+    fallSpeed: 0.9,
     minFallDuration: 6.0,
     segmentSampleRate: 3,
   },
   hard: {
     activeBlanks: 2,
-    fallSpeed: 1.0,
+    fallSpeed: 1.1,
     minFallDuration: 5.0,
     segmentSampleRate: 1,
   },
@@ -41,7 +41,7 @@ const RAIN_DIFFICULTY = {
 const FALL_PROGRESS_START = -12;
 const FALL_PROGRESS_END = 86;
 const TARGET_TIME_SEGMENT_TOLERANCE_SECONDS = 3;
-const MISS_GRACE_SECONDS = 4.0;
+const DEFAULT_MISS_GRACE_SECONDS = 1.2;
 const MISSED_DISPLAY_BUFFER = 0.75;
 const SHORT_SEGMENT_THRESHOLD_SECONDS = 4;
 const MIN_BLANK_SEGMENT_DURATION_SECONDS = 2.0;
@@ -49,6 +49,14 @@ const SHORT_SEGMENT_EXTRA_FALL_DURATION = 0.5;
 const SHORT_SEGMENT_EXTRA_LEAD_TIME = 0.4;
 const SEGMENT_TRANSITION_INPUT_HOLD_MS = 250;
 const RAIN_SPEED_OPTIONS: PlaybackRate[] = [0.5, 0.75, 1, 1.25, 1.5, 2];
+const ADAPTIVE_WINDOW_SIZE = 10;
+const ADAPTIVE_SAMPLING_STEPS = [5, 4, 3, 2, 1] as const;
+const ADAPTIVE_FALL_SPEED_MIN = 0.7;
+const ADAPTIVE_FALL_SPEED_MAX = 1.3;
+const ADAPTIVE_LEAD_OFFSET_MIN = -0.4;
+const ADAPTIVE_LEAD_OFFSET_MAX = 0.8;
+const ADAPTIVE_MISS_GRACE_MIN = 0.8;
+const ADAPTIVE_MISS_GRACE_MAX = 1.5;
 
 function buildAnsweredQuizKey(quizId: number | null, triggerTime: number) {
   return quizId === null || quizId <= 0 ? `missing:${triggerTime}` : `quiz:${quizId}`;
@@ -76,6 +84,174 @@ type PreparedRainSummary = {
   invalidTargetTimeCount: number;
 };
 
+type AdaptiveDecision = 'promote' | 'hold' | 'relax';
+
+type AdaptiveDifficultyState = {
+  samplingStep: (typeof ADAPTIVE_SAMPLING_STEPS)[number];
+  activeBlanks: 1 | 2;
+  fallSpeedMultiplier: number;
+  fallLeadTimeOffset: number;
+  missGraceSeconds: number;
+};
+
+type PerformanceWindowEntry = {
+  result: 'correct' | 'wrong' | 'miss';
+  eventId: string;
+  timestamp: number;
+  comboAfter: number;
+};
+
+type WindowMetrics = {
+  accuracy: number | null;
+  missRate: number | null;
+  maxCombo: number;
+};
+
+function clampNumber(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function roundToTenth(value: number) {
+  return Math.round(value * 10) / 10;
+}
+
+function createAdaptiveDifficultyState(
+  difficulty: keyof typeof RAIN_DIFFICULTY,
+): AdaptiveDifficultyState {
+  if (difficulty === 'easy') {
+    return {
+      samplingStep: 5,
+      activeBlanks: 1,
+      fallSpeedMultiplier: 0.7,
+      fallLeadTimeOffset: 0.4,
+      missGraceSeconds: 1.5,
+    };
+  }
+
+  if (difficulty === 'hard') {
+    return {
+      samplingStep: 1,
+      activeBlanks: 2,
+      fallSpeedMultiplier: 1.1,
+      fallLeadTimeOffset: 0,
+      missGraceSeconds: 1.0,
+    };
+  }
+
+  return {
+    samplingStep: 3,
+    activeBlanks: 2,
+    fallSpeedMultiplier: 0.9,
+    fallLeadTimeOffset: 0.2,
+    missGraceSeconds: 1.2,
+  };
+}
+
+function getAdaptiveDecision(windowEntries: PerformanceWindowEntry[]): AdaptiveDecision {
+  if (windowEntries.length < ADAPTIVE_WINDOW_SIZE) {
+    return 'hold';
+  }
+
+  const correctCount = windowEntries.filter((entry) => entry.result === 'correct').length;
+  const missCount = windowEntries.filter((entry) => entry.result === 'miss').length;
+  const accuracy = (correctCount / windowEntries.length) * 100;
+  const missRate = (missCount / windowEntries.length) * 100;
+  const maxComboAfter = Math.max(...windowEntries.map((entry) => entry.comboAfter), 0);
+
+  if (accuracy > 85 && missRate < 10) {
+    return maxComboAfter < 2 ? 'hold' : 'promote';
+  }
+
+  if (accuracy < 65 || missRate > 35) {
+    return 'relax';
+  }
+
+  return 'hold';
+}
+
+function adjustAdaptiveDifficulty(
+  current: AdaptiveDifficultyState,
+  decision: Exclude<AdaptiveDecision, 'hold'>,
+): AdaptiveDifficultyState {
+  if (decision === 'promote') {
+    const samplingIndex = ADAPTIVE_SAMPLING_STEPS.indexOf(current.samplingStep);
+    if (samplingIndex < ADAPTIVE_SAMPLING_STEPS.length - 1) {
+      return { ...current, samplingStep: ADAPTIVE_SAMPLING_STEPS[samplingIndex + 1] };
+    }
+
+    if (current.fallSpeedMultiplier < ADAPTIVE_FALL_SPEED_MAX) {
+      return {
+        ...current,
+        fallSpeedMultiplier: roundToTenth(
+          clampNumber(current.fallSpeedMultiplier + 0.1, ADAPTIVE_FALL_SPEED_MIN, ADAPTIVE_FALL_SPEED_MAX),
+        ),
+      };
+    }
+
+    if (current.missGraceSeconds > ADAPTIVE_MISS_GRACE_MIN) {
+      return {
+        ...current,
+        missGraceSeconds: roundToTenth(
+          clampNumber(current.missGraceSeconds - 0.1, ADAPTIVE_MISS_GRACE_MIN, ADAPTIVE_MISS_GRACE_MAX),
+        ),
+      };
+    }
+
+    if (current.fallLeadTimeOffset > ADAPTIVE_LEAD_OFFSET_MIN) {
+      return {
+        ...current,
+        fallLeadTimeOffset: roundToTenth(
+          clampNumber(current.fallLeadTimeOffset - 0.2, ADAPTIVE_LEAD_OFFSET_MIN, ADAPTIVE_LEAD_OFFSET_MAX),
+        ),
+      };
+    }
+
+    if (current.activeBlanks < 2) {
+      return { ...current, activeBlanks: 2 };
+    }
+
+    return current;
+  }
+
+  if (current.activeBlanks > 1) {
+    return { ...current, activeBlanks: 1 };
+  }
+
+  if (current.fallLeadTimeOffset < ADAPTIVE_LEAD_OFFSET_MAX) {
+    return {
+      ...current,
+      fallLeadTimeOffset: roundToTenth(
+        clampNumber(current.fallLeadTimeOffset + 0.2, ADAPTIVE_LEAD_OFFSET_MIN, ADAPTIVE_LEAD_OFFSET_MAX),
+      ),
+    };
+  }
+
+  if (current.missGraceSeconds < ADAPTIVE_MISS_GRACE_MAX) {
+    return {
+      ...current,
+      missGraceSeconds: roundToTenth(
+        clampNumber(current.missGraceSeconds + 0.2, ADAPTIVE_MISS_GRACE_MIN, ADAPTIVE_MISS_GRACE_MAX),
+      ),
+    };
+  }
+
+  if (current.fallSpeedMultiplier > ADAPTIVE_FALL_SPEED_MIN) {
+    return {
+      ...current,
+      fallSpeedMultiplier: roundToTenth(
+        clampNumber(current.fallSpeedMultiplier - 0.1, ADAPTIVE_FALL_SPEED_MIN, ADAPTIVE_FALL_SPEED_MAX),
+      ),
+    };
+  }
+
+  const samplingIndex = ADAPTIVE_SAMPLING_STEPS.indexOf(current.samplingStep);
+  if (samplingIndex > 0) {
+    return { ...current, samplingStep: ADAPTIVE_SAMPLING_STEPS[samplingIndex - 1] };
+  }
+
+  return current;
+}
+
 function clampProgress(value: number) {
   return Math.max(FALL_PROGRESS_START, Math.min(value, FALL_PROGRESS_END));
 }
@@ -85,7 +261,7 @@ function normalizeAnswer(value: string) {
     .normalize('NFKC')
     .toLowerCase()
     .replace(/[^\p{L}\p{N}\s]/gu, ' ')
-    .replace(/\s+/g, ' ')
+    .replace(/\s+/g, '')
     .trim();
 }
 
@@ -162,7 +338,7 @@ function buildCaptionDisplay(
       key: blankKey,
       blank,
       value: typedValuesByBlankKey[blankKey] ?? '',
-      placeholder: `${blank.answer_length}글자`,
+      placeholder: `${normalizeAnswer(blank.keyword).length}글자`,
       resolvedState: resolvedStatesByBlankKey[blankKey] ?? 'pending',
     } satisfies RainCaptionInputItem);
   }
@@ -259,22 +435,113 @@ export function useRainMode(settings?: RainSettings) {
   const [missCount, setMissCount] = useState(0);
   const [lastJudgement, setLastJudgement] = useState<'hit' | 'miss' | 'wrong' | null>(null);
   const [tabSwitchCount, setTabSwitchCount] = useState(0);
+  const [adaptiveDifficultyState, setAdaptiveDifficultyState] = useState<AdaptiveDifficultyState>(() =>
+    createAdaptiveDifficultyState(settings?.difficulty ?? 'hard'),
+  );
+  const [performanceWindow, setPerformanceWindow] = useState<PerformanceWindowEntry[]>([]);
+  const [adaptiveDecision, setAdaptiveDecision] = useState<AdaptiveDecision>('hold');
+  const [adaptiveDecisionStreak, setAdaptiveDecisionStreak] = useState(0);
+  const [windowMetrics, setWindowMetrics] = useState<WindowMetrics>({
+    accuracy: null,
+    missRate: null,
+    maxCombo: 0,
+  });
   const quizCorrectCountRef = useRef(0);
   const quizAnsweredCountRef = useRef(0);
   const tabSwitchCountRef = useRef(0);
+  const adaptiveDifficultyStateRef = useRef(adaptiveDifficultyState);
+  const performanceWindowRef = useRef<PerformanceWindowEntry[]>([]);
+  const performanceEntryCountRef = useRef(0);
   const isManualSettings = settings?.mode === 'manual';
   const selectedDifficulty = settings?.difficulty ?? rainDifficulty;
   const difficultySettings = RAIN_DIFFICULTY[selectedDifficulty];
   const effectiveActiveBlanks = isManualSettings
     ? settings?.blankCount ?? difficultySettings.activeBlanks
-    : difficultySettings.activeBlanks;
+    : adaptiveDifficultyState.activeBlanks;
   // 수동 속도 1~5 → 실제 배속 0.5~2.0
   const MANUAL_SPEED_MAP: Record<number, number> = { 1: 0.3, 2: 0.5, 3: 0.75, 4: 1.0, 5: 1.5 };
   const effectiveFallSpeed = isManualSettings
     ? (MANUAL_SPEED_MAP[settings?.fallSpeed ?? 3] ?? 1.0)
-    : difficultySettings.fallSpeed;
+    : adaptiveDifficultyState.fallSpeedMultiplier;
   const effectiveMinFallDuration = difficultySettings.minFallDuration;
-  const effectiveSegmentSampleRate = difficultySettings.segmentSampleRate;
+  const effectiveSegmentSampleRate = isManualSettings
+    ? difficultySettings.segmentSampleRate
+    : adaptiveDifficultyState.samplingStep;
+  const effectiveMissGraceSeconds = isManualSettings
+    ? DEFAULT_MISS_GRACE_SECONDS
+    : adaptiveDifficultyState.missGraceSeconds;
+  const effectiveFallLeadTimeOffset = isManualSettings ? 0 : adaptiveDifficultyState.fallLeadTimeOffset;
+
+  const recordPerformanceEntry = (
+    entry: Omit<PerformanceWindowEntry, 'timestamp'> & { timestamp?: number },
+  ) => {
+    const nextEntry: PerformanceWindowEntry = {
+      ...entry,
+      timestamp: entry.timestamp ?? Date.now(),
+    };
+    const nextWindow = [...performanceWindowRef.current, nextEntry].slice(-ADAPTIVE_WINDOW_SIZE);
+
+    performanceWindowRef.current = nextWindow;
+    performanceEntryCountRef.current += 1;
+    setPerformanceWindow(nextWindow);
+
+    if (isManualSettings || performanceEntryCountRef.current < ADAPTIVE_WINDOW_SIZE) {
+      return;
+    }
+
+    if (performanceEntryCountRef.current % ADAPTIVE_WINDOW_SIZE !== 0) {
+      return;
+    }
+
+    const correctWindowCount = nextWindow.filter((windowEntry) => windowEntry.result === 'correct').length;
+    const missWindowCount = nextWindow.filter((windowEntry) => windowEntry.result === 'miss').length;
+    const accuracyPercent = (correctWindowCount / nextWindow.length) * 100;
+    const missRatePercent = (missWindowCount / nextWindow.length) * 100;
+    const maxComboAfter = Math.max(...nextWindow.map((windowEntry) => windowEntry.comboAfter), 0);
+    const nextDecision = getAdaptiveDecision(nextWindow);
+
+    setWindowMetrics({
+      accuracy: Math.round(accuracyPercent * 10) / 10,
+      missRate: Math.round(missRatePercent * 10) / 10,
+      maxCombo: maxComboAfter,
+    });
+    setAdaptiveDecision(nextDecision);
+
+    if (nextDecision === 'hold') {
+      setAdaptiveDecisionStreak(0);
+      return;
+    }
+
+    setAdaptiveDecisionStreak(1);
+
+    const nextAdaptiveState = adjustAdaptiveDifficulty(
+      adaptiveDifficultyStateRef.current,
+      nextDecision,
+    );
+
+    adaptiveDifficultyStateRef.current = nextAdaptiveState;
+    setAdaptiveDifficultyState(nextAdaptiveState);
+  };
+
+  useEffect(() => {
+    adaptiveDifficultyStateRef.current = adaptiveDifficultyState;
+  }, [adaptiveDifficultyState]);
+
+  useEffect(() => {
+    const nextAdaptiveState = createAdaptiveDifficultyState(selectedDifficulty);
+    adaptiveDifficultyStateRef.current = nextAdaptiveState;
+    performanceWindowRef.current = [];
+    performanceEntryCountRef.current = 0;
+    setAdaptiveDifficultyState(nextAdaptiveState);
+    setPerformanceWindow([]);
+    setAdaptiveDecision('hold');
+    setAdaptiveDecisionStreak(0);
+    setWindowMetrics({
+      accuracy: null,
+      missRate: null,
+      maxCombo: 0,
+    });
+  }, [selectedDifficulty, sessionId]);
 
   useEffect(() => {
     quizCorrectCountRef.current = quizCorrectCount;
@@ -363,6 +630,16 @@ export function useRainMode(settings?: RainSettings) {
     setTabSwitchCount(savedResult?.tabSwitchCount ?? 0);
     setMissCount(0);
     setLastJudgement(null);
+    performanceWindowRef.current = [];
+    performanceEntryCountRef.current = 0;
+    setPerformanceWindow([]);
+    setAdaptiveDecision('hold');
+    setAdaptiveDecisionStreak(0);
+    setWindowMetrics({
+      accuracy: null,
+      missRate: null,
+      maxCombo: 0,
+    });
 
     return () => {
       resetRainState();
@@ -545,12 +822,13 @@ export function useRainMode(settings?: RainSettings) {
         ? effectiveMinFallDuration + SHORT_SEGMENT_EXTRA_FALL_DURATION
         : effectiveMinFallDuration;
       const extraLeadTime = isShortSegment ? SHORT_SEGMENT_EXTRA_LEAD_TIME : 0;
+      const totalLeadTime = extraLeadTime + effectiveFallLeadTimeOffset;
       const baseFallDuration = Math.max(event.fallWindow / effectiveFallSpeed, 0.5 / effectiveFallSpeed);
       const fallDuration = Math.max(baseFallDuration, adjustedMinFallDuration);
-      const fallStartTime = Math.max(segment.start - 2, targetTime - fallDuration - extraLeadTime);
+      const fallStartTime = Math.max(segment.start - 2, targetTime - fallDuration - totalLeadTime);
       const missDeadline = Math.max(
         targetTime,
-        Math.min(targetTime + MISS_GRACE_SECONDS, segment.end - 0.2),
+        Math.min(targetTime + effectiveMissGraceSeconds, segment.end - 0.2),
       );
       const lane = blank.position % FIXED_LANE_POSITIONS.length;
 
@@ -578,7 +856,16 @@ export function useRainMode(settings?: RainSettings) {
       duplicateKeywordCandidates,
       invalidTargetTimeCount,
     };
-  }, [allowedEventIds, effectiveFallSpeed, effectiveMinFallDuration, gameData.fallEvents, gameData.segments, segmentBlankKeys]);
+  }, [
+    allowedEventIds,
+    effectiveFallLeadTimeOffset,
+    effectiveFallSpeed,
+    effectiveMinFallDuration,
+    effectiveMissGraceSeconds,
+    gameData.fallEvents,
+    gameData.segments,
+    segmentBlankKeys,
+  ]);
 
   const preparedEvents = preparedRainSummary.events;
 
@@ -664,9 +951,11 @@ export function useRainMode(settings?: RainSettings) {
 
     return {
       id: currentEvent.id,
-      text: currentEvent.keyword,
+      text: currentEvent.keyword.replace(/\s+/g, ''),
       hint: `${currentEvent.blank.answer_length}글자`,
+      answerLength: currentEvent.keyword.replace(/\s+/g, '').length,
       lane: currentEvent.lane,
+      blankKey: currentEvent.blankKey,
       leftPercent: currentEvent.leftPercent,
       progress: resolveKeywordProgress(rafCurrentTime, currentEvent),
       status: 'active' as const,
@@ -693,6 +982,11 @@ export function useRainMode(settings?: RainSettings) {
         settledProgressRef.current.set(event.id, resolveKeywordProgress(rafCurrentTime, event));
       }
       missedKeywordIdsRef.current.add(event.id);
+      recordPerformanceEntry({
+        result: 'miss',
+        eventId: event.id,
+        comboAfter: 0,
+      });
     });
 
     setCombo(0);
@@ -718,10 +1012,7 @@ export function useRainMode(settings?: RainSettings) {
             return isSameActiveSegment;
           }
 
-          return (
-            rafCurrentTime >= event.fallStartTime &&
-            rafCurrentTime <= event.missDeadline + MISSED_DISPLAY_BUFFER
-          );
+          return rafCurrentTime <= event.missDeadline + MISSED_DISPLAY_BUFFER;
         })
         .map((event) => {
           const isCleared = answeredKeywordIdsRef.current.has(event.id);
@@ -732,9 +1023,11 @@ export function useRainMode(settings?: RainSettings) {
           if (isCleared) {
             return {
               id: event.id,
-              text: event.keyword,
+              text: event.keyword.replace(/\s+/g, ''),
               hint: `${event.blank.answer_length}글자`,
+              answerLength: event.keyword.replace(/\s+/g, '').length,
               lane: event.lane,
+              blankKey: event.blankKey,
               leftPercent: event.leftPercent,
               progress: settledProgressRef.current.get(event.id) ?? resolveKeywordProgress(rafCurrentTime, event),
               status: 'cleared' as const,
@@ -744,9 +1037,11 @@ export function useRainMode(settings?: RainSettings) {
           if (isMissed) {
             return {
               id: event.id,
-              text: event.keyword,
+              text: event.keyword.replace(/\s+/g, ''),
               hint: `${event.blank.answer_length}글자`,
+              answerLength: event.keyword.replace(/\s+/g, '').length,
               lane: event.lane,
+              blankKey: event.blankKey,
               leftPercent: event.leftPercent,
               progress: settledProgressRef.current.get(event.id) ?? resolveKeywordProgress(rafCurrentTime, event),
               status: 'missed' as const,
@@ -756,9 +1051,11 @@ export function useRainMode(settings?: RainSettings) {
           if (rafCurrentTime < event.fallStartTime) {
             return {
               id: event.id,
-              text: event.keyword,
+              text: event.keyword.replace(/\s+/g, ''),
               hint: `${event.blank.answer_length}글자`,
+              answerLength: event.keyword.replace(/\s+/g, '').length,
               lane: event.lane,
+              blankKey: event.blankKey,
               leftPercent: event.leftPercent,
               progress: FALL_PROGRESS_START,
               status: 'pending' as const,
@@ -767,9 +1064,11 @@ export function useRainMode(settings?: RainSettings) {
 
           return {
             id: event.id,
-            text: event.keyword,
+            text: event.keyword.replace(/\s+/g, ''),
             hint: `${event.blank.answer_length}글자`,
+            answerLength: event.keyword.replace(/\s+/g, '').length,
             lane: event.lane,
+            blankKey: event.blankKey,
             leftPercent: event.leftPercent,
             progress: resolveKeywordProgress(rafCurrentTime, event),
             status: activeKeyword?.id === event.id ? 'active' : 'pending',
@@ -1098,7 +1397,7 @@ export function useRainMode(settings?: RainSettings) {
     );
   }, [currentQuizState, gameData.quizzes]);
 
-  const handleTypedValueChange = (blankKey: string, value: string) => {
+  const handleTypedValueCommit = (blankKey: string, value: string) => {
     setTypedValuesByBlankKey((current) => ({
       ...current,
       [blankKey]: value,
@@ -1129,7 +1428,10 @@ export function useRainMode(settings?: RainSettings) {
       answeredKeywordIdsRef.current.add(targetEvent.id);
       answeredAtRef.current.set(targetEvent.id, performance.now());
       settledProgressRef.current.set(targetEvent.id, resolveKeywordProgress(rafCurrentTime, targetEvent));
-      setTypedValuesByBlankKey((current) => ({ ...current, [blankKey]: targetEvent.keyword }));
+      setTypedValuesByBlankKey((current) => ({
+        ...current,
+        [blankKey]: targetEvent.keyword.replace(/\s+/g, ''),
+      }));
 
       const nextScore = score + 120;
       const nextCombo = combo + 1;
@@ -1140,12 +1442,22 @@ export function useRainMode(settings?: RainSettings) {
       setMaxCombo((previous) => Math.max(previous, nextCombo));
       setComboAnimationKey((previous) => previous + 1);
       setLastJudgement('hit');
+      recordPerformanceEntry({
+        result: 'correct',
+        eventId: targetEvent.id,
+        comboAfter: nextCombo,
+      });
       return;
     }
 
     setTypedValuesByBlankKey((current) => ({ ...current, [blankKey]: '' }));
     setCombo(0);
     setLastJudgement('wrong');
+    recordPerformanceEntry({
+      result: 'wrong',
+      eventId: targetEvent.id,
+      comboAfter: 0,
+    });
   };
 
   const submitCurrentQuizAnswer = async (selectedIndex: number) => {
@@ -1282,10 +1594,19 @@ export function useRainMode(settings?: RainSettings) {
     () => ({
       ...debug,
       rainDifficulty: selectedDifficulty,
+      adaptiveMode: isManualSettings ? 'manual' : 'auto',
+      adaptiveDecision,
+      adaptiveStreak: adaptiveDecisionStreak,
+      windowSize: performanceWindow.length,
+      windowAccuracy: windowMetrics.accuracy,
+      windowMissRate: windowMetrics.missRate,
+      adaptiveSamplingStep: adaptiveDifficultyState.samplingStep,
       activeBlanks: effectiveActiveBlanks,
       fallSpeed: effectiveFallSpeed,
+      fallLeadTimeOffset: effectiveFallLeadTimeOffset,
       minFallDuration: effectiveMinFallDuration,
-      missGraceSeconds: MISS_GRACE_SECONDS,
+      missGraceSeconds: effectiveMissGraceSeconds,
+      adaptiveMaxCombo: windowMetrics.maxCombo,
       activeKeywordId: activeKeyword?.id ?? null,
       pendingKeywordCount,
       visibleKeywordCount,
@@ -1310,20 +1631,25 @@ export function useRainMode(settings?: RainSettings) {
     [
       activeKeyword?.id,
       activeSegment?.segmentId,
+      adaptiveDecision,
+      adaptiveDecisionStreak,
+      adaptiveDifficultyState.samplingStep,
       debug,
       editingBlankKey,
+      effectiveFallLeadTimeOffset,
       effectiveFallSpeed,
       effectiveActiveBlanks,
       effectiveMinFallDuration,
+      effectiveMissGraceSeconds,
       isManualSettings,
       lastJudgement,
       missCount,
-      MISS_GRACE_SECONDS,
       activePreparedEvent?.segmentId,
       activePreparedEvent?.targetTime,
       nextFallDuration,
       nextTargetTime,
       pendingKeywordCount,
+      performanceWindow.length,
       preparedEvents.length,
       preparedRainSummary.droppedByBlankLimit,
       preparedRainSummary.duplicateKeywordCandidates,
@@ -1331,10 +1657,13 @@ export function useRainMode(settings?: RainSettings) {
       preparedRainSummary.unmatchedCount,
       prunedTypedValueCount,
       rafCurrentTime,
-      rainDifficulty,
+      selectedDifficulty,
       tabSwitchCount,
       visibleKeywordCount,
       isCaptionComposing,
+      windowMetrics.accuracy,
+      windowMetrics.maxCombo,
+      windowMetrics.missRate,
     ],
   );
 
@@ -1383,7 +1712,7 @@ export function useRainMode(settings?: RainSettings) {
       quizCorrectCount: quizCorrectCountRef.current,
       quizAnsweredCount: quizAnsweredCountRef.current,
     }),
-    handleTypedValueChange,
+    handleTypedValueCommit,
     handleCaptionCompositionStateChange: (blankKey: string | null, composing: boolean) => {
       setEditingBlankKey(blankKey);
       setIsCaptionComposing(composing);

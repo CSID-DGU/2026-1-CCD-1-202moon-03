@@ -7,9 +7,26 @@ import { useAuthenticatedVideoUrl } from '../shared/useAuthenticatedVideoUrl';
 import { useGameSessionData } from '../shared/useGameSessionData';
 import { useLocalFilePlayerSrc } from '../shared/useLocalFilePlayerSrc';
 import type { MediaController, PlayerType } from '../shared/playback';
-import type { SpinnerAssistTool, SpinnerPlaybackRate } from './types';
+import { useKeycapInteraction } from './useKeycapInteraction';
+import type {
+  KeycapGlowTheme,
+  MascotPromptType,
+  MascotVisualState,
+  SpinnerAssistTool,
+  SpinnerPlaybackRate,
+} from './types';
 
 const SPEED_OPTIONS: SpinnerPlaybackRate[] = [0.5, 0.75, 1, 1.25, 1.5, 2];
+const KEYCAP_GLOW_THEMES: KeycapGlowTheme[] = ['red', 'orange', 'yellow', 'green', 'blue', 'purple'];
+const STRETCH_TRIGGER_SECONDS = 15 * 60;
+const STRETCH_COUNTDOWN_SECONDS = 60;
+const FOCUS_PROMPT_DURATION_MS = 10_000;
+const STRETCH_PROMPT_MESSAGE = '잠깐 스트레칭 어때요?';
+const FOCUS_RETURN_MESSAGES = [
+  '다시 집중해봐요 :)',
+  '좋아요, 다시 시작해볼까요?',
+  '조금만 더 집중해봐요!',
+] as const;
 
 function buildAnsweredQuizKey(quizId: number | null, triggerTime: number) {
   return quizId === null || quizId <= 0 ? `missing:${triggerTime}` : `quiz:${quizId}`;
@@ -46,14 +63,21 @@ export function useSpinnerMode() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const controllerRef = useRef<MediaController | null>(null);
   const speedMenuRef = useRef<HTMLDivElement | null>(null);
-  const keycapTimeoutRef = useRef<number | null>(null);
   const autoPlaySessionRef = useRef<string | null>(null);
   const [isPlayerReady, setIsPlayerReady] = useState(false);
+  const {
+    isPressed: isKeycapPressed,
+    endPress: endKeycapPress,
+    lastPressAt: keycapLastPressAt,
+    pressTick: keycapPressTick,
+    startPress: startKeycapPress,
+    triggerPress: triggerKeycapPress,
+    visualState: keycapVisualState,
+  } = useKeycapInteraction();
 
   const [selectedTool, setSelectedTool] = useState<SpinnerAssistTool>('spinner');
   const [spinnerTurns, setSpinnerTurns] = useState(0);
-  const [isKeycapPressed, setIsKeycapPressed] = useState(false);
-  const [keycapPressCount, setKeycapPressCount] = useState(0);
+  const [keycapGlowIndex, setKeycapGlowIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackRate, setPlaybackRate] = useState<SpinnerPlaybackRate>(1);
   const [isSpeedMenuOpen, setIsSpeedMenuOpen] = useState(false);
@@ -78,10 +102,46 @@ export function useSpinnerMode() {
   const [quizCorrectCount, setQuizCorrectCount] = useState(0);
   const [quizAnsweredCount, setQuizAnsweredCount] = useState(0);
   const [tabSwitchCount, setTabSwitchCount] = useState(0);
+  const [hasShownStretchPrompt, setHasShownStretchPrompt] = useState(false);
+  const [isStretchPromptVisible, setIsStretchPromptVisible] = useState(false);
+  const [isStretchGuideOpen, setIsStretchGuideOpen] = useState(false);
+  const [stretchCountdownSeconds, setStretchCountdownSeconds] = useState(STRETCH_COUNTDOWN_SECONDS);
+  const [focusMessage, setFocusMessage] = useState<string | null>(null);
+  const [isFocusPromptVisible, setIsFocusPromptVisible] = useState(false);
   const answeredQuizIdsRef = useRef<Set<string>>(new Set());
   const quizCorrectCountRef = useRef(0);
   const quizAnsweredCountRef = useRef(0);
   const tabSwitchCountRef = useRef(0);
+  const wasDocumentHiddenRef = useRef(false);
+  const focusPromptTimeoutRef = useRef<number | null>(null);
+  const stretchCountdownIntervalRef = useRef<number | null>(null);
+
+  const clearFocusPromptTimeout = () => {
+    if (focusPromptTimeoutRef.current !== null) {
+      window.clearTimeout(focusPromptTimeoutRef.current);
+      focusPromptTimeoutRef.current = null;
+    }
+  };
+
+  const clearStretchCountdownInterval = () => {
+    if (stretchCountdownIntervalRef.current !== null) {
+      window.clearInterval(stretchCountdownIntervalRef.current);
+      stretchCountdownIntervalRef.current = null;
+    }
+  };
+
+  const dismissStretchGuide = () => {
+    clearStretchCountdownInterval();
+    setIsStretchGuideOpen(false);
+    setIsStretchPromptVisible(false);
+    setStretchCountdownSeconds(STRETCH_COUNTDOWN_SECONDS);
+  };
+
+  const dismissFocusPrompt = () => {
+    clearFocusPromptTimeout();
+    setIsFocusPromptVisible(false);
+    setFocusMessage(null);
+  };
 
   useEffect(() => {
     quizCorrectCountRef.current = quizCorrectCount;
@@ -93,20 +153,71 @@ export function useSpinnerMode() {
 
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (!document.hidden) {
+      if (document.hidden) {
+        wasDocumentHiddenRef.current = true;
+        tabSwitchCountRef.current += 1;
+        setTabSwitchCount(tabSwitchCountRef.current);
         return;
       }
 
-      tabSwitchCountRef.current += 1;
-      setTabSwitchCount(tabSwitchCountRef.current);
+      if (!wasDocumentHiddenRef.current) {
+        return;
+      }
+
+      wasDocumentHiddenRef.current = false;
+      clearFocusPromptTimeout();
+      setFocusMessage(
+        FOCUS_RETURN_MESSAGES[Math.floor(Math.random() * FOCUS_RETURN_MESSAGES.length)],
+      );
+      setIsFocusPromptVisible(true);
+      focusPromptTimeoutRef.current = window.setTimeout(() => {
+        setIsFocusPromptVisible(false);
+        setFocusMessage(null);
+        focusPromptTimeoutRef.current = null;
+      }, FOCUS_PROMPT_DURATION_MS);
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      clearFocusPromptTimeout();
     };
   }, []);
+
+  useEffect(() => {
+    if (hasShownStretchPrompt || currentTime < STRETCH_TRIGGER_SECONDS) {
+      return;
+    }
+
+    setHasShownStretchPrompt(true);
+    setIsStretchPromptVisible(true);
+  }, [currentTime, hasShownStretchPrompt]);
+
+  useEffect(() => {
+    if (!isStretchGuideOpen) {
+      clearStretchCountdownInterval();
+      return;
+    }
+
+    setStretchCountdownSeconds(STRETCH_COUNTDOWN_SECONDS);
+    stretchCountdownIntervalRef.current = window.setInterval(() => {
+      setStretchCountdownSeconds((current) => {
+        if (current <= 1) {
+          clearStretchCountdownInterval();
+          setIsStretchGuideOpen(false);
+          setIsStretchPromptVisible(false);
+          return STRETCH_COUNTDOWN_SECONDS;
+        }
+
+        return current - 1;
+      });
+  }, 1000);
+
+    return () => {
+      clearStretchCountdownInterval();
+    };
+  }, [isStretchGuideOpen]);
 
   useEffect(() => {
     controllerRef.current?.setPlaybackRate(playbackRate);
@@ -137,14 +248,6 @@ export function useSpinnerMode() {
       document.removeEventListener('keydown', handleEscape);
     };
   }, [isSpeedMenuOpen]);
-
-  useEffect(() => {
-    return () => {
-      if (keycapTimeoutRef.current !== null) {
-        window.clearTimeout(keycapTimeoutRef.current);
-      }
-    };
-  }, []);
 
   useEffect(() => {
     const handleWindowWheel = (event: WheelEvent) => {
@@ -178,15 +281,25 @@ export function useSpinnerMode() {
       }
 
       event.preventDefault();
-      handlePressKeycap();
+      handleKeycapPressStart();
+    };
+
+    const handleWindowKeyUp = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() !== 'd') {
+        return;
+      }
+
+      endKeycapPress();
     };
 
     window.addEventListener('keydown', handleWindowKeyDown);
+    window.addEventListener('keyup', handleWindowKeyUp);
 
     return () => {
       window.removeEventListener('keydown', handleWindowKeyDown);
+      window.removeEventListener('keyup', handleWindowKeyUp);
     };
-  }, []);
+  }, [endKeycapPress]);
 
   const captionText = useMemo(
     () =>
@@ -347,18 +460,52 @@ export function useSpinnerMode() {
   }, [gameData.quizzes, quizState]);
 
   const handlePressKeycap = () => {
-    if (keycapTimeoutRef.current !== null) {
-      window.clearTimeout(keycapTimeoutRef.current);
+    setSelectedTool('keycap');
+    setKeycapGlowIndex((current) => (current + 1) % KEYCAP_GLOW_THEMES.length);
+    triggerKeycapPress();
+  };
+
+  const handleKeycapPressStart = () => {
+    setSelectedTool('keycap');
+    setKeycapGlowIndex((current) => (current + 1) % KEYCAP_GLOW_THEMES.length);
+    startKeycapPress();
+  };
+
+  const handleKeycapPressEnd = () => {
+    endKeycapPress();
+  };
+
+  const handleMascotClick = () => {
+    if (!isStretchPromptVisible) {
+      return;
     }
 
-    setSelectedTool('keycap');
-    setKeycapPressCount((current) => current + 1);
-    setIsKeycapPressed(true);
-    keycapTimeoutRef.current = window.setTimeout(() => {
-      setIsKeycapPressed(false);
-      keycapTimeoutRef.current = null;
-    }, 160);
+    controllerRef.current?.pause();
+    setIsStretchPromptVisible(false);
+    setIsStretchGuideOpen(true);
   };
+
+  const mascotVisualState: MascotVisualState = isStretchGuideOpen
+    ? 'pressed'
+    : isFocusPromptVisible
+      ? 'pressed'
+      : isStretchPromptVisible
+        ? 'hover'
+        : 'default';
+
+  const mascotPromptType: MascotPromptType = isStretchGuideOpen
+    ? 'stretch'
+    : isStretchPromptVisible
+    ? 'stretch'
+    : isFocusPromptVisible
+      ? 'focus-return'
+      : 'none';
+
+  const mascotMessage = isStretchPromptVisible
+    ? STRETCH_PROMPT_MESSAGE
+    : isFocusPromptVisible
+      ? focusMessage
+      : null;
 
   const handleTogglePlay = async () => {
     const controller = controllerRef.current;
@@ -483,9 +630,32 @@ export function useSpinnerMode() {
   const enhancedDebug = useMemo(
     () => ({
       ...debug,
+      keycapGlowTheme: KEYCAP_GLOW_THEMES[keycapGlowIndex],
+      keycapLastPressAt,
+      keycapPressTick,
+      keycapVisualState,
+      mascotVisualState,
+      mascotPromptType,
+      isStretchGuideOpen,
+      stretchCountdownSeconds,
+      focusMessage,
+      hasShownStretchPrompt,
       tabSwitchCount,
     }),
-    [debug, tabSwitchCount],
+    [
+      debug,
+      focusMessage,
+      hasShownStretchPrompt,
+      isStretchGuideOpen,
+      keycapGlowIndex,
+      keycapLastPressAt,
+      keycapPressTick,
+      keycapVisualState,
+      mascotPromptType,
+      mascotVisualState,
+      stretchCountdownSeconds,
+      tabSwitchCount,
+    ],
   );
 
   return {
@@ -508,7 +678,9 @@ export function useSpinnerMode() {
     selectedTool,
     spinnerTurns,
     isKeycapPressed,
-    keycapPressCount,
+    keycapGlowTheme: KEYCAP_GLOW_THEMES[keycapGlowIndex],
+    keycapPressTick,
+    keycapVisualState,
     isPlaying,
     playbackRate,
     isSpeedMenuOpen,
@@ -536,6 +708,15 @@ export function useSpinnerMode() {
       setSpinnerTurns((current) => current + deltaY * -0.0024);
     },
     handlePressKeycap,
+    handleKeycapPressStart,
+    handleKeycapPressEnd,
+    mascotVisualState,
+    mascotPromptType,
+    mascotMessage,
+    isStretchGuideOpen,
+    stretchCountdownSeconds,
+    handleMascotClick,
+    handleDismissStretchGuide: dismissStretchGuide,
     handleTogglePlay,
     handleToggleSpeedMenu: () => setIsSpeedMenuOpen((current) => !current),
     handleSelectSpeed,

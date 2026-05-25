@@ -25,10 +25,19 @@ interface PlayerDebugPanelProps {
     lastMergedTotalSegments: number | null;
     errorMessage: string;
     rainDifficulty?: string;
+    adaptiveMode?: string;
+    adaptiveDecision?: string;
+    adaptiveStreak?: number;
+    windowSize?: number;
+    windowAccuracy?: number | null;
+    windowMissRate?: number | null;
+    adaptiveSamplingStep?: number;
     activeBlanks?: number;
     fallSpeed?: number;
+    fallLeadTimeOffset?: number;
     minFallDuration?: number;
     missGraceSeconds?: number;
+    adaptiveMaxCombo?: number;
     activeKeywordId?: string | null;
     pendingKeywordCount?: number;
     visibleKeywordCount?: number;
@@ -49,6 +58,12 @@ interface PlayerDebugPanelProps {
     captionSegmentId?: number | null;
     prunedTypedValueCount?: number;
     tabSwitchCount?: number;
+    mascotVisualState?: string;
+    mascotPromptType?: string;
+    isStretchGuideOpen?: boolean;
+    stretchCountdownSeconds?: number;
+    focusMessage?: string | null;
+    hasShownStretchPrompt?: boolean;
   };
 }
 
@@ -114,14 +129,10 @@ function PlayerDebugPanel({ debug }: PlayerDebugPanelProps) {
       <div>loadedChapterIndexes: {debug.loadedChapterIndexes.join(', ') || '-'}</div>
       <div>lastChunkSegments: {debug.lastChunkSegments ?? '-'}</div>
       <div>lastMergedTotalSegments: {debug.lastMergedTotalSegments ?? '-'}</div>
-      {debug.rainDifficulty !== undefined ? <div>rainDifficulty: {debug.rainDifficulty}</div> : null}
       {typeof debug.activeBlanks === 'number' ? <div>activeBlanks: {debug.activeBlanks}</div> : null}
       {typeof debug.fallSpeed === 'number' ? <div>fallSpeed: {debug.fallSpeed}</div> : null}
       {typeof debug.minFallDuration === 'number' ? (
         <div>minFallDuration: {debug.minFallDuration}</div>
-      ) : null}
-      {typeof debug.missGraceSeconds === 'number' ? (
-        <div>missGraceSeconds: {debug.missGraceSeconds}</div>
       ) : null}
       {typeof debug.pendingKeywordCount === 'number' ? (
         <div>pendingKeywordCount: {debug.pendingKeywordCount}</div>
@@ -177,9 +188,46 @@ function PlayerDebugPanel({ debug }: PlayerDebugPanelProps) {
       {typeof debug.tabSwitchCount === 'number' ? (
         <div>tabSwitchCount: {debug.tabSwitchCount}</div>
       ) : null}
+      {debug.mascotVisualState !== undefined ? <div>mascotVisualState: {debug.mascotVisualState}</div> : null}
+      {debug.mascotPromptType !== undefined ? <div>mascotPromptType: {debug.mascotPromptType}</div> : null}
+      {debug.isStretchGuideOpen !== undefined ? (
+        <div>isStretchGuideOpen: {String(debug.isStretchGuideOpen)}</div>
+      ) : null}
+      {typeof debug.stretchCountdownSeconds === 'number' ? (
+        <div>stretchCountdownSeconds: {debug.stretchCountdownSeconds}</div>
+      ) : null}
+      {debug.focusMessage !== undefined ? <div>focusMessage: {debug.focusMessage ?? '-'}</div> : null}
+      {debug.hasShownStretchPrompt !== undefined ? (
+        <div>hasShownStretchPrompt: {String(debug.hasShownStretchPrompt)}</div>
+      ) : null}
       {debug.activeKeywordId !== undefined ? <div>activeKeywordId: {debug.activeKeywordId ?? '-'}</div> : null}
       {debug.lastJudgement !== undefined ? <div>lastJudgement: {debug.lastJudgement ?? '-'}</div> : null}
       <div className="mt-2 break-words text-rose-300">errorMessage: {debug.errorMessage || '-'}</div>
+      {debug.rainDifficulty !== undefined ? <div className="mt-2">rainDifficulty: {debug.rainDifficulty}</div> : null}
+      {debug.adaptiveMode !== undefined ? <div>adaptiveMode: {debug.adaptiveMode}</div> : null}
+      {debug.adaptiveDecision !== undefined ? <div>adaptiveDecision: {debug.adaptiveDecision}</div> : null}
+      {typeof debug.adaptiveStreak === 'number' ? (
+        <div>adaptiveStreak: {debug.adaptiveStreak}</div>
+      ) : null}
+      {typeof debug.windowSize === 'number' ? <div>windowSize: {debug.windowSize}</div> : null}
+      {typeof debug.windowAccuracy === 'number' ? (
+        <div>windowAccuracy: {debug.windowAccuracy}</div>
+      ) : null}
+      {typeof debug.windowMissRate === 'number' ? (
+        <div>windowMissRate: {debug.windowMissRate}</div>
+      ) : null}
+      {typeof debug.adaptiveSamplingStep === 'number' ? (
+        <div>adaptiveSamplingStep: {debug.adaptiveSamplingStep}</div>
+      ) : null}
+      {typeof debug.fallLeadTimeOffset === 'number' ? (
+        <div>fallLeadTimeOffset: {debug.fallLeadTimeOffset}</div>
+      ) : null}
+      {typeof debug.missGraceSeconds === 'number' ? (
+        <div>missGraceSeconds: {debug.missGraceSeconds}</div>
+      ) : null}
+      {typeof debug.adaptiveMaxCombo === 'number' ? (
+        <div>adaptiveMaxCombo: {debug.adaptiveMaxCombo}</div>
+      ) : null}
     </div>
   );
 }

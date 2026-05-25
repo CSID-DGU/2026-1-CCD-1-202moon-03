@@ -1,43 +1,52 @@
+import type { CSSProperties } from 'react';
+
 interface ComboIndicatorProps {
   combo: number;
   animationKey: number;
 }
 
-const COMBO_TIERS = [
-  { min: 10, label: 'AMAZING', border: 'border-[#F59E0B]', bg: 'bg-[#FFFBEB]', text: 'text-[#D97706]', burst: 'border-[#F59E0B]/50' },
-  { min: 5,  label: 'PERFECT', border: 'border-[#A855F7]', bg: 'bg-[#FAF5FF]', text: 'text-[#9333EA]', burst: 'border-[#A855F7]/50' },
-  { min: 3,  label: 'GREAT',   border: 'border-[#3B82F6]', bg: 'bg-[#EFF6FF]', text: 'text-[#2563EB]', burst: 'border-[#3B82F6]/50' },
-  { min: 0,  label: 'GOOD',    border: 'border-[#EF4444]', bg: 'bg-[#FDE8E8]', text: 'text-[#EF4444]', burst: 'border-[#EF4444]/40' },
-] as const;
+const comboValueOutlineStyle: CSSProperties = {
+  background: 'linear-gradient(180deg, #58BAFF 0%, #005693 100%)',
+  backgroundClip: 'text',
+  WebkitBackgroundClip: 'text',
+  WebkitTextFillColor: 'transparent',
+};
 
-function getTier(combo: number) {
-  return COMBO_TIERS.find((tier) => combo >= tier.min) ?? COMBO_TIERS[COMBO_TIERS.length - 1];
-}
+const comboOutlineStyle: CSSProperties = {
+  WebkitTextFillColor: '#FFFFFF',
+  WebkitTextStrokeWidth: '8.5px',
+  WebkitTextStrokeColor: '#FFFFFF',
+};
 
 function ComboIndicator({ combo, animationKey }: ComboIndicatorProps) {
-  const showBurst = animationKey > 0;
-  const tier = getTier(combo);
-
   return (
-    <div className={`relative flex items-center justify-center gap-1 overflow-hidden rounded-[12px] border px-4 py-4 transition-colors duration-300 ${tier.border} ${tier.bg}`}>
-      <span className="text-[20px]" aria-hidden="true">
-        🔥
-      </span>
-      <div className={`flex items-end gap-[2px] font-paperlogy font-black leading-none ${tier.text}`}>
-        <span key={animationKey} className={`text-[28px] ${showBurst ? 'animate-combo-num' : ''}`}>
+    <div className="relative flex h-[84px] w-full items-end justify-center overflow-visible">
+      <div className="flex w-[184.5px] flex-col items-center gap-[6px] overflow-visible font-maplestory font-bold leading-none not-italic whitespace-nowrap text-transparent">
+        <p
+          className="text-center text-[18px] leading-none text-white"
+        >
+          COMBO
+        </p>
+
+        <span
+          aria-hidden="true"
+          className="absolute bottom-0 left-1/2 -translate-x-1/2 font-maplestory text-center text-[52px] font-bold leading-none tracking-[5.2px]"
+          style={comboOutlineStyle}
+        >
           {combo}
         </span>
-        <span className="text-[20px]">Combo</span>
+        <span
+          key={animationKey}
+          className={`relative text-center text-[52px] leading-none tracking-[5.2px] ${
+            animationKey > 0 ? 'animate-combo-num' : ''
+          }`}
+          style={comboValueOutlineStyle}
+        >
+          {combo}
+        </span>
       </div>
 
-      {showBurst ? (
-        <div
-          key={animationKey}
-          className={`pointer-events-none absolute inset-0 animate-[ping_500ms_ease-out_1] rounded-[12px] border ${tier.burst}`}
-        >
-          <span className="sr-only">combo burst</span>
-        </div>
-      ) : null}
+      <span className="sr-only">{combo} combo</span>
     </div>
   );
 }
