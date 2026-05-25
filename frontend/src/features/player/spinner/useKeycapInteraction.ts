@@ -11,6 +11,8 @@ interface UseKeycapInteractionResult {
   isReleasing: boolean;
   lastPressAt: number | null;
   pressTick: number;
+  startPress: () => void;
+  endPress: () => void;
   triggerPress: () => void;
   visualState: KeycapVisualState;
 }
@@ -40,24 +42,40 @@ export function useKeycapInteraction({
     }
   }, []);
 
-  const triggerPress = useCallback(() => {
+  const startPress = useCallback(() => {
     clearTimers();
 
     const now = Date.now();
     setLastPressAt(now);
     setPressTick((current) => current + 1);
     setVisualState('pressed');
+  }, [clearTimers]);
+
+  const endPress = useCallback(() => {
+    clearTimers();
+
+    setVisualState((current) => {
+      if (current === 'idle') {
+        return current;
+      }
+
+      return 'releasing';
+    });
+
+    releaseTimeoutRef.current = window.setTimeout(() => {
+      setVisualState('idle');
+      releaseTimeoutRef.current = null;
+    }, releaseDurationMs);
+  }, [clearTimers, releaseDurationMs]);
+
+  const triggerPress = useCallback(() => {
+    startPress();
 
     pressedTimeoutRef.current = window.setTimeout(() => {
-      setVisualState('releasing');
       pressedTimeoutRef.current = null;
-
-      releaseTimeoutRef.current = window.setTimeout(() => {
-        setVisualState('idle');
-        releaseTimeoutRef.current = null;
-      }, releaseDurationMs);
+      endPress();
     }, pressDurationMs);
-  }, [clearTimers, pressDurationMs, releaseDurationMs]);
+  }, [endPress, pressDurationMs, startPress]);
 
   useEffect(() => clearTimers, [clearTimers]);
 
@@ -67,6 +85,8 @@ export function useKeycapInteraction({
     lastPressAt,
     isPressed: visualState === 'pressed',
     isReleasing: visualState === 'releasing',
+    startPress,
+    endPress,
     triggerPress,
   };
 }

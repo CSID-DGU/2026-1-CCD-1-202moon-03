@@ -58,6 +58,12 @@ interface PlayerDebugPanelProps {
     captionSegmentId?: number | null;
     prunedTypedValueCount?: number;
     tabSwitchCount?: number;
+    mascotVisualState?: string;
+    mascotPromptType?: string;
+    isStretchGuideOpen?: boolean;
+    stretchCountdownSeconds?: number;
+    focusMessage?: string | null;
+    hasShownStretchPrompt?: boolean;
   };
 }
 
@@ -181,6 +187,18 @@ function PlayerDebugPanel({ debug }: PlayerDebugPanelProps) {
       ) : null}
       {typeof debug.tabSwitchCount === 'number' ? (
         <div>tabSwitchCount: {debug.tabSwitchCount}</div>
+      ) : null}
+      {debug.mascotVisualState !== undefined ? <div>mascotVisualState: {debug.mascotVisualState}</div> : null}
+      {debug.mascotPromptType !== undefined ? <div>mascotPromptType: {debug.mascotPromptType}</div> : null}
+      {debug.isStretchGuideOpen !== undefined ? (
+        <div>isStretchGuideOpen: {String(debug.isStretchGuideOpen)}</div>
+      ) : null}
+      {typeof debug.stretchCountdownSeconds === 'number' ? (
+        <div>stretchCountdownSeconds: {debug.stretchCountdownSeconds}</div>
+      ) : null}
+      {debug.focusMessage !== undefined ? <div>focusMessage: {debug.focusMessage ?? '-'}</div> : null}
+      {debug.hasShownStretchPrompt !== undefined ? (
+        <div>hasShownStretchPrompt: {String(debug.hasShownStretchPrompt)}</div>
       ) : null}
       {debug.activeKeywordId !== undefined ? <div>activeKeywordId: {debug.activeKeywordId ?? '-'}</div> : null}
       {debug.lastJudgement !== undefined ? <div>lastJudgement: {debug.lastJudgement ?? '-'}</div> : null}

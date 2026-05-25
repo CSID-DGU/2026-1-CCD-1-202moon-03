@@ -27,8 +27,14 @@ function SpinnerModePage() {
     speedMenuRef,
     selectedTool,
     spinnerTurns,
+    keycapGlowTheme,
     keycapPressTick,
     keycapVisualState,
+    mascotVisualState,
+    mascotPromptType,
+    mascotMessage,
+    isStretchGuideOpen,
+    stretchCountdownSeconds,
     isPlaying,
     playbackRate,
     isSpeedMenuOpen,
@@ -46,7 +52,10 @@ function SpinnerModePage() {
     handleSelectTool,
     handleSpin,
     handleSpinnerWheel,
-    handlePressKeycap,
+    handleKeycapPressEnd,
+    handleKeycapPressStart,
+    handleMascotClick,
+    handleDismissStretchGuide,
     handleTogglePlay,
     handleToggleSpeedMenu,
     handleSelectSpeed,
@@ -174,12 +183,21 @@ function SpinnerModePage() {
           <SpinnerPracticePanel
             selectedTool={selectedTool}
             spinnerTurns={spinnerTurns}
+            keycapGlowTheme={keycapGlowTheme}
             keycapPressTick={keycapPressTick}
             keycapVisualState={keycapVisualState}
+            mascotVisualState={mascotVisualState}
+            mascotPromptType={mascotPromptType}
+            mascotMessage={mascotMessage}
+            isStretchGuideOpen={isStretchGuideOpen}
+            stretchCountdownSeconds={stretchCountdownSeconds}
             onSelectTool={handleSelectTool}
             onSpin={handleSpin}
             onSpinnerWheel={handleSpinnerWheel}
-            onPressKeycap={handlePressKeycap}
+            onKeycapPressEnd={handleKeycapPressEnd}
+            onKeycapPressStart={handleKeycapPressStart}
+            onMascotClick={handleMascotClick}
+            onDismissStretchGuide={handleDismissStretchGuide}
           />
         </div>
         </div>
