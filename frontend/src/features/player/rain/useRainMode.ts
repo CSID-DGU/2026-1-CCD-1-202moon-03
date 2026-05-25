@@ -42,6 +42,7 @@ const FALL_PROGRESS_START = -12;
 const FALL_PROGRESS_END = 86;
 const TARGET_TIME_SEGMENT_TOLERANCE_SECONDS = 3;
 const DEFAULT_MISS_GRACE_SECONDS = 1.2;
+const MISS_END_BUFFER_SECONDS = 0.1;
 const MISSED_DISPLAY_BUFFER = 0.75;
 const SHORT_SEGMENT_THRESHOLD_SECONDS = 4;
 const MIN_BLANK_SEGMENT_DURATION_SECONDS = 2.0;
@@ -336,6 +337,7 @@ function buildCaptionDisplay(
     items.push({
       type: 'input',
       key: blankKey,
+      renderKey: `input-slot:${index}`,
       blank,
       value: typedValuesByBlankKey[blankKey] ?? '',
       placeholder: `${normalizeAnswer(blank.keyword).length}글자`,
@@ -398,6 +400,7 @@ export function useRainMode(settings?: RainSettings) {
   const answeredAtRef = useRef<Map<string, number>>(new Map());
   const segmentTransitionHoldRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previousCaptionSegmentIdRef = useRef<number | null>(null);
+  const previousVisibleBlankKeySignatureRef = useRef('');
   const {
     score,
     combo,
@@ -826,10 +829,7 @@ export function useRainMode(settings?: RainSettings) {
       const baseFallDuration = Math.max(event.fallWindow / effectiveFallSpeed, 0.5 / effectiveFallSpeed);
       const fallDuration = Math.max(baseFallDuration, adjustedMinFallDuration);
       const fallStartTime = Math.max(segment.start - 2, targetTime - fallDuration - totalLeadTime);
-      const missDeadline = Math.max(
-        targetTime,
-        Math.min(targetTime + effectiveMissGraceSeconds, segment.end - 0.2),
-      );
+      const missDeadline = Math.max(targetTime, segment.end - MISS_END_BUFFER_SECONDS);
       const lane = blank.position % FIXED_LANE_POSITIONS.length;
 
       prepared.push({
@@ -861,7 +861,6 @@ export function useRainMode(settings?: RainSettings) {
     effectiveFallLeadTimeOffset,
     effectiveFallSpeed,
     effectiveMinFallDuration,
-    effectiveMissGraceSeconds,
     gameData.fallEvents,
     gameData.segments,
     segmentBlankKeys,
@@ -1181,13 +1180,27 @@ export function useRainMode(settings?: RainSettings) {
       ),
     [captionSegment, effectiveActiveBlanks, resolvedStatesByBlankKey, typedValuesByBlankKey],
   );
+  const visibleCaptionBlankKeys = useMemo(
+    () =>
+      captionDisplay.items
+        .filter((item): item is Extract<RainCaptionDisplay['items'][number], { type: 'input' }> => item.type === 'input')
+        .map((item) => item.key),
+    [captionDisplay.items],
+  );
 
   useEffect(() => {
-    const captionSegmentId = activeSegment?.segmentId ?? null;
+    const captionSegmentId = captionSegment?.segmentId ?? null;
     const previousCaptionSegmentId = previousCaptionSegmentIdRef.current;
     previousCaptionSegmentIdRef.current = captionSegmentId;
 
-    if (captionSegmentId === previousCaptionSegmentId) {
+    const visibleBlankKeySignature = visibleCaptionBlankKeys.join('|');
+    const previousVisibleBlankKeySignature = previousVisibleBlankKeySignatureRef.current;
+    previousVisibleBlankKeySignatureRef.current = visibleBlankKeySignature;
+
+    if (
+      captionSegmentId === previousCaptionSegmentId &&
+      previousVisibleBlankKeySignature === visibleBlankKeySignature
+    ) {
       return;
     }
 
@@ -1196,11 +1209,7 @@ export function useRainMode(settings?: RainSettings) {
       segmentTransitionHoldRef.current = null;
     }
 
-    const visibleBlankKeys = new Set(
-      (activeSegment?.blanks.slice(0, effectiveActiveBlanks) ?? []).map((blank) =>
-        buildBlankKey(activeSegment?.segmentId ?? -1, blank),
-      ),
-    );
+    const visibleBlankKeys = new Set(visibleCaptionBlankKeys);
 
     const runPrune = () => {
       setTypedValuesByBlankKey((current) => {
@@ -1238,7 +1247,7 @@ export function useRainMode(settings?: RainSettings) {
     }
 
     runPrune();
-  }, [activeSegment?.segmentId, activeSegment?.blanks, editingBlankKey, effectiveActiveBlanks, isCaptionComposing]);
+  }, [captionSegment?.segmentId, editingBlankKey, isCaptionComposing, visibleCaptionBlankKeys]);
 
   useEffect(() => {
     return () => {
@@ -1605,7 +1614,7 @@ export function useRainMode(settings?: RainSettings) {
       fallSpeed: effectiveFallSpeed,
       fallLeadTimeOffset: effectiveFallLeadTimeOffset,
       minFallDuration: effectiveMinFallDuration,
-      missGraceSeconds: effectiveMissGraceSeconds,
+      missEndBufferSeconds: MISS_END_BUFFER_SECONDS,
       adaptiveMaxCombo: windowMetrics.maxCombo,
       activeKeywordId: activeKeyword?.id ?? null,
       pendingKeywordCount,
@@ -1623,6 +1632,8 @@ export function useRainMode(settings?: RainSettings) {
       duplicateKeywordCandidates: preparedRainSummary.duplicateKeywordCandidates,
       invalidTargetTimeCount: preparedRainSummary.invalidTargetTimeCount,
       editingBlankKey,
+      visibleBlankKeys: visibleCaptionBlankKeys,
+      draftValuesByBlankKey: typedValuesByBlankKey,
       isCaptionComposing,
       captionSegmentId: activeSegment?.segmentId ?? null,
       prunedTypedValueCount,
@@ -1640,7 +1651,6 @@ export function useRainMode(settings?: RainSettings) {
       effectiveFallSpeed,
       effectiveActiveBlanks,
       effectiveMinFallDuration,
-      effectiveMissGraceSeconds,
       isManualSettings,
       lastJudgement,
       missCount,
@@ -1659,6 +1669,8 @@ export function useRainMode(settings?: RainSettings) {
       rafCurrentTime,
       selectedDifficulty,
       tabSwitchCount,
+      typedValuesByBlankKey,
+      visibleCaptionBlankKeys,
       visibleKeywordCount,
       isCaptionComposing,
       windowMetrics.accuracy,
@@ -1702,6 +1714,7 @@ export function useRainMode(settings?: RainSettings) {
     combo,
     maxCombo,
     accuracy,
+    lastJudgement,
     comboAnimationKey,
     quizState: currentQuizState,
     quizCorrectCount,

@@ -3,6 +3,7 @@ import {
   forwardRef,
   useEffect,
   useImperativeHandle,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -31,6 +32,11 @@ interface RainCaptionInputProps {
   onCompositionStateChange?: (blankKey: string | null, isComposing: boolean) => void;
   onFocusBlankKeyChange?: (blankKey: string | null) => void;
   onInputLayoutChange?: (positions: Record<string, number>) => void;
+  onDebugStateChange?: (state: {
+    primaryInputKey: string | null;
+    draftValuesByKey: Record<string, string>;
+    lastAutoFocusReason: string | null;
+  }) => void;
 }
 
 const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProps>(
@@ -45,6 +51,7 @@ const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProp
       onCompositionStateChange,
       onFocusBlankKeyChange,
       onInputLayoutChange,
+      onDebugStateChange,
     },
     ref,
   ) => {
@@ -53,6 +60,7 @@ const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProp
     const isComposingRef = useRef(false);
     const previousPrimaryInputKeyRef = useRef<string | null>(null);
     const composingBlankKeyRef = useRef<string | null>(null);
+    const lastAutoFocusReasonRef = useRef<string | null>(null);
     const [draftValuesByKey, setDraftValuesByKey] = useState<Record<string, string>>({});
 
     const primaryInputKey = useMemo(
@@ -61,7 +69,7 @@ const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProp
       [items],
     );
 
-    const focusPrimaryInput = useCallback(() => {
+    const focusPrimaryInput = useCallback((reason?: string) => {
       if (!primaryInputKey) {
         return;
       }
@@ -71,6 +79,7 @@ const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProp
         return;
       }
 
+      lastAutoFocusReasonRef.current = reason ?? 'manual';
       input.focus();
       const nextCursorPosition = input.value.length;
       input.setSelectionRange(nextCursorPosition, nextCursorPosition);
@@ -92,22 +101,22 @@ const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProp
     );
 
     useEffect(() => {
-      const activeKeys = new Set(items.filter((item) => item.type === 'input').map((item) => item.key));
+      const inputItems = items.filter((item): item is Extract<RainCaptionDisplay['items'][number], { type: 'input' }> =>
+        item.type === 'input',
+      );
+      const activeKeys = new Set(inputItems.map((item) => item.key));
 
       setDraftValuesByKey((current) => {
         let changed = false;
         const next: Record<string, string> = {};
 
-        for (const item of items) {
-          if (item.type !== 'input') {
-            continue;
-          }
-
+        for (const item of inputItems) {
           const hasCurrentDraft = Object.prototype.hasOwnProperty.call(current, item.key);
-          const nextValue =
-            item.resolvedState === 'pending' && hasCurrentDraft
-              ? current[item.key] ?? item.value
-              : item.value;
+          const nextValue = item.resolvedState === 'pending'
+            ? hasCurrentDraft
+              ? current[item.key] ?? ''
+              : item.value
+            : item.value;
           next[item.key] = nextValue;
 
           if (current[item.key] !== nextValue) {
@@ -124,37 +133,14 @@ const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProp
 
         return changed ? next : current;
       });
+    }, [items]);
 
-      for (const item of items) {
-        if (item.type !== 'input') {
-          continue;
-        }
-
-        const input = inputRefs.current[item.key];
-        if (!input) {
-          continue;
-        }
-
-        if (item.resolvedState !== 'pending' && input.value !== item.value) {
-          input.value = item.value;
-          continue;
-        }
-
-        if (
-          item.resolvedState === 'pending' &&
-          !Object.prototype.hasOwnProperty.call(draftValuesByKey, item.key) &&
-          input.value !== item.value
-        ) {
-          input.value = item.value;
-        }
-      }
-    }, [draftValuesByKey, items]);
-
-    useEffect(() => {
+    useLayoutEffect(() => {
       if (!primaryInputKey) {
         isComposingRef.current = false;
         composingBlankKeyRef.current = null;
         previousPrimaryInputKeyRef.current = null;
+        lastAutoFocusReasonRef.current = null;
         onCompositionStateChange?.(null, false);
         onFocusBlankKeyChange?.(null);
         return;
@@ -173,15 +159,23 @@ const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProp
       );
 
       if (!isFocusInsideRainInput) {
-        focusPrimaryInput();
+        focusPrimaryInput(primaryInputChanged ? 'new_primary_input' : 'restore_focus_outside');
         return;
       }
 
       const activeInput = activeElement as HTMLInputElement | null;
       if (primaryInputChanged && activeInput && activeInput.dataset.blankKey !== primaryInputKey) {
-        focusPrimaryInput();
+        focusPrimaryInput('switch_primary_input');
       }
-    }, [focusPrimaryInput, primaryInputKey]);
+    }, [focusPrimaryInput, onCompositionStateChange, onFocusBlankKeyChange, primaryInputKey]);
+
+    useEffect(() => {
+      onDebugStateChange?.({
+        primaryInputKey,
+        draftValuesByKey,
+        lastAutoFocusReason: lastAutoFocusReasonRef.current,
+      });
+    }, [draftValuesByKey, onDebugStateChange, primaryInputKey]);
 
     useEffect(() => {
       const root = rootRef.current;
@@ -277,13 +271,14 @@ const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProp
               </span>
             ) : (
               <input
-                key={item.key}
+                key={item.renderKey ?? item.key}
                 ref={(node) => {
                   inputRefs.current[item.key] = node;
                 }}
                 data-blank-key={item.key}
                 type="text"
-                defaultValue={draftValuesByKey[item.key] ?? item.value}
+                autoFocus={item.key === primaryInputKey}
+                value={draftValuesByKey[item.key] ?? item.value}
                 placeholder={item.placeholder}
                 readOnly={item.resolvedState !== 'pending'}
                 onFocus={() => {
@@ -291,6 +286,7 @@ const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProp
                 }}
                 onChange={(event) => {
                   const nextValue = event.target.value;
+                  lastAutoFocusReasonRef.current = 'user_input';
                   setDraftValuesByKey((current) => ({
                     ...current,
                     [item.key]: nextValue,
@@ -299,16 +295,19 @@ const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProp
                 onCompositionStart={() => {
                   isComposingRef.current = true;
                   composingBlankKeyRef.current = item.key;
+                  lastAutoFocusReasonRef.current = 'composition_start';
                   onCompositionStateChange?.(item.key, true);
                 }}
-                onCompositionEnd={(event) => {
+                onCompositionEnd={() => {
                   isComposingRef.current = false;
                   composingBlankKeyRef.current = null;
+                  lastAutoFocusReasonRef.current = 'composition_end';
                   onCompositionStateChange?.(item.key, false);
                 }}
                 onBlur={() => {
                   isComposingRef.current = false;
                   composingBlankKeyRef.current = null;
+                  lastAutoFocusReasonRef.current = 'blur_commit';
                   commitDraftValue(item.key, item.value);
                   onCompositionStateChange?.(item.key, false);
                   onFocusBlankKeyChange?.(null);
@@ -328,7 +327,7 @@ const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProp
                   onCommit(item.key, submitValue);
                   onSubmit(item.key, submitValue);
                   requestAnimationFrame(() => {
-                    focusPrimaryInput();
+                    focusPrimaryInput('submit_refocus');
                   });
                 }}
                 style={{ width: `${getAnswerBoxWidth(getCompactAnswerLength(item.blank.keyword))}px` }}

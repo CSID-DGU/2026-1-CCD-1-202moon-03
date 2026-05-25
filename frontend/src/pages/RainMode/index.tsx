@@ -54,6 +54,15 @@ function RainModePage() {
   });
   const didInitializePresetRef = useRef(false);
   const captionInputRef = useRef<RainCaptionInputHandle | null>(null);
+  const [captionInputDebug, setCaptionInputDebug] = useState<{
+    primaryInputKey: string | null;
+    draftValuesByKey: Record<string, string>;
+    lastAutoFocusReason: string | null;
+  }>({
+    primaryInputKey: null,
+    draftValuesByKey: {},
+    lastAutoFocusReason: null,
+  });
   const {
     sessionId,
     speedMenuRef,
@@ -82,6 +91,7 @@ function RainModePage() {
     combo,
     maxCombo,
     accuracy,
+    lastJudgement,
     comboAnimationKey,
     quizState,
     tabSwitchCount,
@@ -128,11 +138,15 @@ function RainModePage() {
   }, [setRainDifficulty, user?.stimulationLevel]);
 
   useEffect(() => {
-    if (comboAnimationKey === 0) return;
+    if (comboAnimationKey === 0 || lastJudgement !== 'hit') {
+      setJudgment(null);
+      return;
+    }
+
     setJudgment({ key: comboAnimationKey, combo });
     const timer = setTimeout(() => setJudgment(null), 900);
     return () => clearTimeout(timer);
-  }, [comboAnimationKey, combo]);
+  }, [comboAnimationKey, combo, lastJudgement]);
 
   const hasCaptionContent = captionDisplay.items.length > 0 || Boolean(captionText.trim());
 
@@ -275,6 +289,7 @@ function RainModePage() {
                             onCompositionStateChange={handleCaptionCompositionStateChange}
                             onFocusBlankKeyChange={handleCaptionFocusBlankKeyChange}
                             onInputLayoutChange={setInputPositions}
+                            onDebugStateChange={setCaptionInputDebug}
                             onSubmit={submitTypedKeyword}
                           />
                         )
@@ -302,22 +317,10 @@ function RainModePage() {
                     refocusCaptionInput();
                   }}
                   onLoadedMetadata={handleLoadedMetadata}
-                  onPlayerReady={() => {
-                    handlePlayerReady();
-                    refocusCaptionInput();
-                  }}
-                  onPlay={() => {
-                    handlePlay();
-                    refocusCaptionInput();
-                  }}
-                  onPause={() => {
-                    handlePause();
-                    refocusCaptionInput();
-                  }}
-                  onEnded={() => {
-                    handleEnded();
-                    refocusCaptionInput();
-                  }}
+                  onPlayerReady={handlePlayerReady}
+                  onPlay={handlePlay}
+                  onPause={handlePause}
+                  onEnded={handleEnded}
                 />
               ) : (
                 <div className="w-[min(1120px,98vw)]">
@@ -373,7 +376,14 @@ function RainModePage() {
         onSelectOption={(index) => void submitQuizAnswer(index)}
         onContinue={() => void continueFromQuiz()}
       />
-      <PlayerDebugPanel debug={debug} />
+      <PlayerDebugPanel
+        debug={{
+          ...debug,
+          primaryInputKey: captionInputDebug.primaryInputKey,
+          draftValuesByKey: captionInputDebug.draftValuesByKey,
+          lastAutoFocusReason: captionInputDebug.lastAutoFocusReason,
+        }}
+      />
     </main>
   );
 }

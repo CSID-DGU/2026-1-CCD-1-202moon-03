@@ -36,6 +36,7 @@ interface PlayerDebugPanelProps {
     fallSpeed?: number;
     fallLeadTimeOffset?: number;
     minFallDuration?: number;
+    missEndBufferSeconds?: number;
     missGraceSeconds?: number;
     adaptiveMaxCombo?: number;
     activeKeywordId?: string | null;
@@ -54,6 +55,11 @@ interface PlayerDebugPanelProps {
     duplicateKeywordCandidates?: number;
     invalidTargetTimeCount?: number;
     editingBlankKey?: string | null;
+    primaryInputKey?: string | null;
+    visibleBlankKeys?: string[];
+    draftValuesByBlankKey?: Record<string, string>;
+    draftValuesByKey?: Record<string, string>;
+    lastAutoFocusReason?: string | null;
     isCaptionComposing?: boolean;
     captionSegmentId?: number | null;
     prunedTypedValueCount?: number;
@@ -222,11 +228,27 @@ function PlayerDebugPanel({ debug }: PlayerDebugPanelProps) {
       {typeof debug.fallLeadTimeOffset === 'number' ? (
         <div>fallLeadTimeOffset: {debug.fallLeadTimeOffset}</div>
       ) : null}
+      {typeof debug.missEndBufferSeconds === 'number' ? (
+        <div>missEndBufferSeconds: {debug.missEndBufferSeconds}</div>
+      ) : null}
       {typeof debug.missGraceSeconds === 'number' ? (
         <div>missGraceSeconds: {debug.missGraceSeconds}</div>
       ) : null}
       {typeof debug.adaptiveMaxCombo === 'number' ? (
         <div>adaptiveMaxCombo: {debug.adaptiveMaxCombo}</div>
+      ) : null}
+      {debug.primaryInputKey !== undefined ? <div>primaryInputKey: {debug.primaryInputKey ?? '-'}</div> : null}
+      {debug.lastAutoFocusReason !== undefined ? (
+        <div>lastAutoFocusReason: {debug.lastAutoFocusReason ?? '-'}</div>
+      ) : null}
+      {debug.visibleBlankKeys !== undefined ? (
+        <div>visibleBlankKeys: {debug.visibleBlankKeys.join(', ') || '-'}</div>
+      ) : null}
+      {debug.draftValuesByBlankKey !== undefined ? (
+        <div>draftValuesByBlankKey: {JSON.stringify(debug.draftValuesByBlankKey)}</div>
+      ) : null}
+      {debug.draftValuesByKey !== undefined ? (
+        <div>draftValuesByKey: {JSON.stringify(debug.draftValuesByKey)}</div>
       ) : null}
     </div>
   );

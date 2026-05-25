@@ -29,6 +29,7 @@ export interface RainCaptionTextItem {
 export interface RainCaptionInputItem {
   type: 'input';
   key: string;
+  renderKey?: string;
   blank: GameBlankItem;
   value: string;
   placeholder: string;
