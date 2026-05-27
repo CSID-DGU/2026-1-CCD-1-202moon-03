@@ -153,6 +153,7 @@ function ResultPage() {
         totalCount={quizRetry.totalCount}
         selectedIndex={quizRetry.selectedIndex}
         feedback={quizRetry.feedback}
+        explanation={quizRetry.explanation}
         isCorrect={quizRetry.isCorrect}
         isCompleted={quizRetry.isCompleted}
         onClose={quizRetry.closeQuizRetry}

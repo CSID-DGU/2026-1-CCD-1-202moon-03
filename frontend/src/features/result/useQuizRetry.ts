@@ -18,6 +18,7 @@ interface QuizRetryState {
   currentQuizIndex: number;
   selectedIndex: number | null;
   feedback: string;
+  explanation: string;
   isCorrect: boolean | null;
   isCompleted: boolean;
 }
@@ -31,6 +32,7 @@ function createInitialState(): QuizRetryState {
     currentQuizIndex: 0,
     selectedIndex: null,
     feedback: '',
+    explanation: '',
     isCorrect: null,
     isCompleted: false,
   };
@@ -128,6 +130,7 @@ export function useQuizRetry(sessionId: string) {
       currentQuizIndex: 0,
       selectedIndex: null,
       feedback: '',
+      explanation: '',
       isCorrect: null,
       isCompleted: false,
     }));
@@ -150,6 +153,7 @@ export function useQuizRetry(sessionId: string) {
         ...current,
         selectedIndex: index,
         feedback,
+        explanation: quiz.explanation || '',
         isCorrect,
       };
     });
@@ -168,6 +172,7 @@ export function useQuizRetry(sessionId: string) {
           ...current,
           selectedIndex: null,
           feedback: '',
+          explanation: '',
           isCorrect: null,
           isCompleted: true,
         };
@@ -178,6 +183,7 @@ export function useQuizRetry(sessionId: string) {
         currentQuizIndex: nextQuizIndex,
         selectedIndex: null,
         feedback: '',
+        explanation: '',
         isCorrect: null,
       };
     });

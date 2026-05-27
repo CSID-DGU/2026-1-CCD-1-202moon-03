@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent, ReactNode, RefObject } from 'react';
 import triDownIcon from '../../../assets/icons/tri-down.svg';
 import triUpIcon from '../../../assets/icons/tri-up.svg';
@@ -12,10 +12,11 @@ declare global {
         element: HTMLElement,
         options: {
           videoId: string;
-          playerVars?: Record<string, number>;
+          playerVars?: Record<string, string | number | undefined>;
           events?: {
             onReady?: (event: { target: YouTubePlayer }) => void;
             onStateChange?: (event: { data: number; target: YouTubePlayer }) => void;
+            onError?: (event: { data: number; target: YouTubePlayer }) => void;
           };
         },
       ) => YouTubePlayer;
@@ -34,6 +35,7 @@ interface YouTubePlayer {
   pauseVideo: () => void;
   seekTo: (seconds: number, allowSeekAhead?: boolean) => void;
   setPlaybackRate: (rate: number) => void;
+  getAvailablePlaybackRates: () => number[];
   getCurrentTime: () => number;
   getDuration: () => number;
   destroy: () => void;
@@ -46,6 +48,7 @@ interface SpinnerPlayerProps {
   controllerRef: RefObject<MediaController | null>;
   currentTime: number;
   duration: number;
+  isPlayerReady: boolean;
   isPlaying: boolean;
   playbackRate: SpinnerPlaybackRate;
   isSpeedMenuOpen: boolean;
@@ -65,6 +68,18 @@ interface SpinnerPlayerProps {
   onSeek: (time: number) => void;
   onLoadedMetadata: (duration: number) => void;
   onPlayerReady?: () => void;
+  onYoutubeDebug?: (payload: {
+    stage: string;
+    playerSrc: string;
+    videoId: string;
+    playerType: PlayerType;
+    action?: string;
+    canControlPlayback?: boolean;
+    isLocalPlayerReady?: boolean;
+    hasController?: boolean;
+    reason?: string;
+    errorCode?: number;
+  }) => void;
   onPlay: () => void;
   onPause: () => void;
   onEnded: () => void;
@@ -73,13 +88,26 @@ interface SpinnerPlayerProps {
 function extractYoutubeVideoId(playerSrc: string) {
   try {
     const parsedUrl = new URL(playerSrc);
+    const hostname = parsedUrl.hostname.replace(/^www\./, '');
     const pathSegments = parsedUrl.pathname.split('/').filter(Boolean);
+
+    if (hostname === 'youtu.be') {
+      return pathSegments[0] ?? '';
+    }
 
     if (pathSegments[0] === 'embed' && pathSegments[1]) {
       return pathSegments[1];
     }
 
-    return parsedUrl.searchParams.get('v') ?? '';
+    if (pathSegments[0] === 'shorts' && pathSegments[1]) {
+      return pathSegments[1];
+    }
+
+    if (parsedUrl.pathname === '/watch') {
+      return parsedUrl.searchParams.get('v') ?? '';
+    }
+
+    return parsedUrl.searchParams.get('v') ?? pathSegments[0] ?? '';
   } catch {
     return '';
   }
@@ -123,6 +151,35 @@ function ensureYouTubeApiLoaded() {
   });
 }
 
+function getPlayerOrigin() {
+  if (typeof window === 'undefined') {
+    return undefined;
+  }
+
+  return window.location.origin;
+}
+
+function waitForNextFrame() {
+  return new Promise<void>((resolve) => {
+    window.requestAnimationFrame(() => resolve());
+  });
+}
+
+const YOUTUBE_READY_TIMEOUT_MS = 2500;
+const MAX_YOUTUBE_CONSTRUCT_RETRIES = 1;
+const CONTROLS_HIDE_DELAY_MS = 5000;
+
+function createYouTubeController(player: YouTubePlayer): MediaController {
+  return {
+    play: () => player.playVideo(),
+    pause: () => player.pauseVideo(),
+    seek: (time) => player.seekTo(time, true),
+    setPlaybackRate: (rate) => player.setPlaybackRate(rate),
+    getCurrentTime: () => player.getCurrentTime() || 0,
+    getDuration: () => player.getDuration() || 0,
+  };
+}
+
 function SpinnerPlayer({
   playerType,
   playerSrc,
@@ -130,6 +187,7 @@ function SpinnerPlayer({
   controllerRef,
   currentTime,
   duration,
+  isPlayerReady,
   isPlaying,
   playbackRate,
   isSpeedMenuOpen,
@@ -148,6 +206,7 @@ function SpinnerPlayer({
   onSeek,
   onLoadedMetadata,
   onPlayerReady,
+  onYoutubeDebug,
   onPlay,
   onPause,
   onEnded,
@@ -160,17 +219,141 @@ function SpinnerPlayer({
   const youtubeContainerRef = useRef<HTMLDivElement | null>(null);
   const youtubePlayerRef = useRef<YouTubePlayer | null>(null);
   const youtubeProgressTimerRef = useRef<number | null>(null);
-  const [areControlsVisible, setAreControlsVisible] = useState(true);
+  const youtubeMountTokenRef = useRef(0);
+  const activeYoutubeMountTokenRef = useRef(0);
+  const onTimeUpdateRef = useRef(onTimeUpdate);
+  const onLoadedMetadataRef = useRef(onLoadedMetadata);
+  const onPlayerReadyRef = useRef(onPlayerReady);
+  const onYoutubeDebugRef = useRef(onYoutubeDebug);
+  const onPlayRef = useRef(onPlay);
+  const onPauseRef = useRef(onPause);
+  const onEndedRef = useRef(onEnded);
+  const playbackRateRef = useRef(playbackRate);
+  const currentTimeRef = useRef(currentTime);
   const [isSubtitleWrapped, setIsSubtitleWrapped] = useState(false);
+  const [availablePlaybackRates, setAvailablePlaybackRates] = useState<number[]>([]);
+  const [isLocalPlayerReady, setIsLocalPlayerReady] = useState(false);
+  const [hasLocalController, setHasLocalController] = useState(false);
+  const [isControlsVisible, setIsControlsVisible] = useState(true);
   const isYoutubePlayer = playerType === 'youtube';
   const hasCustomSubtitleContent = Boolean(subtitleContent || renderSubtitleContent);
+  const canControlPlayback =
+    !isYoutubePlayer || hasLocalController || isLocalPlayerReady || isPlayerReady;
+  const filteredSpeedOptions =
+    isYoutubePlayer && availablePlaybackRates.length > 0
+      ? speedOptions.filter((speed) => availablePlaybackRates.includes(speed))
+      : speedOptions;
+  const hasSubtitlePanel = Boolean(
+    isCaptionVisible && (subtitleContent || renderSubtitleContent || captionText),
+  );
+  const progressPercent = duration > 0 ? Math.min((currentTime / duration) * 100, 100) : 0;
 
-  const clearHideControlsTimeout = () => {
+  const emitYoutubeDebug = ({
+    action,
+    errorCode,
+    reason,
+    stage,
+  }: {
+    action?: string;
+    errorCode?: number;
+    reason?: string;
+    stage: string;
+  }) => {
+    onYoutubeDebugRef.current?.({
+      stage,
+      playerSrc,
+      videoId: isYoutubePlayer ? extractYoutubeVideoId(playerSrc) : '',
+      playerType,
+      action,
+      canControlPlayback,
+      isLocalPlayerReady,
+      hasController: Boolean(controllerRef.current),
+      reason,
+      errorCode,
+    });
+  };
+
+  useEffect(() => {
+    onTimeUpdateRef.current = onTimeUpdate;
+    onLoadedMetadataRef.current = onLoadedMetadata;
+    onPlayerReadyRef.current = onPlayerReady;
+    onYoutubeDebugRef.current = onYoutubeDebug;
+    onPlayRef.current = onPlay;
+    onPauseRef.current = onPause;
+    onEndedRef.current = onEnded;
+    playbackRateRef.current = playbackRate;
+    currentTimeRef.current = currentTime;
+  }, [onEnded, onLoadedMetadata, onPause, onPlay, onPlayerReady, onTimeUpdate, onYoutubeDebug]);
+
+  useEffect(() => {
+    playbackRateRef.current = playbackRate;
+    currentTimeRef.current = currentTime;
+  }, [currentTime, playbackRate]);
+
+  useEffect(() => {
+    const youtubeVideoId = isYoutubePlayer ? extractYoutubeVideoId(playerSrc) : '';
+    emitYoutubeDebug({ stage: 'props' });
+    console.log('[SpinnerPlayer][youtube] props', {
+      playerType,
+      playerSrc,
+      videoId: youtubeVideoId,
+      isYoutubePlayer,
+      isLocalPlayerReady,
+      isPlayerReady,
+      canControlPlayback,
+      hasController: Boolean(controllerRef.current),
+    });
+  }, [canControlPlayback, controllerRef, isLocalPlayerReady, isPlayerReady, isYoutubePlayer, playerSrc, playerType]);
+
+  const clearControlsHideTimeout = useCallback(() => {
     if (hideControlsTimeoutRef.current !== null) {
       window.clearTimeout(hideControlsTimeoutRef.current);
       hideControlsTimeoutRef.current = null;
     }
-  };
+  }, []);
+
+  const revealControls = useCallback((shouldReschedule = true) => {
+    clearControlsHideTimeout();
+    setIsControlsVisible(true);
+    if (shouldReschedule && isPlaying && canControlPlayback && !isSpeedMenuOpen) {
+      hideControlsTimeoutRef.current = window.setTimeout(() => {
+        setIsControlsVisible(false);
+      }, CONTROLS_HIDE_DELAY_MS);
+    }
+  }, [canControlPlayback, clearControlsHideTimeout, isPlaying, isSpeedMenuOpen]);
+
+  const scheduleControlsHide = useCallback(() => {
+    clearControlsHideTimeout();
+    if (!isPlaying || !canControlPlayback || isSpeedMenuOpen) {
+      setIsControlsVisible(true);
+      return;
+    }
+
+    hideControlsTimeoutRef.current = window.setTimeout(() => {
+      setIsControlsVisible(false);
+    }, CONTROLS_HIDE_DELAY_MS);
+  }, [canControlPlayback, clearControlsHideTimeout, isPlaying, isSpeedMenuOpen]);
+
+  useEffect(() => {
+    if (!isPlaying || !canControlPlayback || isSpeedMenuOpen) {
+      revealControls(false);
+      return () => {
+        clearControlsHideTimeout();
+      };
+    }
+
+    scheduleControlsHide();
+    return () => {
+      clearControlsHideTimeout();
+    };
+  }, [
+    canControlPlayback,
+    clearControlsHideTimeout,
+    isPlaying,
+    isSpeedMenuOpen,
+    revealControls,
+    scheduleControlsHide,
+  ]);
 
   const clearYoutubeProgressTimer = () => {
     if (youtubeProgressTimerRef.current !== null) {
@@ -186,32 +369,38 @@ function SpinnerPlayer({
       return;
     }
 
-    onTimeUpdate(player.getCurrentTime() || 0, player.getDuration() || 0);
+    onTimeUpdateRef.current(player.getCurrentTime() || 0, player.getDuration() || 0);
   };
 
-  const scheduleHideControls = () => {
-    clearHideControlsTimeout();
+  const syncYoutubeProgressSoon = () => {
+    window.setTimeout(() => {
+      syncYoutubeProgress();
+    }, 120);
+  };
 
-    if (!isPlaying) {
-      setAreControlsVisible(true);
-      return;
-    }
-
-    hideControlsTimeoutRef.current = window.setTimeout(() => {
-      setAreControlsVisible(false);
-      hideControlsTimeoutRef.current = null;
-    }, 2000);
+  const startYoutubeProgressTimer = () => {
+    clearYoutubeProgressTimer();
+    youtubeProgressTimerRef.current = window.setInterval(syncYoutubeProgress, 250);
   };
 
   const seekFromClientX = (clientX: number) => {
     const track = seekTrackRef.current;
-    if (!track || duration <= 0) {
-      return;
+    if (!track || duration <= 0 || !canControlPlayback) {
+      return null;
     }
 
     const rect = track.getBoundingClientRect();
     const ratio = Math.min(Math.max((clientX - rect.left) / rect.width, 0), 1);
-    onSeek(duration * ratio);
+    const nextTime = duration * ratio;
+
+    if (isYoutubePlayer) {
+      controllerRef.current?.seek(nextTime);
+      startYoutubeProgressTimer();
+      syncYoutubeProgressSoon();
+    }
+
+    onSeek(nextTime);
+    return nextTime;
   };
 
   const handleSeekPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -231,25 +420,6 @@ function SpinnerPlayer({
     window.addEventListener('pointermove', handlePointerMove);
     window.addEventListener('pointerup', handlePointerUp);
   };
-
-  const handleMouseMove = () => {
-    setAreControlsVisible(true);
-    scheduleHideControls();
-  };
-
-  useEffect(() => {
-    if (!isPlaying) {
-      clearHideControlsTimeout();
-      setAreControlsVisible(true);
-      return;
-    }
-
-    scheduleHideControls();
-
-    return clearHideControlsTimeout;
-  }, [isPlaying]);
-
-  useEffect(() => clearHideControlsTimeout, []);
 
   useEffect(() => {
     onMeasurementRootChange?.(sectionRef.current);
@@ -275,9 +445,15 @@ function SpinnerPlayer({
         return;
       }
 
-      const nextWrapped =
-        subtitleContentElement.scrollWidth > subtitleBar.clientWidth ||
-        subtitleContentElement.scrollHeight > 54;
+      const subtitleBarStyle = window.getComputedStyle(subtitleBar);
+      const horizontalPadding =
+        Number.parseFloat(subtitleBarStyle.paddingLeft || '0') +
+        Number.parseFloat(subtitleBarStyle.paddingRight || '0');
+      const availableWidth = Math.max(subtitleBar.clientWidth - horizontalPadding, 0);
+      const lineHeight = Number.parseFloat(window.getComputedStyle(subtitleContentElement).lineHeight || '0');
+      const hasHorizontalOverflow = subtitleContentElement.scrollWidth - 1 > availableWidth;
+      const hasMultipleLines = lineHeight > 0 && subtitleContentElement.scrollHeight > lineHeight * 1.5;
+      const nextWrapped = hasHorizontalOverflow || hasMultipleLines;
 
       setIsSubtitleWrapped((current) => (current === nextWrapped ? current : nextWrapped));
     };
@@ -312,6 +488,9 @@ function SpinnerPlayer({
   useEffect(() => {
     if (!isYoutubePlayer) {
       const videoElement = videoRef.current;
+      setAvailablePlaybackRates([]);
+      setIsLocalPlayerReady(Boolean(videoElement));
+      setHasLocalController(Boolean(videoElement));
 
       controllerRef.current = videoElement
         ? {
@@ -335,119 +514,387 @@ function SpinnerPlayer({
         : null;
 
       if (videoElement) {
-        onPlayerReady?.();
+        onPlayerReadyRef.current?.();
       }
 
       return;
     }
 
     let isCancelled = false;
+    const mountToken = youtubeMountTokenRef.current + 1;
+    youtubeMountTokenRef.current = mountToken;
+    activeYoutubeMountTokenRef.current = mountToken;
+      let localYoutubePlayer: YouTubePlayer | null = null;
+    let readyTimeoutId: number | null = null;
 
-    const initializeYoutubePlayer = async () => {
+    const clearReadyTimeout = () => {
+      if (readyTimeoutId !== null) {
+        window.clearTimeout(readyTimeoutId);
+        readyTimeoutId = null;
+      }
+    };
+
+    const initializeYoutubePlayer = async (attempt = 0): Promise<void> => {
       const videoId = extractYoutubeVideoId(playerSrc);
+      const containerElement = youtubeContainerRef.current;
+      const isCurrentMountActive = () =>
+        !isCancelled &&
+        activeYoutubeMountTokenRef.current === mountToken &&
+        youtubeContainerRef.current === containerElement &&
+        Boolean(containerElement?.isConnected);
 
-      if (!youtubeContainerRef.current || !videoId) {
+      emitYoutubeDebug({ stage: 'init_start' });
+      console.log('[SpinnerPlayer][youtube] init_start', {
+        playerSrc,
+        videoId,
+        playerType,
+        hasContainer: Boolean(youtubeContainerRef.current),
+      });
+
+      if (!containerElement || !videoId) {
+        emitYoutubeDebug({
+          stage: 'init_blocked',
+          reason: !containerElement ? 'missing_container' : 'missing_video_id',
+        });
+        console.log('[SpinnerPlayer][youtube] init_blocked', {
+          playerSrc,
+          videoId,
+          hasContainer: Boolean(containerElement),
+        });
         return;
       }
 
       try {
         await ensureYouTubeApiLoaded();
+        emitYoutubeDebug({ stage: 'api_loaded' });
       } catch {
+        emitYoutubeDebug({ stage: 'api_load_failed' });
+        console.log('[SpinnerPlayer][youtube] api_load_failed', {
+          playerSrc,
+          videoId,
+        });
         return;
       }
 
-      if (isCancelled || !window.YT?.Player || !youtubeContainerRef.current) {
+      clearReadyTimeout();
+      setIsLocalPlayerReady(false);
+      setHasLocalController(false);
+      if (localYoutubePlayer) {
+        localYoutubePlayer.destroy();
+        if (youtubePlayerRef.current === localYoutubePlayer) {
+          youtubePlayerRef.current = null;
+        }
+        localYoutubePlayer = null;
+      }
+      controllerRef.current = null;
+      setAvailablePlaybackRates([]);
+      containerElement.replaceChildren();
+
+      emitYoutubeDebug({ stage: 'construct_scheduled' });
+      await waitForNextFrame();
+
+      if (!isCurrentMountActive() || !window.YT?.Player) {
+        emitYoutubeDebug({
+          stage: 'init_cancelled',
+          reason: isCancelled
+            ? 'effect_cancelled'
+            : !containerElement?.isConnected
+              ? 'container_disconnected'
+              : 'yt_player_unavailable',
+        });
+        console.log('[SpinnerPlayer][youtube] init_cancelled', {
+          isCancelled,
+          hasPlayerCtor: Boolean(window.YT?.Player),
+          hasContainer: Boolean(containerElement),
+          isContainerConnected: Boolean(containerElement?.isConnected),
+          activeMountToken: activeYoutubeMountTokenRef.current,
+          mountToken,
+          playerSrc,
+          videoId,
+        });
         return;
       }
 
-      const player = new window.YT.Player(youtubeContainerRef.current, {
+      emitYoutubeDebug({ stage: 'player_construct' });
+      const player = new window.YT.Player(containerElement, {
         videoId,
         playerVars: {
-          rel: 0,
+          controls: 0,
+          disablekb: 1,
+          enablejsapi: 1,
+          fs: 0,
+          iv_load_policy: 3,
+          origin: getPlayerOrigin(),
           modestbranding: 1,
           playsinline: 1,
+          rel: 0,
         },
         events: {
           onReady: (event) => {
+            clearReadyTimeout();
+            if (!isCurrentMountActive()) {
+              console.log('[SpinnerPlayer][youtube] ignore stale ready', {
+                playerSrc,
+                videoId,
+                mountToken,
+                activeMountToken: activeYoutubeMountTokenRef.current,
+              });
+              return;
+            }
+            emitYoutubeDebug({ stage: 'ready' });
+            console.log('[SpinnerPlayer][youtube] ready', {
+              playerSrc,
+              videoId,
+            });
+            setIsLocalPlayerReady(true);
+            setHasLocalController(true);
             youtubePlayerRef.current = event.target;
-            controllerRef.current = {
-              play: () => event.target.playVideo(),
-              pause: () => event.target.pauseVideo(),
-              seek: (time) => event.target.seekTo(time, true),
-              setPlaybackRate: (rate) => event.target.setPlaybackRate(rate),
-              getCurrentTime: () => event.target.getCurrentTime() || 0,
-              getDuration: () => event.target.getDuration() || 0,
-            };
+            controllerRef.current = createYouTubeController(event.target);
+            const supportedRates = event.target.getAvailablePlaybackRates?.() ?? [];
+            setAvailablePlaybackRates(
+              supportedRates.filter((rate) => Number.isFinite(rate) && rate > 0),
+            );
+            if (playbackRateRef.current !== 1) {
+              event.target.setPlaybackRate(playbackRateRef.current);
+            }
+            if (currentTimeRef.current > 0) {
+              event.target.seekTo(currentTimeRef.current, true);
+            }
             const nextDuration = event.target.getDuration() || 0;
-            onLoadedMetadata(nextDuration);
-            onPlayerReady?.();
+            onLoadedMetadataRef.current(nextDuration);
+            onPlayerReadyRef.current?.();
             syncYoutubeProgress();
           },
           onStateChange: (event) => {
+            if (!isCurrentMountActive()) {
+              console.log('[SpinnerPlayer][youtube] ignore stale state_change', {
+                playerSrc,
+                videoId,
+                state: event.data,
+                mountToken,
+                activeMountToken: activeYoutubeMountTokenRef.current,
+              });
+              return;
+            }
+            console.log('[SpinnerPlayer][youtube] state_change', {
+              playerSrc,
+              videoId,
+              state: event.data,
+            });
             if (!window.YT?.PlayerState) {
               return;
             }
 
             if (event.data === window.YT.PlayerState.PLAYING) {
-              onPlay();
+              onPlayRef.current();
               clearYoutubeProgressTimer();
               youtubeProgressTimerRef.current = window.setInterval(syncYoutubeProgress, 250);
               return;
             }
 
             if (event.data === window.YT.PlayerState.PAUSED) {
-              onPause();
+              onPauseRef.current();
               clearYoutubeProgressTimer();
               syncYoutubeProgress();
               return;
             }
 
             if (event.data === window.YT.PlayerState.ENDED) {
-              onEnded();
+              onEndedRef.current();
               clearYoutubeProgressTimer();
               syncYoutubeProgress();
             }
           },
+          onError: (event) => {
+            clearReadyTimeout();
+            if (!isCurrentMountActive()) {
+              console.log('[SpinnerPlayer][youtube] ignore stale error', {
+                playerSrc,
+                videoId,
+                errorCode: event.data,
+                mountToken,
+                activeMountToken: activeYoutubeMountTokenRef.current,
+              });
+              return;
+            }
+            emitYoutubeDebug({
+              stage: 'error',
+              errorCode: event.data,
+            });
+            console.log('[SpinnerPlayer][youtube] error', {
+              playerSrc,
+              videoId,
+              errorCode: event.data,
+            });
+            setIsLocalPlayerReady(false);
+            setHasLocalController(false);
+          },
         },
       });
 
+      localYoutubePlayer = player;
       youtubePlayerRef.current = player;
+      controllerRef.current = createYouTubeController(player);
+      setHasLocalController(true);
+      readyTimeoutId = window.setTimeout(() => {
+        if (!isCurrentMountActive()) {
+          return;
+        }
+
+        emitYoutubeDebug({
+          stage: 'ready_timeout',
+          reason: `attempt_${attempt + 1}`,
+        });
+        console.log('[SpinnerPlayer][youtube] ready_timeout', {
+          playerSrc,
+          videoId,
+          attempt: attempt + 1,
+        });
+
+        if (localYoutubePlayer) {
+          localYoutubePlayer.destroy();
+          if (youtubePlayerRef.current === localYoutubePlayer) {
+            youtubePlayerRef.current = null;
+          }
+          localYoutubePlayer = null;
+        }
+        controllerRef.current = null;
+        setIsLocalPlayerReady(false);
+        setHasLocalController(false);
+
+        if (attempt < MAX_YOUTUBE_CONSTRUCT_RETRIES) {
+          void initializeYoutubePlayer(attempt + 1);
+        }
+      }, YOUTUBE_READY_TIMEOUT_MS);
     };
 
     void initializeYoutubePlayer();
 
     return () => {
       isCancelled = true;
+      if (activeYoutubeMountTokenRef.current === mountToken) {
+        activeYoutubeMountTokenRef.current = 0;
+      }
+      clearReadyTimeout();
       clearYoutubeProgressTimer();
-      youtubePlayerRef.current?.destroy();
-      youtubePlayerRef.current = null;
+      setIsLocalPlayerReady(false);
+      setHasLocalController(false);
+      if (localYoutubePlayer) {
+        localYoutubePlayer.destroy();
+        setAvailablePlaybackRates([]);
+        emitYoutubeDebug({ stage: 'destroyed' });
+        if (youtubePlayerRef.current === localYoutubePlayer) {
+          youtubePlayerRef.current = null;
+        }
+        localYoutubePlayer = null;
+      }
+      youtubeContainerRef.current?.replaceChildren();
       controllerRef.current = null;
     };
   }, [
     controllerRef,
     isYoutubePlayer,
-    onEnded,
-    onLoadedMetadata,
-    onPlayerReady,
-    onPause,
-    onPlay,
-    onTimeUpdate,
+    playerType,
     playerSrc,
     videoRef,
   ]);
 
+  const handlePlayButtonClick = () => {
+    console.log('[SpinnerPlayer][control] play_toggle_clicked', {
+      canControlPlayback,
+      isLocalPlayerReady,
+      isPlayerReady,
+      youtubePlayerStage: isYoutubePlayer ? 'runtime' : 'html5',
+      hasController: Boolean(controllerRef.current),
+      isPlaying,
+    });
+    emitYoutubeDebug({
+      stage: isYoutubePlayer ? 'control_click' : 'html5_control_click',
+      action: 'play_toggle_clicked',
+    });
+    if (!canControlPlayback) {
+      return;
+    }
+    if (isYoutubePlayer) {
+      if (isPlaying) {
+        controllerRef.current?.pause();
+        clearYoutubeProgressTimer();
+        onPauseRef.current();
+      } else {
+        void Promise.resolve(controllerRef.current?.play()).catch(() => {
+          // Keep the existing state if YouTube rejects the request.
+        });
+        startYoutubeProgressTimer();
+        onPlayRef.current();
+      }
+      syncYoutubeProgressSoon();
+    }
+    void onTogglePlay();
+  };
+
+  const handleSpeedMenuButtonClick = () => {
+    console.log('[SpinnerPlayer][control] speed_menu_clicked', {
+      canControlPlayback,
+      isLocalPlayerReady,
+      isPlayerReady,
+      hasController: Boolean(controllerRef.current),
+      playbackRate,
+    });
+    emitYoutubeDebug({
+      stage: isYoutubePlayer ? 'control_click' : 'html5_control_click',
+      action: 'speed_menu_clicked',
+    });
+    if (!canControlPlayback) {
+      return;
+    }
+    onToggleSpeedMenu();
+  };
+
+  const handleSpeedOptionClick = (speed: SpinnerPlaybackRate) => {
+    console.log('[SpinnerPlayer][control] speed_selected', {
+      canControlPlayback,
+      isLocalPlayerReady,
+      isPlayerReady,
+      hasController: Boolean(controllerRef.current),
+      selectedSpeed: speed,
+    });
+    emitYoutubeDebug({
+      stage: isYoutubePlayer ? 'control_click' : 'html5_control_click',
+      action: `speed_selected_${speed}`,
+    });
+    if (!canControlPlayback) {
+      return;
+    }
+    onSelectSpeed(speed);
+  };
+
+  const handleCaptionButtonClick = () => {
+    console.log('[SpinnerPlayer][control] caption_toggle_clicked', {
+      isCaptionVisible,
+    });
+    emitYoutubeDebug({
+      stage: isYoutubePlayer ? 'control_click' : 'html5_control_click',
+      action: 'caption_toggle_clicked',
+    });
+    onToggleCaption();
+  };
+
   return (
     <section ref={sectionRef} className="flex w-[min(1120px,98vw)] flex-col items-center">
       <div
-        className="relative aspect-video w-full overflow-hidden rounded-t-[11.455px] bg-black"
-        onMouseMove={handleMouseMove}
+        className={`relative aspect-video w-full overflow-hidden bg-black ${
+          hasSubtitlePanel ? 'rounded-t-[11.455px]' : 'rounded-[11.455px]'
+        }`}
+        onPointerMove={() => revealControls()}
+        onPointerEnter={() => revealControls()}
+        onPointerDown={() => revealControls()}
       >
         {isYoutubePlayer ? (
-          <div ref={youtubeContainerRef} className="absolute inset-0 h-full w-full" />
+          <div ref={youtubeContainerRef} className="absolute inset-0 z-0 h-full w-full" />
         ) : (
           <video
             ref={videoRef}
-            className="absolute inset-0 h-full w-full object-contain"
+            className="absolute inset-0 z-0 h-full w-full object-contain"
             src={playerSrc}
             preload="metadata"
             playsInline
@@ -461,45 +908,71 @@ function SpinnerPlayer({
           />
         )}
 
-        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0)_0%,rgba(0,0,0,0)_70%,rgba(0,0,0,0.42)_100%)]" />
+        <div className="pointer-events-none absolute inset-0 z-10 bg-[linear-gradient(180deg,rgba(0,0,0,0)_0%,rgba(0,0,0,0)_70%,rgba(0,0,0,0.42)_100%)]" />
 
         {overlayContent ? (
-          <div className="pointer-events-none absolute inset-x-0 bottom-[152px] top-[24px] z-10">
+          <div className="pointer-events-none absolute inset-x-0 bottom-[152px] top-[24px] z-20">
             {overlayContent}
           </div>
         ) : null}
 
         <div
-          className={`absolute bottom-0 left-0 right-0 transition-opacity duration-300 ${
-            areControlsVisible ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
+          className={`absolute inset-x-0 bottom-0 z-30 overflow-visible transition-opacity duration-200 ${
+            isControlsVisible ? 'opacity-100' : 'pointer-events-none opacity-0'
+          } ${
+            isYoutubePlayer
+              ? 'border-b-2 border-[#2D3340] bg-black'
+              : 'bg-[linear-gradient(180deg,rgba(0,0,0,0)_0%,rgba(0,0,0,0.4)_100%)]'
           }`}
         >
           <div
-            ref={seekTrackRef}
-            className="relative h-3 w-full cursor-pointer"
-            onPointerDown={handleSeekPointerDown}
+            className={`relative h-[10px] w-full cursor-pointer ${
+              canControlPlayback ? '' : 'cursor-not-allowed opacity-45'
+            }`}
+            onPointerDown={(event) => {
+              console.log('[SpinnerPlayer][control] seek_pointer_down', {
+                canControlPlayback,
+                isLocalPlayerReady,
+                isPlayerReady,
+                hasController: Boolean(controllerRef.current),
+                clientX: event.clientX,
+                currentTime,
+                duration,
+              });
+              emitYoutubeDebug({
+                stage: isYoutubePlayer ? 'control_click' : 'html5_control_click',
+                action: 'seek_pointer_down',
+              });
+              handleSeekPointerDown(event);
+            }}
             role="slider"
             aria-label="Video progress"
             aria-valuemin={0}
             aria-valuemax={Math.round(duration)}
             aria-valuenow={Math.round(currentTime)}
           >
-            <div className="absolute left-0 right-0 top-1/2 h-1 -translate-y-1/2 bg-[rgba(0,0,0,0.2)]" />
+            <div className="absolute inset-x-0 top-1/2 h-[2px] -translate-y-1/2 bg-[rgba(255,255,255,0.2)]" />
             <div
-              className="absolute left-0 top-1/2 h-1 -translate-y-1/2 bg-[#1A9AF5]"
-              style={{ width: `${duration > 0 ? Math.min((currentTime / duration) * 100, 100) : 0}%` }}
+              className="absolute left-0 top-1/2 h-[2px] -translate-y-1/2 bg-[#1A9AF5]"
+              style={{ width: `${progressPercent}%` }}
             />
+            <div ref={seekTrackRef} className="absolute inset-0" />
             <div
-              className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-[#1A9AF5] shadow-[0_2px_12px_rgba(26,154,245,0.45)]"
-              style={{ left: `${duration > 0 ? Math.min((currentTime / duration) * 100, 100) : 0}%` }}
+              className="pointer-events-none absolute top-1/2 h-[10px] w-[10px] -translate-x-1/2 -translate-y-1/2 rounded-full border-[1.5px] border-white bg-[#1A9AF5]"
+              style={{ left: `${progressPercent}%` }}
             />
           </div>
 
-          <div className="relative flex items-center justify-between px-6 pb-[18px] pt-3">
-            <div className="absolute inset-0 bg-[rgba(0,0,0,0.28)] backdrop-blur-[6px]" />
-
+          <div className="relative flex w-full items-center justify-between px-6 pb-[18px] pt-3">
             <div className="relative z-10 flex items-center gap-3">
-              <button type="button" onClick={onTogglePlay} className="p-1 text-white">
+              <button
+                type="button"
+                onClick={handlePlayButtonClick}
+                aria-disabled={!canControlPlayback}
+                className={`p-1 text-white ${
+                  canControlPlayback ? '' : 'cursor-not-allowed opacity-45'
+                }`}
+              >
                 {isPlaying ? <PauseIcon /> : <PlayIcon />}
               </button>
 
@@ -512,23 +985,32 @@ function SpinnerPlayer({
 
             <div className="relative z-10 flex items-center gap-6 text-white">
               <div className="relative flex items-center">
-                <button type="button" onClick={onToggleSpeedMenu} className="flex items-center gap-2 p-1">
-                  <TriangleDownIcon />
-                  <span className="min-w-[28px] text-center text-[16px] font-medium leading-6">
+                <button
+                  type="button"
+                  onClick={handleSpeedMenuButtonClick}
+                  aria-disabled={!canControlPlayback}
+                  className={`flex items-center p-1 ${
+                    canControlPlayback ? '' : 'cursor-not-allowed opacity-45'
+                  }`}
+                >
+                  <TriangleUpIcon />
+                  <span className="min-w-[28px] px-1 text-center text-[16px] font-medium leading-6">
                     {playbackRate}x
                   </span>
-                  <TriangleUpIcon />
+                  <TriangleDownIcon />
                 </button>
 
                 {isSpeedMenuOpen ? (
                   <div className="absolute bottom-8 left-1/2 w-[60px] -translate-x-1/2 overflow-hidden rounded-[8px] bg-[rgba(0,0,0,0.4)]">
-                    {[...speedOptions].reverse().map((speed) => (
+                    {[...filteredSpeedOptions].reverse().map((speed) => (
                       <button
                         key={speed}
                         type="button"
-                        onClick={() => onSelectSpeed(speed)}
+                        onClick={() => handleSpeedOptionClick(speed)}
                         className={`flex w-full items-center justify-center px-3 py-2 text-center text-[14px] leading-[1.5] text-white ${
-                          speed === playbackRate ? 'bg-[rgba(255,255,255,0.24)] font-semibold' : 'font-normal'
+                          speed === playbackRate
+                            ? 'bg-[rgba(255,255,255,0.24)] font-semibold'
+                            : 'font-normal'
                         }`}
                       >
                         {speed}x
@@ -538,7 +1020,7 @@ function SpinnerPlayer({
                 ) : null}
               </div>
 
-              <button type="button" onClick={onToggleCaption} className="p-1 text-white">
+              <button type="button" onClick={handleCaptionButtonClick} className="p-1 text-white">
                 <SubtitleIcon isActive={isCaptionVisible} />
               </button>
             </div>
@@ -546,7 +1028,7 @@ function SpinnerPlayer({
         </div>
       </div>
 
-      {isCaptionVisible && (subtitleContent || renderSubtitleContent || captionText) ? (
+      {hasSubtitlePanel ? (
         <div
           ref={subtitleBarRef}
           className={`flex w-full items-center rounded-b-[11.455px] bg-[rgba(0,0,0,0.78)] px-6 text-white transition-[padding,height] duration-150 ${
@@ -556,7 +1038,9 @@ function SpinnerPlayer({
           <div
             ref={subtitleContentRef}
             className={`w-full text-center text-[22px] font-semibold leading-[1.45] text-white ${
-              isSubtitleWrapped ? 'whitespace-normal' : 'overflow-hidden whitespace-nowrap'
+              isSubtitleWrapped
+                ? 'whitespace-normal [word-break:keep-all]'
+                : 'overflow-hidden whitespace-nowrap'
             }`}
           >
             {renderSubtitleContent

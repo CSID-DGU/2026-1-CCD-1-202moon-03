@@ -12,6 +12,8 @@ import type { RainCaptionDisplay } from './types';
 
 export interface RainCaptionInputHandle {
   focusPrimaryInput: () => void;
+  focusBlankByKey: (blankKey: string) => void;
+  focusNextPendingInput: (afterBlankKey: string) => void;
 }
 
 function getAnswerBoxWidth(answerLength: number) {
@@ -61,36 +63,84 @@ const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProp
     const previousPrimaryInputKeyRef = useRef<string | null>(null);
     const composingBlankKeyRef = useRef<string | null>(null);
     const lastAutoFocusReasonRef = useRef<string | null>(null);
+    const pendingSubmitFocusRef = useRef<string | null>(null);
     const [draftValuesByKey, setDraftValuesByKey] = useState<Record<string, string>>({});
 
-    const primaryInputKey = useMemo(
+    const inputItems = useMemo(
       () =>
-        items.find((item) => item.type === 'input' && item.resolvedState === 'pending')?.key ?? null,
+        items.filter(
+          (item): item is Extract<RainCaptionDisplay['items'][number], { type: 'input' }> =>
+            item.type === 'input',
+        ),
       [items],
     );
+    const inputKeys = useMemo(() => inputItems.map((item) => item.key), [inputItems]);
+    const pendingInputKeys = useMemo(
+      () => inputItems.filter((item) => item.resolvedState === 'pending').map((item) => item.key),
+      [inputItems],
+    );
+    const primaryInputKey = pendingInputKeys[0] ?? null;
 
-    const focusPrimaryInput = useCallback((reason?: string) => {
-      if (!primaryInputKey) {
-        return;
-      }
-
-      const input = inputRefs.current[primaryInputKey];
+    const focusInput = useCallback((blankKey: string, reason?: string) => {
+      const input = inputRefs.current[blankKey];
       if (!input) {
-        return;
+        return false;
       }
 
       lastAutoFocusReasonRef.current = reason ?? 'manual';
       input.focus();
       const nextCursorPosition = input.value.length;
       input.setSelectionRange(nextCursorPosition, nextCursorPosition);
-    }, [primaryInputKey]);
+      return true;
+    }, []);
+
+    const focusPrimaryInput = useCallback((reason?: string) => {
+      if (!primaryInputKey) {
+        return;
+      }
+
+      focusInput(primaryInputKey, reason);
+    }, [focusInput, primaryInputKey]);
+
+    const focusBlankByKey = useCallback(
+      (blankKey: string, reason?: string) => {
+        focusInput(blankKey, reason);
+      },
+      [focusInput],
+    );
+
+    const focusNextPendingInput = useCallback(
+      (afterBlankKey: string, reason?: string) => {
+        const pendingSet = new Set(pendingInputKeys);
+        const startIndex = inputKeys.indexOf(afterBlankKey);
+
+        if (startIndex >= 0) {
+          for (let index = startIndex + 1; index < inputKeys.length; index += 1) {
+            const nextKey = inputKeys[index];
+            if (pendingSet.has(nextKey) && focusInput(nextKey, reason ?? 'next_pending_input')) {
+              return true;
+            }
+          }
+        }
+
+        if (primaryInputKey && primaryInputKey !== afterBlankKey) {
+          return focusInput(primaryInputKey, reason ?? 'primary_fallback');
+        }
+
+        return false;
+      },
+      [focusInput, inputKeys, pendingInputKeys, primaryInputKey],
+    );
 
     useImperativeHandle(
       ref,
       () => ({
         focusPrimaryInput,
+        focusBlankByKey: (blankKey: string) => focusBlankByKey(blankKey, 'imperative_focus_by_key'),
+        focusNextPendingInput: (afterBlankKey: string) =>
+          void focusNextPendingInput(afterBlankKey, 'imperative_focus_next_pending'),
       }),
-      [primaryInputKey],
+      [focusBlankByKey, focusNextPendingInput, focusPrimaryInput],
     );
 
     const commitDraftValue = useCallback(
@@ -101,9 +151,6 @@ const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProp
     );
 
     useEffect(() => {
-      const inputItems = items.filter((item): item is Extract<RainCaptionDisplay['items'][number], { type: 'input' }> =>
-        item.type === 'input',
-      );
       const activeKeys = new Set(inputItems.map((item) => item.key));
 
       setDraftValuesByKey((current) => {
@@ -134,6 +181,23 @@ const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProp
         return changed ? next : current;
       });
     }, [items]);
+
+    useLayoutEffect(() => {
+      const submittedBlankKey = pendingSubmitFocusRef.current;
+      if (!submittedBlankKey || isComposingRef.current) {
+        return;
+      }
+
+      const submittedItem = inputItems.find((item) => item.key === submittedBlankKey);
+      if (submittedItem?.resolvedState === 'pending') {
+        focusBlankByKey(submittedBlankKey, 'submit_restore_same');
+        pendingSubmitFocusRef.current = null;
+        return;
+      }
+
+      focusNextPendingInput(submittedBlankKey, 'submit_focus_next');
+      pendingSubmitFocusRef.current = null;
+    }, [focusBlankByKey, focusNextPendingInput, inputItems]);
 
     useLayoutEffect(() => {
       if (!primaryInputKey) {
@@ -246,15 +310,17 @@ const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProp
     return (
       <div
         ref={rootRef}
-        className={`min-w-full items-center text-[22px] font-semibold leading-[1.45] text-white ${
-          allowWrap ? 'flex flex-wrap gap-y-2 whitespace-normal' : 'inline-flex whitespace-nowrap'
+        className={`min-w-full text-[22px] font-semibold leading-[1.45] text-white ${
+          allowWrap
+            ? 'block whitespace-normal text-center [word-break:keep-all]'
+            : 'inline-flex items-center whitespace-nowrap'
         }`}
       >
         {items.length === 0 ? (
           fallbackText ? (
             <p
               className={`m-0 text-[22px] font-semibold leading-[1.45] text-white ${
-                allowWrap ? 'whitespace-normal break-words' : 'whitespace-nowrap'
+                allowWrap ? 'whitespace-normal [word-break:keep-all]' : 'whitespace-nowrap'
               }`}
             >
               {fallbackText}
@@ -265,7 +331,9 @@ const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProp
             item.type === 'text' ? (
               <span
                 key={item.key}
-                className={`${allowWrap ? 'whitespace-normal break-words' : 'whitespace-nowrap'} text-white`}
+                className={`text-white ${
+                  allowWrap ? 'whitespace-normal [word-break:keep-all]' : 'whitespace-nowrap'
+                }`}
               >
                 {item.text}
               </span>
@@ -324,14 +392,12 @@ const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProp
                   event.preventDefault();
                   const submitValue =
                     inputRefs.current[item.key]?.value ?? draftValuesByKey[item.key] ?? item.value;
+                  pendingSubmitFocusRef.current = item.key;
                   onCommit(item.key, submitValue);
                   onSubmit(item.key, submitValue);
-                  requestAnimationFrame(() => {
-                    focusPrimaryInput('submit_refocus');
-                  });
                 }}
                 style={{ width: `${getAnswerBoxWidth(getCompactAnswerLength(item.blank.keyword))}px` }}
-                className={`mx-1 inline-block h-[42px] w-[100px] shrink-0 rounded-[8px] border px-[10px] py-[6px] align-middle text-center text-[18px] font-semibold leading-[1.2] outline-none placeholder:text-[18px] placeholder:text-[#9CA3AF] ${
+                className={`${allowWrap ? 'mx-[6px] my-1' : 'mx-1'} inline-block h-[42px] w-[100px] shrink-0 rounded-[8px] border px-[10px] py-[6px] align-middle text-center text-[18px] font-semibold leading-[1.2] outline-none placeholder:text-[18px] placeholder:text-[#9CA3AF] ${
                   item.resolvedState === 'cleared'
                     ? 'border-[#16A34A] bg-[#F0FDF4] text-[#166534]'
                     : item.resolvedState === 'missed'

@@ -78,6 +78,7 @@ function RainModePage() {
     debug,
     duration,
     currentTime,
+    isPlayerReady,
     isPlaying,
     playbackRate,
     isSpeedMenuOpen,
@@ -111,6 +112,7 @@ function RainModePage() {
     handleSeek,
     handleLoadedMetadata,
     handlePlayerReady,
+    handleYoutubeDebug,
     handlePlay,
     handlePause,
     handleEnded,
@@ -239,6 +241,7 @@ function RainModePage() {
                   controllerRef={controllerRef}
                   currentTime={currentTime}
                   duration={duration}
+                  isPlayerReady={isPlayerReady}
                   isPlaying={isPlaying}
                   playbackRate={playbackRate}
                   isSpeedMenuOpen={isSpeedMenuOpen}
@@ -318,6 +321,7 @@ function RainModePage() {
                   }}
                   onLoadedMetadata={handleLoadedMetadata}
                   onPlayerReady={handlePlayerReady}
+                  onYoutubeDebug={handleYoutubeDebug}
                   onPlay={handlePlay}
                   onPause={handlePause}
                   onEnded={handleEnded}

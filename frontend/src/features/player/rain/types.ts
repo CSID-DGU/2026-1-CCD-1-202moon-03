@@ -45,6 +45,7 @@ export interface RainQuizState {
   quiz: GameQuizItem;
   selectedIndex: number | null;
   feedback: string;
+  explanation: string;
   submitError: string;
   isCorrect: boolean | null;
   isSubmitting: boolean;

@@ -21,6 +21,7 @@ export interface RetryQuizItem {
   options: string[];
   correct_feedback?: string;
   incorrect_feedback?: string;
+  explanation?: string;
   trigger_time?: number;
   segment_range?: [number, number];
 }

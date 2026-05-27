@@ -14,6 +14,15 @@ interface PlayerDebugPanelProps {
     lastStreamRequestType?: string | null;
     streamingSourceType: string | null;
     streamingSourceSessionId: string | null;
+    sessionSourceType?: string | null;
+    playerType?: string;
+    playerSrc?: string;
+    isPlayerReady?: boolean;
+    isLocalPlayerReady?: boolean;
+    hasController?: boolean;
+    lastControlAction?: string | null;
+    youtubeVideoId?: string | null;
+    youtubePlayerStage?: string | null;
     hasVideoUrl?: boolean;
     hasStartGameData?: boolean;
     loadedSegments: number;
@@ -124,6 +133,29 @@ function PlayerDebugPanel({ debug }: PlayerDebugPanelProps) {
       ) : null}
       <div>streamingSourceType: {debug.streamingSourceType ?? '-'}</div>
       <div>streamingSourceSessionId: {debug.streamingSourceSessionId ?? '-'}</div>
+      {debug.sessionSourceType !== undefined ? (
+        <div>sessionSourceType: {debug.sessionSourceType ?? '-'}</div>
+      ) : null}
+      {debug.playerType !== undefined ? <div>playerType: {debug.playerType}</div> : null}
+      {debug.playerSrc !== undefined ? <div>playerSrc: {debug.playerSrc || '-'}</div> : null}
+      {debug.isPlayerReady !== undefined ? (
+        <div>isPlayerReady: {String(debug.isPlayerReady)}</div>
+      ) : null}
+      {debug.isLocalPlayerReady !== undefined ? (
+        <div>isLocalPlayerReady: {String(debug.isLocalPlayerReady)}</div>
+      ) : null}
+      {debug.hasController !== undefined ? (
+        <div>hasController: {String(debug.hasController)}</div>
+      ) : null}
+      {debug.lastControlAction !== undefined ? (
+        <div>lastControlAction: {debug.lastControlAction ?? '-'}</div>
+      ) : null}
+      {debug.youtubeVideoId !== undefined ? (
+        <div>youtubeVideoId: {debug.youtubeVideoId ?? '-'}</div>
+      ) : null}
+      {debug.youtubePlayerStage !== undefined ? (
+        <div>youtubePlayerStage: {debug.youtubePlayerStage ?? '-'}</div>
+      ) : null}
       {debug.hasVideoUrl !== undefined ? <div>hasVideoUrl: {String(debug.hasVideoUrl)}</div> : null}
       {debug.hasStartGameData !== undefined ? (
         <div>hasStartGameData: {String(debug.hasStartGameData)}</div>

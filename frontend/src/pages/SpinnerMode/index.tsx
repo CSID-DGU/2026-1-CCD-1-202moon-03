@@ -35,6 +35,7 @@ function SpinnerModePage() {
     mascotMessage,
     isStretchGuideOpen,
     stretchCountdownSeconds,
+    isPlayerReady,
     isPlaying,
     playbackRate,
     isSpeedMenuOpen,
@@ -64,6 +65,7 @@ function SpinnerModePage() {
     handleSeek,
     handleLoadedMetadata,
     handlePlayerReady,
+    handleYoutubeDebug,
     handlePlay,
     handlePause,
     handleEnded,
@@ -150,6 +152,7 @@ function SpinnerModePage() {
                 controllerRef={controllerRef}
                 currentTime={currentTime}
                 duration={duration}
+                isPlayerReady={isPlayerReady}
                 isPlaying={isPlaying}
                 playbackRate={playbackRate}
                 isSpeedMenuOpen={isSpeedMenuOpen}
@@ -165,6 +168,7 @@ function SpinnerModePage() {
                 onSeek={handleSeek}
                 onLoadedMetadata={handleLoadedMetadata}
                 onPlayerReady={handlePlayerReady}
+                onYoutubeDebug={handleYoutubeDebug}
                 onPlay={handlePlay}
                 onPause={handlePause}
                 onEnded={handleEnded}
@@ -217,9 +221,11 @@ function SpinnerModePage() {
                   answer_index: quizState.answerIndex,
                   correct_feedback: quizState.feedback,
                   incorrect_feedback: quizState.incorrectFeedback,
+                  explanation: quizState.explanation,
                 },
                 selectedIndex: quizState.selectedIndex,
                 feedback: quizState.selectedIndex === null ? '' : quizState.feedback,
+                explanation: quizState.selectedIndex === null ? '' : quizState.explanation,
                 submitError: quizState.submitError,
                 isCorrect: quizState.isCorrect,
                 isSubmitting: quizState.isSubmitting,
