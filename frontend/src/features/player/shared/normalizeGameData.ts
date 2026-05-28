@@ -71,8 +71,6 @@ export function normalizeFallEvent(
 }
 
 export function normalizeQuiz(quiz: GameQuizItem, fallbackIndex: number, chapterIndex?: number): NormalizedQuiz {
-  const fallbackFeedback = quiz.explanation ?? '';
-
   return {
     quizId: quiz.quiz_id ?? null,
     quizIndex: quiz.quiz_index ?? fallbackIndex,
@@ -81,8 +79,9 @@ export function normalizeQuiz(quiz: GameQuizItem, fallbackIndex: number, chapter
     question: quiz.question,
     options: quiz.options ?? [],
     answerIndex: quiz.answer_index,
-    correctFeedback: quiz.correct_feedback ?? fallbackFeedback,
-    incorrectFeedback: quiz.incorrect_feedback ?? fallbackFeedback,
+    correctFeedback: quiz.correct_feedback ?? '',
+    incorrectFeedback: quiz.incorrect_feedback ?? '',
+    explanation: quiz.explanation,
     chapterIndex,
   };
 }

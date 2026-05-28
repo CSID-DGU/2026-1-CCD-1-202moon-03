@@ -7,7 +7,7 @@ import { useGameSessionData } from '../shared/useGameSessionData';
 import { useAuthenticatedVideoUrl } from '../shared/useAuthenticatedVideoUrl';
 import { useLocalFilePlayerSrc } from '../shared/useLocalFilePlayerSrc';
 import type { MediaController, PlayerType } from '../shared/playback';
-import { resolveMediaUrl } from '../shared/playback';
+import { resolvePlayerSource } from '../shared/playback';
 import type {
   PlaybackRate,
   RainCaptionDisplay,
@@ -42,6 +42,7 @@ const FALL_PROGRESS_START = -12;
 const FALL_PROGRESS_END = 86;
 const TARGET_TIME_SEGMENT_TOLERANCE_SECONDS = 3;
 const DEFAULT_MISS_GRACE_SECONDS = 1.2;
+const MISS_END_BUFFER_SECONDS = 0.1;
 const MISSED_DISPLAY_BUFFER = 0.75;
 const SHORT_SEGMENT_THRESHOLD_SECONDS = 4;
 const MIN_BLANK_SEGMENT_DURATION_SECONDS = 2.0;
@@ -336,6 +337,7 @@ function buildCaptionDisplay(
     items.push({
       type: 'input',
       key: blankKey,
+      renderKey: `input-slot:${index}`,
       blank,
       value: typedValuesByBlankKey[blankKey] ?? '',
       placeholder: `${normalizeAnswer(blank.keyword).length}글자`,
@@ -398,6 +400,7 @@ export function useRainMode(settings?: RainSettings) {
   const answeredAtRef = useRef<Map<string, number>>(new Map());
   const segmentTransitionHoldRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previousCaptionSegmentIdRef = useRef<number | null>(null);
+  const previousVisibleBlankKeySignatureRef = useRef('');
   const {
     score,
     combo,
@@ -435,6 +438,11 @@ export function useRainMode(settings?: RainSettings) {
   const [missCount, setMissCount] = useState(0);
   const [lastJudgement, setLastJudgement] = useState<'hit' | 'miss' | 'wrong' | null>(null);
   const [tabSwitchCount, setTabSwitchCount] = useState(0);
+  const [youtubePlayerStage, setYoutubePlayerStage] = useState<string | null>(null);
+  const [youtubeVideoId, setYoutubeVideoId] = useState<string | null>(null);
+  const [isLocalPlayerReady, setIsLocalPlayerReady] = useState(false);
+  const [hasController, setHasController] = useState(false);
+  const [lastControlAction, setLastControlAction] = useState<string | null>(null);
   const [adaptiveDifficultyState, setAdaptiveDifficultyState] = useState<AdaptiveDifficultyState>(() =>
     createAdaptiveDifficultyState(settings?.difficulty ?? 'hard'),
   );
@@ -826,10 +834,7 @@ export function useRainMode(settings?: RainSettings) {
       const baseFallDuration = Math.max(event.fallWindow / effectiveFallSpeed, 0.5 / effectiveFallSpeed);
       const fallDuration = Math.max(baseFallDuration, adjustedMinFallDuration);
       const fallStartTime = Math.max(segment.start - 2, targetTime - fallDuration - totalLeadTime);
-      const missDeadline = Math.max(
-        targetTime,
-        Math.min(targetTime + effectiveMissGraceSeconds, segment.end - 0.2),
-      );
+      const missDeadline = Math.max(targetTime, segment.end - MISS_END_BUFFER_SECONDS);
       const lane = blank.position % FIXED_LANE_POSITIONS.length;
 
       prepared.push({
@@ -861,7 +866,6 @@ export function useRainMode(settings?: RainSettings) {
     effectiveFallLeadTimeOffset,
     effectiveFallSpeed,
     effectiveMinFallDuration,
-    effectiveMissGraceSeconds,
     gameData.fallEvents,
     gameData.segments,
     segmentBlankKeys,
@@ -884,31 +888,39 @@ export function useRainMode(settings?: RainSettings) {
     sourceUrl: sessionDetail?.video_url,
   });
 
-  const playerSrc = useMemo(() => {
+  const resolvedPlayerSource = useMemo(() => {
     if (localFileUrl) {
-      return localFileUrl;
+      return {
+        playerType: 'html5' as const,
+        playerSrc: localFileUrl,
+      };
     }
 
     if (authenticatedVideoUrl) {
-      return authenticatedVideoUrl;
+      return {
+        playerType: 'html5' as const,
+        playerSrc: authenticatedVideoUrl,
+      };
     }
 
-    if (sessionDetail?.video_url) {
-      return resolveMediaUrl(sessionDetail.video_url);
-    }
-
-    if (sessionDetail?.source_url) {
-      return resolveMediaUrl(sessionDetail.source_url);
-    }
-
-    return streamingSource?.url || '';
+    return resolvePlayerSource({
+      sourceType: sessionDetail?.source_type ?? streamingSource?.type,
+      sourceUrl: sessionDetail?.source_url ?? streamingSource?.url,
+      fallbackSrc: sessionDetail?.video_url ?? '',
+    });
   }, [
     authenticatedVideoUrl,
     localFileUrl,
-    sessionDetail?.video_url,
+    sessionDetail?.source_type,
     sessionDetail?.source_url,
+    sessionDetail?.video_url,
+    streamingSource?.type,
     streamingSource?.url,
   ]);
+  const { playerType, playerSrc } = resolvedPlayerSource as {
+    playerType: PlayerType;
+    playerSrc: string;
+  };
 
   const sessionTitle = useMemo(() => {
     if (streamingSource?.type === 'file' && isDefaultSessionTitle(sessionDetail?.title)) {
@@ -917,6 +929,36 @@ export function useRainMode(settings?: RainSettings) {
 
     return sessionDetail?.title || 'Rain mode';
   }, [sessionDetail?.title, streamingSource]);
+
+  useEffect(() => {
+    console.log('[useRainMode] player snapshot', {
+      sessionId,
+      state,
+      currentAiStatus,
+      playerType,
+      playerSrc,
+      sessionSourceType: sessionDetail?.source_type ?? null,
+      streamingSourceType: streamingSource?.type ?? null,
+      sessionVideoUrl: sessionDetail?.video_url ?? null,
+      sessionSourceUrl: sessionDetail?.source_url ?? null,
+      isPlayerReady,
+      youtubePlayerStage,
+      youtubeVideoId,
+    });
+  }, [
+    currentAiStatus,
+    isPlayerReady,
+    playerSrc,
+    playerType,
+    sessionDetail?.source_type,
+    sessionDetail?.source_url,
+    sessionDetail?.video_url,
+    sessionId,
+    state,
+    streamingSource?.type,
+    youtubePlayerStage,
+    youtubeVideoId,
+  ]);
 
   useEffect(() => {
     autoPlaySessionRef.current = null;
@@ -1181,13 +1223,27 @@ export function useRainMode(settings?: RainSettings) {
       ),
     [captionSegment, effectiveActiveBlanks, resolvedStatesByBlankKey, typedValuesByBlankKey],
   );
+  const visibleCaptionBlankKeys = useMemo(
+    () =>
+      captionDisplay.items
+        .filter((item): item is Extract<RainCaptionDisplay['items'][number], { type: 'input' }> => item.type === 'input')
+        .map((item) => item.key),
+    [captionDisplay.items],
+  );
 
   useEffect(() => {
-    const captionSegmentId = activeSegment?.segmentId ?? null;
+    const captionSegmentId = captionSegment?.segmentId ?? null;
     const previousCaptionSegmentId = previousCaptionSegmentIdRef.current;
     previousCaptionSegmentIdRef.current = captionSegmentId;
 
-    if (captionSegmentId === previousCaptionSegmentId) {
+    const visibleBlankKeySignature = visibleCaptionBlankKeys.join('|');
+    const previousVisibleBlankKeySignature = previousVisibleBlankKeySignatureRef.current;
+    previousVisibleBlankKeySignatureRef.current = visibleBlankKeySignature;
+
+    if (
+      captionSegmentId === previousCaptionSegmentId &&
+      previousVisibleBlankKeySignature === visibleBlankKeySignature
+    ) {
       return;
     }
 
@@ -1196,11 +1252,7 @@ export function useRainMode(settings?: RainSettings) {
       segmentTransitionHoldRef.current = null;
     }
 
-    const visibleBlankKeys = new Set(
-      (activeSegment?.blanks.slice(0, effectiveActiveBlanks) ?? []).map((blank) =>
-        buildBlankKey(activeSegment?.segmentId ?? -1, blank),
-      ),
-    );
+    const visibleBlankKeys = new Set(visibleCaptionBlankKeys);
 
     const runPrune = () => {
       setTypedValuesByBlankKey((current) => {
@@ -1238,7 +1290,7 @@ export function useRainMode(settings?: RainSettings) {
     }
 
     runPrune();
-  }, [activeSegment?.segmentId, activeSegment?.blanks, editingBlankKey, effectiveActiveBlanks, isCaptionComposing]);
+  }, [captionSegment?.segmentId, editingBlankKey, isCaptionComposing, visibleCaptionBlankKeys]);
 
   useEffect(() => {
     return () => {
@@ -1352,9 +1404,11 @@ export function useRainMode(settings?: RainSettings) {
         answer_index: nextQuiz.answerIndex,
         correct_feedback: nextQuiz.correctFeedback,
         incorrect_feedback: nextQuiz.incorrectFeedback,
+        explanation: nextQuiz.explanation,
       },
       selectedIndex: null,
       feedback: '',
+      explanation: '',
       submitError: '',
       isCorrect: null,
       isSubmitting: false,
@@ -1506,11 +1560,11 @@ export function useRainMode(settings?: RainSettings) {
         response: response.data,
       });
       const isCorrect = response.data.is_correct;
-      const feedback =
-        response.data.explanation ||
-        (isCorrect
-          ? currentQuizState.quiz.correct_feedback || ''
-          : currentQuizState.quiz.incorrect_feedback || '');
+      const feedback = isCorrect
+        ? currentQuizState.quiz.correct_feedback || ''
+        : currentQuizState.quiz.incorrect_feedback || '';
+      const explanation =
+        response.data.explanation || currentQuizState.quiz.explanation || '';
 
       if (isCorrect) {
         quizCorrectCountRef.current += 1;
@@ -1519,10 +1573,11 @@ export function useRainMode(settings?: RainSettings) {
 
       setCurrentQuizState((current) =>
         current
-          ? {
+            ? {
               ...current,
               selectedIndex,
               feedback,
+              explanation,
               submitError: '',
               isCorrect,
               isSubmitting: false,
@@ -1593,6 +1648,15 @@ export function useRainMode(settings?: RainSettings) {
   const enhancedDebug = useMemo(
     () => ({
       ...debug,
+      sessionSourceType: sessionDetail?.source_type ?? null,
+      playerType,
+      playerSrc,
+      isPlayerReady,
+      youtubeVideoId,
+      youtubePlayerStage,
+      isLocalPlayerReady,
+      hasController,
+      lastControlAction,
       rainDifficulty: selectedDifficulty,
       adaptiveMode: isManualSettings ? 'manual' : 'auto',
       adaptiveDecision,
@@ -1605,7 +1669,7 @@ export function useRainMode(settings?: RainSettings) {
       fallSpeed: effectiveFallSpeed,
       fallLeadTimeOffset: effectiveFallLeadTimeOffset,
       minFallDuration: effectiveMinFallDuration,
-      missGraceSeconds: effectiveMissGraceSeconds,
+      missEndBufferSeconds: MISS_END_BUFFER_SECONDS,
       adaptiveMaxCombo: windowMetrics.maxCombo,
       activeKeywordId: activeKeyword?.id ?? null,
       pendingKeywordCount,
@@ -1623,6 +1687,8 @@ export function useRainMode(settings?: RainSettings) {
       duplicateKeywordCandidates: preparedRainSummary.duplicateKeywordCandidates,
       invalidTargetTimeCount: preparedRainSummary.invalidTargetTimeCount,
       editingBlankKey,
+      visibleBlankKeys: visibleCaptionBlankKeys,
+      draftValuesByBlankKey: typedValuesByBlankKey,
       isCaptionComposing,
       captionSegmentId: activeSegment?.segmentId ?? null,
       prunedTypedValueCount,
@@ -1640,10 +1706,15 @@ export function useRainMode(settings?: RainSettings) {
       effectiveFallSpeed,
       effectiveActiveBlanks,
       effectiveMinFallDuration,
-      effectiveMissGraceSeconds,
       isManualSettings,
+      isPlayerReady,
+      hasController,
+      isLocalPlayerReady,
       lastJudgement,
+      lastControlAction,
       missCount,
+      playerSrc,
+      playerType,
       activePreparedEvent?.segmentId,
       activePreparedEvent?.targetTime,
       nextFallDuration,
@@ -1658,7 +1729,12 @@ export function useRainMode(settings?: RainSettings) {
       prunedTypedValueCount,
       rafCurrentTime,
       selectedDifficulty,
+      sessionDetail?.source_type,
       tabSwitchCount,
+      typedValuesByBlankKey,
+      youtubePlayerStage,
+      youtubeVideoId,
+      visibleCaptionBlankKeys,
       visibleKeywordCount,
       isCaptionComposing,
       windowMetrics.accuracy,
@@ -1672,11 +1748,7 @@ export function useRainMode(settings?: RainSettings) {
     speedMenuRef,
     videoRef,
     controllerRef,
-    playerType: (
-      sessionDetail?.source_type === 'youtube_url' || streamingSource?.type === 'youtube_url'
-        ? 'youtube'
-        : 'html5'
-    ) as PlayerType,
+    playerType,
     playerSrc,
     sessionTitle,
     sessionAiStatus: currentAiStatus,
@@ -1687,6 +1759,7 @@ export function useRainMode(settings?: RainSettings) {
     characterName: '집중 캐릭터',
     duration: duration || gameData.durationSec,
     currentTime,
+    isPlayerReady,
     isPlaying,
     playbackRate,
     isSpeedMenuOpen,
@@ -1702,6 +1775,7 @@ export function useRainMode(settings?: RainSettings) {
     combo,
     maxCombo,
     accuracy,
+    lastJudgement,
     comboAnimationKey,
     quizState: currentQuizState,
     quizCorrectCount,
@@ -1753,13 +1827,52 @@ export function useRainMode(settings?: RainSettings) {
       }
     },
     handleSeek: (nextTime: number) => {
-      controllerRef.current?.seek(nextTime);
+      const controller = controllerRef.current;
+      controller?.seek(nextTime);
       setCurrentTime(nextTime);
+      setRafCurrentTime(nextTime);
+      lastVideoTimeRef.current = nextTime;
+      lastWallTimeRef.current = performance.now();
+
+      const nextDuration = controller?.getDuration() ?? 0;
+      if (nextDuration > 0) {
+        setDuration(nextDuration);
+      }
     },
     handleLoadedMetadata: (nextDuration: number) => {
       setDuration(nextDuration);
     },
     handlePlayerReady: () => setIsPlayerReady(true),
+    handleYoutubeDebug: ({
+      action,
+      hasController: nextHasController,
+      isLocalPlayerReady: nextIsLocalPlayerReady,
+      stage,
+      videoId,
+    }: {
+      stage: string;
+      playerSrc: string;
+      videoId: string;
+      playerType: PlayerType;
+      action?: string;
+      canControlPlayback?: boolean;
+      isLocalPlayerReady?: boolean;
+      hasController?: boolean;
+      reason?: string;
+      errorCode?: number;
+    }) => {
+      setYoutubePlayerStage(stage);
+      setYoutubeVideoId(videoId || null);
+      if (typeof nextIsLocalPlayerReady === 'boolean') {
+        setIsLocalPlayerReady(nextIsLocalPlayerReady);
+      }
+      if (typeof nextHasController === 'boolean') {
+        setHasController(nextHasController);
+      }
+      if (action) {
+        setLastControlAction(action);
+      }
+    },
     handlePlay: () => setIsPlaying(true),
     handlePause: () => setIsPlaying(false),
     handleEnded: () => setIsPlaying(false),

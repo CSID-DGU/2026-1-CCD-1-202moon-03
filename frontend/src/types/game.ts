@@ -149,6 +149,7 @@ export interface NormalizedQuiz {
   answerIndex: number;
   correctFeedback: string;
   incorrectFeedback: string;
+  explanation?: string;
   chapterIndex?: number;
 }
 

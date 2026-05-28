@@ -9,6 +9,7 @@ export function mapGameQuizToRetryQuiz(quiz: GameQuizItem, index: number): Retry
     options: quiz.options ?? [],
     correct_feedback: quiz.correct_feedback,
     incorrect_feedback: quiz.incorrect_feedback,
+    explanation: quiz.explanation,
     trigger_time: quiz.trigger_time,
     segment_range: quiz.segment_range,
   };
@@ -26,6 +27,7 @@ export function mapNormalizedQuizToRetryQuiz(
     options: quiz.options,
     correct_feedback: quiz.correctFeedback,
     incorrect_feedback: quiz.incorrectFeedback,
+    explanation: quiz.explanation,
     trigger_time: quiz.triggerTime,
     segment_range: quiz.segmentRange,
   };

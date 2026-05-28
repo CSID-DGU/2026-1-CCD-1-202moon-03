@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { submitQuizAnswer } from '../../../services/quiz.api';
 import { getTransientStreamingSource, usePlayerStore } from '../../../store/usePlayerStore';
 import type { ApiErrorResponse } from '../../../types';
-import { resolveMediaUrl } from '../shared/playback';
+import { resolvePlayerSource } from '../shared/playback';
 import { useAuthenticatedVideoUrl } from '../shared/useAuthenticatedVideoUrl';
 import { useGameSessionData } from '../shared/useGameSessionData';
 import { useLocalFilePlayerSrc } from '../shared/useLocalFilePlayerSrc';
@@ -94,6 +94,7 @@ export function useSpinnerMode() {
     segmentRange?: [number, number];
     feedback: string;
     incorrectFeedback: string;
+    explanation: string;
     submitError: string;
     selectedIndex: number | null;
     isCorrect: boolean | null;
@@ -108,6 +109,11 @@ export function useSpinnerMode() {
   const [stretchCountdownSeconds, setStretchCountdownSeconds] = useState(STRETCH_COUNTDOWN_SECONDS);
   const [focusMessage, setFocusMessage] = useState<string | null>(null);
   const [isFocusPromptVisible, setIsFocusPromptVisible] = useState(false);
+  const [youtubePlayerStage, setYoutubePlayerStage] = useState<string | null>(null);
+  const [youtubeVideoId, setYoutubeVideoId] = useState<string | null>(null);
+  const [isLocalPlayerReady, setIsLocalPlayerReady] = useState(false);
+  const [hasController, setHasController] = useState(false);
+  const [lastControlAction, setLastControlAction] = useState<string | null>(null);
   const answeredQuizIdsRef = useRef<Set<string>>(new Set());
   const quizCorrectCountRef = useRef(0);
   const quizAnsweredCountRef = useRef(0);
@@ -317,31 +323,36 @@ export function useSpinnerMode() {
     sourceUrl: sessionDetail?.video_url,
   });
 
-  const playerSrc = useMemo(() => {
+  const resolvedPlayerSource = useMemo(() => {
     if (localFileUrl) {
-      return localFileUrl;
+      return {
+        playerType: 'html5' as const,
+        playerSrc: localFileUrl,
+      };
     }
 
     if (authenticatedVideoUrl) {
-      return authenticatedVideoUrl;
+      return {
+        playerType: 'html5' as const,
+        playerSrc: authenticatedVideoUrl,
+      };
     }
 
-    if (sessionDetail?.video_url) {
-      return resolveMediaUrl(sessionDetail.video_url);
-    }
-
-    if (sessionDetail?.source_url) {
-      return resolveMediaUrl(sessionDetail.source_url);
-    }
-
-    return streamingSource?.url || '';
+    return resolvePlayerSource({
+      sourceType: sessionDetail?.source_type ?? streamingSource?.type,
+      sourceUrl: sessionDetail?.source_url ?? streamingSource?.url,
+      fallbackSrc: sessionDetail?.video_url ?? '',
+    });
   }, [
     authenticatedVideoUrl,
     localFileUrl,
-    sessionDetail?.video_url,
+    sessionDetail?.source_type,
     sessionDetail?.source_url,
+    sessionDetail?.video_url,
+    streamingSource?.type,
     streamingSource?.url,
   ]);
+  const { playerType, playerSrc } = resolvedPlayerSource;
 
   const sessionTitle = useMemo(() => {
     if (streamingSource?.type === 'file' && isDefaultSessionTitle(sessionDetail?.title)) {
@@ -423,6 +434,7 @@ export function useSpinnerMode() {
       segmentRange: nextQuiz.segmentRange,
       feedback: nextQuiz.correctFeedback,
       incorrectFeedback: nextQuiz.incorrectFeedback,
+      explanation: nextQuiz.explanation ?? '',
       submitError: '',
       selectedIndex: null,
       isCorrect: null,
@@ -527,8 +539,14 @@ export function useSpinnerMode() {
   };
 
   const handleSeek = (nextTime: number) => {
-    controllerRef.current?.seek(nextTime);
+    const controller = controllerRef.current;
+    controller?.seek(nextTime);
     setCurrentTime(nextTime);
+
+    const nextDuration = controller?.getDuration() ?? 0;
+    if (nextDuration > 0) {
+      setDuration(nextDuration);
+    }
   };
 
   const submitCurrentQuizAnswer = async (selectedIndex: number) => {
@@ -575,8 +593,8 @@ export function useSpinnerMode() {
         response: response.data,
       });
       const isCorrect = response.data.is_correct;
-      const feedback =
-        response.data.explanation || (isCorrect ? quizState.feedback : quizState.incorrectFeedback);
+      const feedback = isCorrect ? quizState.feedback : quizState.incorrectFeedback;
+      const explanation = response.data.explanation || quizState.explanation;
 
       if (isCorrect) {
         quizCorrectCountRef.current += 1;
@@ -585,11 +603,12 @@ export function useSpinnerMode() {
 
       setQuizState((current) =>
         current
-          ? {
+            ? {
               ...current,
               selectedIndex,
               isCorrect,
               feedback,
+              explanation,
               submitError: '',
               isSubmitting: false,
             }
@@ -640,31 +659,37 @@ export function useSpinnerMode() {
       stretchCountdownSeconds,
       focusMessage,
       hasShownStretchPrompt,
+      youtubePlayerStage,
+      youtubeVideoId,
+      isLocalPlayerReady,
+      hasController,
+      lastControlAction,
       tabSwitchCount,
     }),
     [
       debug,
       focusMessage,
+      hasController,
       hasShownStretchPrompt,
+      isLocalPlayerReady,
       isStretchGuideOpen,
       keycapGlowIndex,
       keycapLastPressAt,
       keycapPressTick,
       keycapVisualState,
+      lastControlAction,
       mascotPromptType,
       mascotVisualState,
       stretchCountdownSeconds,
       tabSwitchCount,
+      youtubePlayerStage,
+      youtubeVideoId,
     ],
   );
 
   return {
     sessionId,
-    playerType: (
-      sessionDetail?.source_type === 'youtube_url' ||
-      streamingSource?.type === 'youtube_url'
-        ? 'youtube'
-        : 'html5') as PlayerType,
+    playerType: playerType as PlayerType,
     playerSrc,
     sessionTitle,
     sessionAiStatus: currentAiStatus,
@@ -681,6 +706,7 @@ export function useSpinnerMode() {
     keycapGlowTheme: KEYCAP_GLOW_THEMES[keycapGlowIndex],
     keycapPressTick,
     keycapVisualState,
+    isPlayerReady,
     isPlaying,
     playbackRate,
     isSpeedMenuOpen,
@@ -732,6 +758,36 @@ export function useSpinnerMode() {
       setDuration(nextDuration);
     },
     handlePlayerReady: () => setIsPlayerReady(true),
+    handleYoutubeDebug: ({
+      action,
+      hasController: nextHasController,
+      isLocalPlayerReady: nextIsLocalPlayerReady,
+      stage,
+      videoId,
+    }: {
+      stage: string;
+      playerSrc: string;
+      videoId: string;
+      playerType: PlayerType;
+      action?: string;
+      canControlPlayback?: boolean;
+      isLocalPlayerReady?: boolean;
+      hasController?: boolean;
+      reason?: string;
+      errorCode?: number;
+    }) => {
+      setYoutubePlayerStage(stage);
+      setYoutubeVideoId(videoId || null);
+      if (typeof nextIsLocalPlayerReady === 'boolean') {
+        setIsLocalPlayerReady(nextIsLocalPlayerReady);
+      }
+      if (typeof nextHasController === 'boolean') {
+        setHasController(nextHasController);
+      }
+      if (action) {
+        setLastControlAction(action);
+      }
+    },
     handlePlay: () => setIsPlaying(true),
     handlePause: () => setIsPlaying(false),
     handleEnded: () => setIsPlaying(false),

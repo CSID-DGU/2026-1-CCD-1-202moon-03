@@ -29,6 +29,7 @@ export interface RainCaptionTextItem {
 export interface RainCaptionInputItem {
   type: 'input';
   key: string;
+  renderKey?: string;
   blank: GameBlankItem;
   value: string;
   placeholder: string;
@@ -44,6 +45,7 @@ export interface RainQuizState {
   quiz: GameQuizItem;
   selectedIndex: number | null;
   feedback: string;
+  explanation: string;
   submitError: string;
   isCorrect: boolean | null;
   isSubmitting: boolean;

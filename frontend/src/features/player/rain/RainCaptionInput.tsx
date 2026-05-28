@@ -3,6 +3,7 @@ import {
   forwardRef,
   useEffect,
   useImperativeHandle,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -11,6 +12,8 @@ import type { RainCaptionDisplay } from './types';
 
 export interface RainCaptionInputHandle {
   focusPrimaryInput: () => void;
+  focusBlankByKey: (blankKey: string) => void;
+  focusNextPendingInput: (afterBlankKey: string) => void;
 }
 
 function getAnswerBoxWidth(answerLength: number) {
@@ -31,6 +34,11 @@ interface RainCaptionInputProps {
   onCompositionStateChange?: (blankKey: string | null, isComposing: boolean) => void;
   onFocusBlankKeyChange?: (blankKey: string | null) => void;
   onInputLayoutChange?: (positions: Record<string, number>) => void;
+  onDebugStateChange?: (state: {
+    primaryInputKey: string | null;
+    draftValuesByKey: Record<string, string>;
+    lastAutoFocusReason: string | null;
+  }) => void;
 }
 
 const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProps>(
@@ -45,6 +53,7 @@ const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProp
       onCompositionStateChange,
       onFocusBlankKeyChange,
       onInputLayoutChange,
+      onDebugStateChange,
     },
     ref,
   ) => {
@@ -53,35 +62,85 @@ const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProp
     const isComposingRef = useRef(false);
     const previousPrimaryInputKeyRef = useRef<string | null>(null);
     const composingBlankKeyRef = useRef<string | null>(null);
+    const lastAutoFocusReasonRef = useRef<string | null>(null);
+    const pendingSubmitFocusRef = useRef<string | null>(null);
     const [draftValuesByKey, setDraftValuesByKey] = useState<Record<string, string>>({});
 
-    const primaryInputKey = useMemo(
+    const inputItems = useMemo(
       () =>
-        items.find((item) => item.type === 'input' && item.resolvedState === 'pending')?.key ?? null,
+        items.filter(
+          (item): item is Extract<RainCaptionDisplay['items'][number], { type: 'input' }> =>
+            item.type === 'input',
+        ),
       [items],
     );
+    const inputKeys = useMemo(() => inputItems.map((item) => item.key), [inputItems]);
+    const pendingInputKeys = useMemo(
+      () => inputItems.filter((item) => item.resolvedState === 'pending').map((item) => item.key),
+      [inputItems],
+    );
+    const primaryInputKey = pendingInputKeys[0] ?? null;
 
-    const focusPrimaryInput = useCallback(() => {
+    const focusInput = useCallback((blankKey: string, reason?: string) => {
+      const input = inputRefs.current[blankKey];
+      if (!input) {
+        return false;
+      }
+
+      lastAutoFocusReasonRef.current = reason ?? 'manual';
+      input.focus();
+      const nextCursorPosition = input.value.length;
+      input.setSelectionRange(nextCursorPosition, nextCursorPosition);
+      return true;
+    }, []);
+
+    const focusPrimaryInput = useCallback((reason?: string) => {
       if (!primaryInputKey) {
         return;
       }
 
-      const input = inputRefs.current[primaryInputKey];
-      if (!input) {
-        return;
-      }
+      focusInput(primaryInputKey, reason);
+    }, [focusInput, primaryInputKey]);
 
-      input.focus();
-      const nextCursorPosition = input.value.length;
-      input.setSelectionRange(nextCursorPosition, nextCursorPosition);
-    }, [primaryInputKey]);
+    const focusBlankByKey = useCallback(
+      (blankKey: string, reason?: string) => {
+        focusInput(blankKey, reason);
+      },
+      [focusInput],
+    );
+
+    const focusNextPendingInput = useCallback(
+      (afterBlankKey: string, reason?: string) => {
+        const pendingSet = new Set(pendingInputKeys);
+        const startIndex = inputKeys.indexOf(afterBlankKey);
+
+        if (startIndex >= 0) {
+          for (let index = startIndex + 1; index < inputKeys.length; index += 1) {
+            const nextKey = inputKeys[index];
+            if (pendingSet.has(nextKey) && focusInput(nextKey, reason ?? 'next_pending_input')) {
+              return true;
+            }
+          }
+        }
+
+        if (primaryInputKey && primaryInputKey !== afterBlankKey) {
+          return focusInput(primaryInputKey, reason ?? 'primary_fallback');
+        }
+
+        return false;
+      },
+      [focusInput, inputKeys, pendingInputKeys, primaryInputKey],
+    );
 
     useImperativeHandle(
       ref,
       () => ({
         focusPrimaryInput,
+        focusBlankByKey: (blankKey: string) => focusBlankByKey(blankKey, 'imperative_focus_by_key'),
+        focusNextPendingInput: (afterBlankKey: string) =>
+          void focusNextPendingInput(afterBlankKey, 'imperative_focus_next_pending'),
       }),
-      [primaryInputKey],
+      [focusBlankByKey, focusNextPendingInput, focusPrimaryInput],
     );
 
     const commitDraftValue = useCallback(
@@ -92,22 +151,19 @@ const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProp
     );
 
     useEffect(() => {
-      const activeKeys = new Set(items.filter((item) => item.type === 'input').map((item) => item.key));
+      const activeKeys = new Set(inputItems.map((item) => item.key));
 
       setDraftValuesByKey((current) => {
         let changed = false;
         const next: Record<string, string> = {};
 
-        for (const item of items) {
-          if (item.type !== 'input') {
-            continue;
-          }
-
+        for (const item of inputItems) {
           const hasCurrentDraft = Object.prototype.hasOwnProperty.call(current, item.key);
-          const nextValue =
-            item.resolvedState === 'pending' && hasCurrentDraft
-              ? current[item.key] ?? item.value
-              : item.value;
+          const nextValue = item.resolvedState === 'pending'
+            ? hasCurrentDraft
+              ? current[item.key] ?? ''
+              : item.value
+            : item.value;
           next[item.key] = nextValue;
 
           if (current[item.key] !== nextValue) {
@@ -124,37 +180,31 @@ const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProp
 
         return changed ? next : current;
       });
+    }, [items]);
 
-      for (const item of items) {
-        if (item.type !== 'input') {
-          continue;
-        }
-
-        const input = inputRefs.current[item.key];
-        if (!input) {
-          continue;
-        }
-
-        if (item.resolvedState !== 'pending' && input.value !== item.value) {
-          input.value = item.value;
-          continue;
-        }
-
-        if (
-          item.resolvedState === 'pending' &&
-          !Object.prototype.hasOwnProperty.call(draftValuesByKey, item.key) &&
-          input.value !== item.value
-        ) {
-          input.value = item.value;
-        }
+    useLayoutEffect(() => {
+      const submittedBlankKey = pendingSubmitFocusRef.current;
+      if (!submittedBlankKey || isComposingRef.current) {
+        return;
       }
-    }, [draftValuesByKey, items]);
 
-    useEffect(() => {
+      const submittedItem = inputItems.find((item) => item.key === submittedBlankKey);
+      if (submittedItem?.resolvedState === 'pending') {
+        focusBlankByKey(submittedBlankKey, 'submit_restore_same');
+        pendingSubmitFocusRef.current = null;
+        return;
+      }
+
+      focusNextPendingInput(submittedBlankKey, 'submit_focus_next');
+      pendingSubmitFocusRef.current = null;
+    }, [focusBlankByKey, focusNextPendingInput, inputItems]);
+
+    useLayoutEffect(() => {
       if (!primaryInputKey) {
         isComposingRef.current = false;
         composingBlankKeyRef.current = null;
         previousPrimaryInputKeyRef.current = null;
+        lastAutoFocusReasonRef.current = null;
         onCompositionStateChange?.(null, false);
         onFocusBlankKeyChange?.(null);
         return;
@@ -173,15 +223,23 @@ const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProp
       );
 
       if (!isFocusInsideRainInput) {
-        focusPrimaryInput();
+        focusPrimaryInput(primaryInputChanged ? 'new_primary_input' : 'restore_focus_outside');
         return;
       }
 
       const activeInput = activeElement as HTMLInputElement | null;
       if (primaryInputChanged && activeInput && activeInput.dataset.blankKey !== primaryInputKey) {
-        focusPrimaryInput();
+        focusPrimaryInput('switch_primary_input');
       }
-    }, [focusPrimaryInput, primaryInputKey]);
+    }, [focusPrimaryInput, onCompositionStateChange, onFocusBlankKeyChange, primaryInputKey]);
+
+    useEffect(() => {
+      onDebugStateChange?.({
+        primaryInputKey,
+        draftValuesByKey,
+        lastAutoFocusReason: lastAutoFocusReasonRef.current,
+      });
+    }, [draftValuesByKey, onDebugStateChange, primaryInputKey]);
 
     useEffect(() => {
       const root = rootRef.current;
@@ -252,15 +310,17 @@ const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProp
     return (
       <div
         ref={rootRef}
-        className={`min-w-full items-center text-[22px] font-semibold leading-[1.45] text-white ${
-          allowWrap ? 'flex flex-wrap gap-y-2 whitespace-normal' : 'inline-flex whitespace-nowrap'
+        className={`min-w-full text-[22px] font-semibold leading-[1.45] text-white ${
+          allowWrap
+            ? 'block whitespace-normal text-center [word-break:keep-all]'
+            : 'inline-flex items-center whitespace-nowrap'
         }`}
       >
         {items.length === 0 ? (
           fallbackText ? (
             <p
               className={`m-0 text-[22px] font-semibold leading-[1.45] text-white ${
-                allowWrap ? 'whitespace-normal break-words' : 'whitespace-nowrap'
+                allowWrap ? 'whitespace-normal [word-break:keep-all]' : 'whitespace-nowrap'
               }`}
             >
               {fallbackText}
@@ -271,19 +331,22 @@ const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProp
             item.type === 'text' ? (
               <span
                 key={item.key}
-                className={`${allowWrap ? 'whitespace-normal break-words' : 'whitespace-nowrap'} text-white`}
+                className={`text-white ${
+                  allowWrap ? 'whitespace-normal [word-break:keep-all]' : 'whitespace-nowrap'
+                }`}
               >
                 {item.text}
               </span>
             ) : (
               <input
-                key={item.key}
+                key={item.renderKey ?? item.key}
                 ref={(node) => {
                   inputRefs.current[item.key] = node;
                 }}
                 data-blank-key={item.key}
                 type="text"
-                defaultValue={draftValuesByKey[item.key] ?? item.value}
+                autoFocus={item.key === primaryInputKey}
+                value={draftValuesByKey[item.key] ?? item.value}
                 placeholder={item.placeholder}
                 readOnly={item.resolvedState !== 'pending'}
                 onFocus={() => {
@@ -291,6 +354,7 @@ const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProp
                 }}
                 onChange={(event) => {
                   const nextValue = event.target.value;
+                  lastAutoFocusReasonRef.current = 'user_input';
                   setDraftValuesByKey((current) => ({
                     ...current,
                     [item.key]: nextValue,
@@ -299,16 +363,19 @@ const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProp
                 onCompositionStart={() => {
                   isComposingRef.current = true;
                   composingBlankKeyRef.current = item.key;
+                  lastAutoFocusReasonRef.current = 'composition_start';
                   onCompositionStateChange?.(item.key, true);
                 }}
-                onCompositionEnd={(event) => {
+                onCompositionEnd={() => {
                   isComposingRef.current = false;
                   composingBlankKeyRef.current = null;
+                  lastAutoFocusReasonRef.current = 'composition_end';
                   onCompositionStateChange?.(item.key, false);
                 }}
                 onBlur={() => {
                   isComposingRef.current = false;
                   composingBlankKeyRef.current = null;
+                  lastAutoFocusReasonRef.current = 'blur_commit';
                   commitDraftValue(item.key, item.value);
                   onCompositionStateChange?.(item.key, false);
                   onFocusBlankKeyChange?.(null);
@@ -325,14 +392,12 @@ const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProp
                   event.preventDefault();
                   const submitValue =
                     inputRefs.current[item.key]?.value ?? draftValuesByKey[item.key] ?? item.value;
+                  pendingSubmitFocusRef.current = item.key;
                   onCommit(item.key, submitValue);
                   onSubmit(item.key, submitValue);
-                  requestAnimationFrame(() => {
-                    focusPrimaryInput();
-                  });
                 }}
                 style={{ width: `${getAnswerBoxWidth(getCompactAnswerLength(item.blank.keyword))}px` }}
-                className={`mx-1 inline-block h-[42px] w-[100px] shrink-0 rounded-[8px] border px-[10px] py-[6px] align-middle text-center text-[18px] font-semibold leading-[1.2] outline-none placeholder:text-[18px] placeholder:text-[#9CA3AF] ${
+                className={`${allowWrap ? 'mx-[6px] my-1' : 'mx-1'} inline-block h-[42px] w-[100px] shrink-0 rounded-[8px] border px-[10px] py-[6px] align-middle text-center text-[18px] font-semibold leading-[1.2] outline-none placeholder:text-[18px] placeholder:text-[#9CA3AF] ${
                   item.resolvedState === 'cleared'
                     ? 'border-[#16A34A] bg-[#F0FDF4] text-[#166534]'
                     : item.resolvedState === 'missed'

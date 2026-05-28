@@ -12,7 +12,7 @@ function RainQuizModal({ quizState, onSelectOption, onContinue }: RainQuizModalP
     return null;
   }
 
-  const { quiz, selectedIndex, feedback, submitError, isCorrect, isSubmitting } = quizState;
+  const { quiz, selectedIndex, feedback, explanation, submitError, isCorrect, isSubmitting } = quizState;
   const isAnswered = selectedIndex !== null;
   const canContinueWithoutAnswer = Boolean(submitError) && !isSubmitting;
 
@@ -62,6 +62,13 @@ function RainQuizModal({ quizState, onSelectOption, onContinue }: RainQuizModalP
             }`}
           >
             {feedback}
+          </div>
+        ) : null}
+
+        {explanation ? (
+          <div className="mt-4 rounded-[18px] bg-[#F4F6F9] px-5 py-4 text-[#253041]">
+            <p className="text-sm font-semibold tracking-[-0.02em] text-[#18202C]">해설</p>
+            <p className="mt-2 text-[16px] leading-[1.6]">{explanation}</p>
           </div>
         ) : null}
 

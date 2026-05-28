@@ -10,6 +10,7 @@ interface QuizRetryModalProps {
   totalCount: number;
   selectedIndex: number | null;
   feedback: string;
+  explanation: string;
   isCorrect: boolean | null;
   isCompleted: boolean;
   onClose: () => void;
@@ -27,6 +28,7 @@ function QuizRetryModal({
   totalCount,
   selectedIndex,
   feedback,
+  explanation,
   isCorrect,
   isCompleted,
   onClose,
@@ -145,6 +147,13 @@ function QuizRetryModal({
                 }`}
               >
                 {feedback}
+              </div>
+            ) : null}
+
+            {explanation ? (
+              <div className="mt-4 rounded-[18px] bg-[#F4F6F9] px-5 py-4 text-[#253041]">
+                <p className="text-sm font-semibold tracking-[-0.02em] text-[#18202C]">해설</p>
+                <p className="mt-2 text-[16px] leading-[1.6]">{explanation}</p>
               </div>
             ) : null}
 

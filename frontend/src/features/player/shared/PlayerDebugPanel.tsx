@@ -14,6 +14,15 @@ interface PlayerDebugPanelProps {
     lastStreamRequestType?: string | null;
     streamingSourceType: string | null;
     streamingSourceSessionId: string | null;
+    sessionSourceType?: string | null;
+    playerType?: string;
+    playerSrc?: string;
+    isPlayerReady?: boolean;
+    isLocalPlayerReady?: boolean;
+    hasController?: boolean;
+    lastControlAction?: string | null;
+    youtubeVideoId?: string | null;
+    youtubePlayerStage?: string | null;
     hasVideoUrl?: boolean;
     hasStartGameData?: boolean;
     loadedSegments: number;
@@ -36,6 +45,7 @@ interface PlayerDebugPanelProps {
     fallSpeed?: number;
     fallLeadTimeOffset?: number;
     minFallDuration?: number;
+    missEndBufferSeconds?: number;
     missGraceSeconds?: number;
     adaptiveMaxCombo?: number;
     activeKeywordId?: string | null;
@@ -54,6 +64,11 @@ interface PlayerDebugPanelProps {
     duplicateKeywordCandidates?: number;
     invalidTargetTimeCount?: number;
     editingBlankKey?: string | null;
+    primaryInputKey?: string | null;
+    visibleBlankKeys?: string[];
+    draftValuesByBlankKey?: Record<string, string>;
+    draftValuesByKey?: Record<string, string>;
+    lastAutoFocusReason?: string | null;
     isCaptionComposing?: boolean;
     captionSegmentId?: number | null;
     prunedTypedValueCount?: number;
@@ -118,6 +133,29 @@ function PlayerDebugPanel({ debug }: PlayerDebugPanelProps) {
       ) : null}
       <div>streamingSourceType: {debug.streamingSourceType ?? '-'}</div>
       <div>streamingSourceSessionId: {debug.streamingSourceSessionId ?? '-'}</div>
+      {debug.sessionSourceType !== undefined ? (
+        <div>sessionSourceType: {debug.sessionSourceType ?? '-'}</div>
+      ) : null}
+      {debug.playerType !== undefined ? <div>playerType: {debug.playerType}</div> : null}
+      {debug.playerSrc !== undefined ? <div>playerSrc: {debug.playerSrc || '-'}</div> : null}
+      {debug.isPlayerReady !== undefined ? (
+        <div>isPlayerReady: {String(debug.isPlayerReady)}</div>
+      ) : null}
+      {debug.isLocalPlayerReady !== undefined ? (
+        <div>isLocalPlayerReady: {String(debug.isLocalPlayerReady)}</div>
+      ) : null}
+      {debug.hasController !== undefined ? (
+        <div>hasController: {String(debug.hasController)}</div>
+      ) : null}
+      {debug.lastControlAction !== undefined ? (
+        <div>lastControlAction: {debug.lastControlAction ?? '-'}</div>
+      ) : null}
+      {debug.youtubeVideoId !== undefined ? (
+        <div>youtubeVideoId: {debug.youtubeVideoId ?? '-'}</div>
+      ) : null}
+      {debug.youtubePlayerStage !== undefined ? (
+        <div>youtubePlayerStage: {debug.youtubePlayerStage ?? '-'}</div>
+      ) : null}
       {debug.hasVideoUrl !== undefined ? <div>hasVideoUrl: {String(debug.hasVideoUrl)}</div> : null}
       {debug.hasStartGameData !== undefined ? (
         <div>hasStartGameData: {String(debug.hasStartGameData)}</div>
@@ -222,11 +260,27 @@ function PlayerDebugPanel({ debug }: PlayerDebugPanelProps) {
       {typeof debug.fallLeadTimeOffset === 'number' ? (
         <div>fallLeadTimeOffset: {debug.fallLeadTimeOffset}</div>
       ) : null}
+      {typeof debug.missEndBufferSeconds === 'number' ? (
+        <div>missEndBufferSeconds: {debug.missEndBufferSeconds}</div>
+      ) : null}
       {typeof debug.missGraceSeconds === 'number' ? (
         <div>missGraceSeconds: {debug.missGraceSeconds}</div>
       ) : null}
       {typeof debug.adaptiveMaxCombo === 'number' ? (
         <div>adaptiveMaxCombo: {debug.adaptiveMaxCombo}</div>
+      ) : null}
+      {debug.primaryInputKey !== undefined ? <div>primaryInputKey: {debug.primaryInputKey ?? '-'}</div> : null}
+      {debug.lastAutoFocusReason !== undefined ? (
+        <div>lastAutoFocusReason: {debug.lastAutoFocusReason ?? '-'}</div>
+      ) : null}
+      {debug.visibleBlankKeys !== undefined ? (
+        <div>visibleBlankKeys: {debug.visibleBlankKeys.join(', ') || '-'}</div>
+      ) : null}
+      {debug.draftValuesByBlankKey !== undefined ? (
+        <div>draftValuesByBlankKey: {JSON.stringify(debug.draftValuesByBlankKey)}</div>
+      ) : null}
+      {debug.draftValuesByKey !== undefined ? (
+        <div>draftValuesByKey: {JSON.stringify(debug.draftValuesByKey)}</div>
       ) : null}
     </div>
   );
