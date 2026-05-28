@@ -1037,7 +1037,7 @@ function SpinnerPlayer({
         >
           <div
             ref={subtitleContentRef}
-            className={`w-full text-center text-[22px] font-semibold leading-[1.45] text-white ${
+            className={`w-full text-left text-[22px] font-semibold leading-[1.45] text-white ${
               isSubtitleWrapped
                 ? 'whitespace-normal [word-break:keep-all]'
                 : 'overflow-hidden whitespace-nowrap'
