@@ -307,27 +307,20 @@ const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProp
       };
     }, [items, measurementRoot, onInputLayoutChange]);
 
-    return (
-      <div
-        ref={rootRef}
-        className={`min-w-full text-[22px] font-semibold leading-[1.45] text-white ${
-          allowWrap
-            ? 'block whitespace-normal text-center [word-break:keep-all]'
-            : 'inline-flex items-center whitespace-nowrap'
-        }`}
-      >
-        {items.length === 0 ? (
-          fallbackText ? (
-            <p
-              className={`m-0 text-[22px] font-semibold leading-[1.45] text-white ${
-                allowWrap ? 'whitespace-normal [word-break:keep-all]' : 'whitespace-nowrap'
-              }`}
-            >
-              {fallbackText}
-            </p>
-          ) : null
-        ) : (
-          items.map((item) =>
+    const renderedItems =
+      items.length === 0
+        ? fallbackText
+          ? (
+              <p
+                className={`m-0 text-[22px] font-semibold leading-[1.45] text-white ${
+                  allowWrap ? 'whitespace-normal [word-break:keep-all]' : 'whitespace-nowrap'
+                }`}
+              >
+                {fallbackText}
+              </p>
+            )
+          : null
+        : items.map((item) =>
             item.type === 'text' ? (
               <span
                 key={item.key}
@@ -406,7 +399,21 @@ const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProp
                 }`}
               />
             ),
-          )
+          );
+
+    return (
+      <div
+        ref={rootRef}
+        className={`min-w-full text-[22px] font-semibold leading-[1.45] text-white ${
+          allowWrap ? 'block text-left' : 'inline-flex items-center whitespace-nowrap'
+        }`}
+      >
+        {allowWrap ? (
+          <div className="max-w-full whitespace-normal text-left align-top [word-break:keep-all]">
+            {renderedItems}
+          </div>
+        ) : (
+          renderedItems
         )}
       </div>
     );
