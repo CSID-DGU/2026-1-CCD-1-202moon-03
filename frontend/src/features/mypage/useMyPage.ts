@@ -220,7 +220,7 @@ export function useMyPage() {
       } catch (error) {
         if (!isCancelled) {
           setPageError(
-            extractErrorMessage(error, '마이페이지 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.'),
+            extractErrorMessage(error, '마이페이지 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.'),
           );
         }
       } finally {
@@ -265,14 +265,14 @@ export function useMyPage() {
       const nextKey = mapDisplayKeyToSettingKey(key);
 
       if (!nextKey) {
-        setNotice('D, Enter, Shift 키만 설정할 수 있어요.');
+        setNotice('D, Enter, Shift 키만 설정할 수 있습니다.');
         return;
       }
 
       event.preventDefault();
       setPendingKeySelection(nextKey);
       setNotice(
-        `선택된 키: ${key.toUpperCase()}`,
+        `${key.toUpperCase()} 키를 선택했습니다.`,
       );
     };
 
@@ -373,7 +373,7 @@ export function useMyPage() {
 
   const saveProfile = async () => {
     if (!profileForm.nickname?.trim()) {
-      setNotice('이름을 입력해주세요.');
+      setNotice('이름을 입력해 주세요.');
       return;
     }
 
@@ -405,7 +405,7 @@ export function useMyPage() {
       !passwordForm.new_password ||
       !passwordForm.new_password_confirm
     ) {
-      setNotice('비밀번호 입력을 모두 완료해주세요.');
+      setNotice('비밀번호 입력을 모두 완료해 주세요.');
       return;
     }
 
@@ -434,7 +434,7 @@ export function useMyPage() {
 
   const saveSettings = async () => {
     if (!pendingKeySelection) {
-      setNotice('설정할 키를 먼저 선택해주세요.');
+      setNotice('설정할 키를 먼저 선택해 주세요.');
       return;
     }
 
@@ -455,7 +455,7 @@ export function useMyPage() {
 
   const removeAccount = async () => {
     if (!deletePassword) {
-      setNotice('비밀번호를 입력해주세요.');
+      setNotice('비밀번호를 입력해 주세요.');
       return;
     }
 
@@ -466,7 +466,7 @@ export function useMyPage() {
       await deleteMyAccount({ password: deletePassword });
       setDialog('deleteSuccess');
     } catch (error) {
-      setNotice(extractErrorMessage(error, '회원탈퇴에 실패했습니다.'));
+      setNotice(extractErrorMessage(error, '회원 탈퇴에 실패했습니다.'));
     } finally {
       setIsDeletingAccount(false);
     }

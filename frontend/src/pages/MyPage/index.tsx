@@ -98,7 +98,7 @@ function getAvatarGroup(value?: string | null) {
 
 function formatJoinedDate(value?: string) {
   if (!value) {
-    return 'No date available';
+    return '가입일 정보 없음';
   }
 
   const date = new Date(value);
@@ -113,17 +113,17 @@ function formatJoinedDate(value?: string) {
 
 function formatStudyTime(totalStudySeconds: number) {
   if (totalStudySeconds <= 0) {
-    return '0 min';
+    return '0분';
   }
 
   const hours = Math.floor(totalStudySeconds / 3600);
   const minutes = Math.round((totalStudySeconds % 3600) / 60);
 
   if (hours > 0) {
-    return minutes > 0 ? `${hours} hr ${minutes} min` : `${hours} hr`;
+    return minutes > 0 ? `${hours}시간 ${minutes}분` : `${hours}시간`;
   }
 
-  return `${minutes} min`;
+  return `${minutes}분`;
 }
 
 function formatWatchRate(value: number) {
@@ -410,14 +410,14 @@ function HistorySummary({ history }: { history: LearningHistoryItem[] }) {
   if (!history.length) {
     return (
       <div className="rounded-[10px] border border-[#E5E7EC] bg-white px-7 py-6 text-[16px] text-[#6B7280]">
-        No learning history yet.
+        아직 학습 기록이 없습니다.
       </div>
     );
   }
 
   return (
     <div className="rounded-[10px] border border-[#E5E7EC] bg-white px-7 py-6 text-[16px] font-medium tracking-[-0.02em] text-[#15171C]">
-      Recent learning count {history.length}, average watch rate{' '}
+      최근 학습 {history.length}개, 평균 시청률{' '}
       {formatWatchRate(history.reduce((sum, item) => sum + item.watch_rate, 0) / history.length)}
     </div>
   );
@@ -487,10 +487,10 @@ export default function MyPage() {
         <aside className="w-[220px] shrink-0 border-r border-[#E5E7EC] pr-8 pt-10">
           <nav className="flex flex-col gap-1">
             <SideMenuItem active={!isSettingsView} onClick={() => closeDialog()}>
-              My Page
+              마이페이지
             </SideMenuItem>
             <SideMenuItem active={isSettingsView} onClick={() => openDialog('settings')}>
-              Settings
+              설정
             </SideMenuItem>
           </nav>
         </aside>
@@ -498,7 +498,7 @@ export default function MyPage() {
         <main className="flex-1 pl-10 pt-6">
           {isLoading ? (
             <div className="flex min-h-[320px] items-center justify-center text-[18px] text-[#6B7280]">
-              Loading...
+              불러오는 중...
             </div>
           ) : pageError ? (
             <div className="rounded-[16px] border border-[#F3C1C4] bg-[#FFF5F5] px-6 py-5 text-[16px] text-[#B42318]">
@@ -506,19 +506,19 @@ export default function MyPage() {
             </div>
           ) : isSettingsView ? (
             <section className="max-w-[720px]">
-              <SectionTitle>Settings</SectionTitle>
+              <SectionTitle>설정</SectionTitle>
               <div className="mt-12 rounded-[16px] border border-[#E5E7EC] bg-white px-8 py-8">
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <h3 className="text-[18px] font-semibold tracking-[-0.025em] text-[#15171C]">
-                      Fidget mode key
+                      피젯 모드 키
                     </h3>
                     <p className="mt-2 text-[15px] leading-[1.6] text-[#6B7280]">
-                      Current selected key: {getDisplayKey(settings?.fidget_toggle_key)}
+                      현재 선택된 키: {getDisplayKey(settings?.fidget_toggle_key)}
                     </p>
                   </div>
                   <p className="max-w-[280px] text-right text-[14px] leading-[1.6] text-[#6B7280]">
-                    Choose one key from D, Enter, and Shift.
+                    D, Enter, Shift 중 하나를 선택하세요.
                   </p>
                 </div>
 
@@ -547,7 +547,7 @@ export default function MyPage() {
 
                 <div className="mt-8 flex justify-end">
                   <PrimaryButton onClick={() => void saveSettings()} disabled={isSavingSettings} className="min-w-[120px]">
-                    {isSavingSettings ? 'Saving...' : 'Save'}
+                    {isSavingSettings ? '저장 중...' : '저장'}
                   </PrimaryButton>
                 </div>
               </div>
@@ -559,28 +559,28 @@ export default function MyPage() {
                   <AvatarPreview avatarType={profile?.avatar_type} size={132} editable onClick={() => openDialog('avatar')} />
                   <div className="pt-1">
                     <h1 className="text-[28px] font-bold leading-[1.25] tracking-[-0.03em] text-[#15171C]">
-                      {profile?.nickname || 'User'}
+                      {profile?.nickname || '사용자'}
                     </h1>
                     <p className="mt-3 text-[18px] tracking-[-0.025em] text-[#15171C]">
-                      Joined: {formatJoinedDate(profile?.created_at)}
+                      가입일: {formatJoinedDate(profile?.created_at)}
                     </p>
                   </div>
                 </div>
 
-                <OutlineButton onClick={() => openDialog('profile')}>Edit profile</OutlineButton>
+                <OutlineButton onClick={() => openDialog('profile')}>프로필 수정</OutlineButton>
               </div>
 
               <div className="mt-16">
-                <SectionTitle>Learning stats</SectionTitle>
+                <SectionTitle>학습 통계</SectionTitle>
                 <div className="mt-7 grid gap-5 md:grid-cols-2">
                   <StatCard
-                    label="Total study time"
+                    label="총 학습 시간"
                     value={formatStudyTime(stats.totalStudySeconds)}
                     icon={<img src={clockIcon} alt="" aria-hidden="true" className="h-6 w-6" />}
                   />
                   <StatCard
-                    label="Completed videos"
-                    value={`${stats.completedVideoCount}`}
+                    label="완료한 영상"
+                    value={`${stats.completedVideoCount}개`}
                     icon={<img src={clapperboardIcon} alt="" aria-hidden="true" className="h-6 w-6" />}
                   />
                 </div>
@@ -590,16 +590,16 @@ export default function MyPage() {
               </div>
 
               <div className="mt-16">
-                <SectionTitle>Change password</SectionTitle>
+                <SectionTitle>비밀번호 변경</SectionTitle>
                 <div className="mt-7">
-                  <ActionRow label="Change password" onClick={() => openDialog('password')} />
+                  <ActionRow label="비밀번호 변경" onClick={() => openDialog('password')} />
                 </div>
               </div>
 
               <div className="mt-16">
-                <SectionTitle>Delete account</SectionTitle>
+                <SectionTitle>회원 탈퇴</SectionTitle>
                 <div className="mt-7">
-                  <ActionRow label="Delete account" onClick={() => openDialog('delete')} danger />
+                  <ActionRow label="회원 탈퇴" onClick={() => openDialog('delete')} danger />
                 </div>
                 <div className="mt-5 flex justify-end">
                   <button
@@ -607,7 +607,7 @@ export default function MyPage() {
                     onClick={() => void logoutToOnboarding()}
                     className="inline-flex h-11 items-center justify-center rounded-[10px] px-4 text-[16px] font-medium text-[#6B7280] transition-colors hover:bg-[#F6F8FB] hover:text-[#15171C]"
                   >
-                    Log out
+                    로그아웃
                   </button>
                 </div>
               </div>
@@ -617,16 +617,16 @@ export default function MyPage() {
       </div>
 
       {dialog === 'profile' ? (
-        <ModalShell title="Edit profile" onClose={closeDialog}>
+        <ModalShell title="프로필 수정" onClose={closeDialog}>
           <div className="flex flex-col gap-6">
-            <FormField label="Name">
+            <FormField label="이름">
               <TextInput
                 value={profileForm.nickname ?? ''}
                 onChange={(event) => setProfileForm((current) => ({ ...current, nickname: event.target.value }))}
               />
             </FormField>
 
-            <FormField label="Birth date">
+            <FormField label="생년월일">
               <TextInput
                 value={profileForm.birth_date ?? ''}
                 placeholder="2000/10/10"
@@ -634,15 +634,15 @@ export default function MyPage() {
               />
             </FormField>
 
-            <FormField label="Email">
+            <FormField label="이메일">
               <DisabledField value={profile?.email} />
             </FormField>
 
-            <FormField label="Gender">
+            <FormField label="성별">
               <div className="grid grid-cols-2 gap-3">
                 {[
-                  { value: 'male', label: 'Male' },
-                  { value: 'female', label: 'Female' },
+                  { value: 'male', label: '남성' },
+                  { value: 'female', label: '여성' },
                 ].map((option) => {
                   const selected = profileForm.gender === option.value;
                   return (
@@ -672,7 +672,7 @@ export default function MyPage() {
 
             <div className="flex justify-end pt-2">
               <PrimaryButton onClick={() => void saveProfile()} disabled={isSavingProfile} className="min-w-[120px]">
-                {isSavingProfile ? 'Saving...' : 'Save'}
+                {isSavingProfile ? '저장 중...' : '저장'}
               </PrimaryButton>
             </div>
           </div>
@@ -680,7 +680,7 @@ export default function MyPage() {
       ) : null}
 
       {dialog === 'avatar' ? (
-        <ModalShell title="Change avatar" onClose={closeDialog} widthClassName="max-w-[760px]">
+        <ModalShell title="아바타 변경" onClose={closeDialog} widthClassName="max-w-[760px]">
           <div className="flex flex-col">
             <div className="flex justify-center pb-8 pt-2">
               <AvatarPreview avatarType={activeAvatarGroup.key} size={200} />
@@ -721,7 +721,7 @@ export default function MyPage() {
 
             <div className="mt-8 flex justify-end">
               <PrimaryButton onClick={() => void saveProfile()} disabled={isSavingProfile} className="min-w-[120px]">
-                {isSavingProfile ? 'Saving...' : 'Save'}
+                {isSavingProfile ? '저장 중...' : '저장'}
               </PrimaryButton>
             </div>
           </div>
@@ -729,9 +729,9 @@ export default function MyPage() {
       ) : null}
 
       {dialog === 'password' ? (
-        <ModalShell title="Change password" onClose={closeDialog}>
+        <ModalShell title="비밀번호 변경" onClose={closeDialog}>
           <div className="flex flex-col gap-6">
-            <FormField label="Current password">
+            <FormField label="현재 비밀번호">
               <TextInput
                 type="password"
                 value={passwordForm.current_password}
@@ -740,7 +740,7 @@ export default function MyPage() {
                 }
               />
             </FormField>
-            <FormField label="New password">
+            <FormField label="새 비밀번호">
               <TextInput
                 type="password"
                 value={passwordForm.new_password}
@@ -749,7 +749,7 @@ export default function MyPage() {
                 }
               />
             </FormField>
-            <FormField label="Confirm new password">
+            <FormField label="새 비밀번호 확인">
               <TextInput
                 type="password"
                 value={passwordForm.new_password_confirm}
@@ -761,7 +761,7 @@ export default function MyPage() {
             {notice ? <NoticeText danger>{notice}</NoticeText> : null}
             <div className="flex justify-end pt-2">
               <PrimaryButton onClick={() => void savePassword()} disabled={isSavingPassword} className="min-w-[120px]">
-                {isSavingPassword ? 'Saving...' : 'Save'}
+                {isSavingPassword ? '저장 중...' : '저장'}
               </PrimaryButton>
             </div>
           </div>
@@ -769,19 +769,19 @@ export default function MyPage() {
       ) : null}
 
       {dialog === 'delete' ? (
-        <ModalShell title="Delete account" onClose={closeDialog}>
+        <ModalShell title="회원 탈퇴" onClose={closeDialog}>
           <div className="flex flex-col gap-6">
             <p className="text-[15px] leading-[1.6] text-[#6B7280]">
-              Deleting your account removes your learning history and profile information.
-              Enter your password to continue.
+              회원 탈퇴 시 학습 기록과 프로필 정보가 삭제됩니다.
+              계속하려면 비밀번호를 입력하세요.
             </p>
-            <FormField label="Password">
+            <FormField label="비밀번호">
               <TextInput type="password" value={deletePassword} onChange={(event) => setDeletePassword(event.target.value)} />
             </FormField>
             {notice ? <NoticeText danger>{notice}</NoticeText> : null}
             <div className="flex justify-end pt-2">
               <PrimaryButton onClick={() => void removeAccount()} disabled={isDeletingAccount} className="min-w-[120px]">
-                {isDeletingAccount ? 'Deleting...' : 'Delete account'}
+                {isDeletingAccount ? '탈퇴 처리 중...' : '회원 탈퇴'}
               </PrimaryButton>
             </div>
           </div>
@@ -789,20 +789,20 @@ export default function MyPage() {
       ) : null}
 
       {dialog === 'passwordSuccess' ? (
-        <ModalShell title="Password changed" onClose={confirmPasswordChange}>
+        <ModalShell title="비밀번호 변경 완료" onClose={confirmPasswordChange}>
           <SuccessContent
-            message="Your password has been changed. Please log in again."
-            buttonLabel="OK"
+            message="비밀번호가 변경되었습니다. 다시 로그인해 주세요."
+            buttonLabel="확인"
             onConfirm={() => void confirmPasswordChange()}
           />
         </ModalShell>
       ) : null}
 
       {dialog === 'deleteSuccess' ? (
-        <ModalShell title="Account deleted" onClose={confirmDeleteAccount}>
+        <ModalShell title="회원 탈퇴 완료" onClose={confirmDeleteAccount}>
           <SuccessContent
-            message="Your account has been deleted."
-            buttonLabel="OK"
+            message="회원 탈퇴가 완료되었습니다."
+            buttonLabel="확인"
             onConfirm={() => void confirmDeleteAccount()}
           />
         </ModalShell>

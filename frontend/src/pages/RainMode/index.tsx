@@ -19,6 +19,7 @@ import RainSettingsModal from '../../features/player/rain/RainSettingsModal';
 import type { RainSettings } from '../../features/player/rain/RainSettingsModal';
 import ScoreBoard from '../../features/player/rain/ScoreBoard';
 import { useRainMode } from '../../features/player/rain/useRainMode';
+import FullscreenToggleButton from '../../features/player/shared/FullscreenToggleButton';
 import PlayerDebugPanel from '../../features/player/shared/PlayerDebugPanel';
 import PlayerStatusOverlay from '../../features/player/shared/PlayerStatusOverlay';
 import SpinnerPlayer from '../../features/player/spinner/SpinnerPlayer';
@@ -117,6 +118,7 @@ function RainModePage() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [measurementRoot, setMeasurementRoot] = useState<HTMLElement | null>(null);
   const [inputPositions, setInputPositions] = useState<Record<string, number>>({});
+  const fullscreenRootRef = useRef<HTMLElement | null>(null);
   const [rainSettings, setRainSettings] = useState<RainSettings>({
     mode: 'auto',
     difficulty: 'hard',
@@ -251,7 +253,7 @@ function RainModePage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#15171C]">
+    <main ref={fullscreenRootRef} className="min-h-screen bg-[#15171C]">
       <div className="overflow-x-auto">
         <div className="mx-auto flex w-full max-w-[1440px] min-w-fit flex-col px-[40px] pb-[48px] pt-[32px]">
           <div className="flex items-start justify-between pb-[40px]">
@@ -282,7 +284,8 @@ function RainModePage() {
               </div>
             </div>
 
-            <div className="relative">
+            <div className="flex items-start gap-2">
+              <div className="relative">
               <div className="rounded-[18px] border border-[#3D4150] bg-[#1E2028] p-[5px]">
                 <button
                   type="button"
@@ -299,6 +302,8 @@ function RainModePage() {
                 onClose={() => setIsSettingsOpen(false)}
                 onApply={(next) => setRainSettings(next)}
               />
+              </div>
+              <FullscreenToggleButton targetRef={fullscreenRootRef} />
             </div>
           </div>
 

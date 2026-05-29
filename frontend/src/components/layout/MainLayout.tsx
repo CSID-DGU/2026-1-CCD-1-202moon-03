@@ -10,8 +10,8 @@ function MainLayout() {
 
   if (isOnboardingPage) {
     return (
-      <div className="min-h-screen bg-white">
-        <main className="min-h-screen">
+      <div className="h-[100dvh] overflow-hidden bg-white">
+        <main className="h-full overflow-hidden">
           <Outlet />
         </main>
       </div>
