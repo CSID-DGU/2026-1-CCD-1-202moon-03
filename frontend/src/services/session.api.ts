@@ -16,6 +16,8 @@ import type {
   UpdateSessionTitleResponse,
 } from '../types';
 
+const DEFAULT_FILE_TYPE = 'application/octet-stream';
+
 type SessionMediaShape = {
   title?: string | null;
   video_title?: string | null;
@@ -93,18 +95,18 @@ export async function getSessionList() {
 export async function createSessionFromUrl(payload: CreateSessionFromUrlRequest) {
   const response = await apiClient.post<CreateSessionResponse>('/api/sessions/', payload);
   response.data.data = normalizeCreateSessionData(response.data.data);
-  return response.data;
+  return response.data.data;
 }
 
 export async function createSessionFromFile(payload: CreateSessionFromFileRequest) {
-  const formData = new FormData();
-  formData.append('source_type', payload.source_type);
-  formData.append('file', payload.file);
-  formData.append('mode', payload.mode);
-
-  const response = await apiClient.post<CreateSessionResponse>('/api/sessions/', formData);
+  const response = await apiClient.post<CreateSessionResponse>('/api/sessions/', {
+    source_type: payload.source_type,
+    mode: payload.mode,
+    file_name: payload.file.name,
+    file_type: payload.file.type || DEFAULT_FILE_TYPE,
+  });
   response.data.data = normalizeCreateSessionData(response.data.data, payload.file.name);
-  return response.data;
+  return response.data.data;
 }
 
 export async function getSessionDetail(id: ResourceId) {

@@ -10,6 +10,8 @@ export interface StreamingPlayerSource {
   mode: SessionMode;
   url?: string;
   file?: File;
+  presignedUrl?: string | null;
+  s3Key?: string | null;
   language?: string;
   sessionId?: string | null;
 }
@@ -61,16 +63,17 @@ export const usePlayerStore = create<PlayerState>()(
         selectedMode: state.selectedMode,
         sessionId: state.sessionId,
         rainDifficulty: state.rainDifficulty,
-        streamingSource:
-          state.streamingSource?.type === 'youtube_url'
-            ? {
-                type: state.streamingSource.type,
-                mode: state.streamingSource.mode,
-                url: state.streamingSource.url,
-                language: state.streamingSource.language,
-                sessionId: state.streamingSource.sessionId,
-              }
-            : null,
+        streamingSource: state.streamingSource
+          ? {
+              type: state.streamingSource.type,
+              mode: state.streamingSource.mode,
+              url: state.streamingSource.url,
+              presignedUrl: state.streamingSource.presignedUrl,
+              s3Key: state.streamingSource.s3Key,
+              language: state.streamingSource.language,
+              sessionId: state.streamingSource.sessionId,
+            }
+          : null,
       }),
     },
   ),

@@ -98,6 +98,13 @@ export function useGameSessionData() {
     if (streamingSource?.type === 'file' && streamingSource.file) {
       return 'transient_file';
     }
+    if (
+      streamingSource?.type === 'file' &&
+      streamingSource.presignedUrl &&
+      streamingSource.s3Key
+    ) {
+      return 'stream_source';
+    }
     if (shouldResumeFileCurrentSession || activeStreamStrategy === 'resume') {
       return 'stream_resume';
     }

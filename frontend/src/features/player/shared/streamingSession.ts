@@ -28,6 +28,18 @@ function getAuthHeaders() {
   };
 }
 
+function assertFileStreamingSource(
+  source: StreamingPlayerSource,
+): asserts source is StreamingPlayerSource & { file: File; sessionId: string } {
+  if (!source.file) {
+    throw new Error('스트리밍할 파일 정보가 없습니다.');
+  }
+
+  if (!source.sessionId) {
+    throw new Error('스트리밍을 시작할 세션 ID가 없습니다.');
+  }
+}
+
 function decodeSseBlock(block: string): StreamingSessionEvent[] {
   const lines = block
     .split(/\r?\n/)
@@ -129,19 +141,53 @@ export async function* startStreamingSession({
     return;
   }
 
-  const formData = new FormData();
-  if (source.file) {
-    formData.append('file', source.file);
-  }
-  formData.append('language', source.language ?? 'ko');
-  if (source.sessionId) {
-    formData.append('session_id', String(source.sessionId));
+  const presignedUrl = source.presignedUrl;
+  const s3Key = source.s3Key;
+  const hasLocalFile = Boolean(source.file);
+
+  console.log('presignedUrl:', presignedUrl);
+
+  if (presignedUrl) {
+    const url = new URL(presignedUrl);
+    console.log('X-Amz-Algorithm:', url.searchParams.get('X-Amz-Algorithm'));
+    console.log('contains ^:', presignedUrl.includes('^'));
+    console.log('contains %5E:', presignedUrl.includes('%5E'));
   }
 
-  const response = await fetch(buildAbsoluteUrl('/api/sessions/stream/file/'), {
+  console.log('s3Key', s3Key);
+
+  if (!presignedUrl) {
+    throw new Error('S3 업로드 URL 정보가 없습니다.');
+  }
+
+  if (!s3Key) {
+    throw new Error('S3 파일 키 정보가 없습니다.');
+  }
+
+  if (hasLocalFile) {
+    assertFileStreamingSource(source);
+
+    const uploadResponse = await fetch(presignedUrl, {
+      method: 'PUT',
+      body: await source.file.arrayBuffer(),
+    });
+
+    if (!uploadResponse.ok) {
+      throw new Error(await buildStreamingError(uploadResponse));
+    }
+  }
+
+  const response = await fetch(buildAbsoluteUrl('/api/sessions/stream/s3/'), {
     method: 'POST',
-    headers,
-    body: formData,
+    headers: {
+      ...headers,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      session_id: source.sessionId,
+      s3_key: s3Key,
+      language: source.language ?? 'ko',
+    }),
   });
 
   yield* readSseEvents(response);
