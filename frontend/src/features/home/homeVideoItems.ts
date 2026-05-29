@@ -58,7 +58,7 @@ function getSessionItemId(session: SessionListItem, index: number) {
 }
 
 export function buildInitialHomeVideoItems(): HomeVideoItem[] {
-  return placeholderItems;
+  return [];
 }
 
 export function buildHomeVideoItemsFromSessions(
@@ -67,7 +67,7 @@ export function buildHomeVideoItemsFromSessions(
   maxComboMap: Record<string, number> = {},
 ): HomeVideoItem[] {
   if (sessions.length === 0) {
-    return placeholderItems;
+    return [];
   }
 
   return sessions.map((session, index) => {

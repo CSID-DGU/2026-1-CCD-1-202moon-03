@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { submitQuizAnswer } from '../../../services/quiz.api';
+import { getMySettings } from '../../../services/user.api';
 import { getTransientStreamingSource, usePlayerStore } from '../../../store/usePlayerStore';
 import type { ApiErrorResponse } from '../../../types';
 import { resolvePlayerSource } from '../shared/playback';
@@ -45,6 +46,18 @@ function getQuizSubmitErrorMessage(error: unknown) {
 function isDefaultSessionTitle(title?: string | null) {
   const normalizedTitle = title?.trim() ?? '';
   return !normalizedTitle || normalizedTitle === '새 학습 영상';
+}
+
+function mapFidgetToggleKeyToKeyboardKey(settingKey?: string | null) {
+  switch (settingKey) {
+    case 'ctrl':
+      return 'enter';
+    case 'shift':
+      return 'shift';
+    case 'alt':
+    default:
+      return 'd';
+  }
 }
 
 export function useSpinnerMode() {
@@ -114,10 +127,36 @@ export function useSpinnerMode() {
   const [isLocalPlayerReady, setIsLocalPlayerReady] = useState(false);
   const [hasController, setHasController] = useState(false);
   const [lastControlAction, setLastControlAction] = useState<string | null>(null);
+  const [fidgetToggleKey, setFidgetToggleKey] = useState<'alt' | 'ctrl' | 'shift'>('alt');
   const answeredQuizIdsRef = useRef<Set<string>>(new Set());
   const quizCorrectCountRef = useRef(0);
   const quizAnsweredCountRef = useRef(0);
   const tabSwitchCountRef = useRef(0);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    const loadFidgetToggleKey = async () => {
+      try {
+        const response = await getMySettings();
+
+        if (!isCancelled) {
+          const nextKey = response.data.fidget_toggle_key;
+          if (nextKey === 'alt' || nextKey === 'ctrl' || nextKey === 'shift') {
+            setFidgetToggleKey(nextKey);
+          }
+        }
+      } catch {
+        // Fall back to the default D key mapping when settings cannot be loaded.
+      }
+    };
+
+    void loadFidgetToggleKey();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
   const wasDocumentHiddenRef = useRef(false);
   const focusPromptTimeoutRef = useRef<number | null>(null);
   const stretchCountdownIntervalRef = useRef<number | null>(null);
@@ -271,6 +310,8 @@ export function useSpinnerMode() {
   }, []);
 
   useEffect(() => {
+    const triggerKey = mapFidgetToggleKeyToKeyboardKey(fidgetToggleKey);
+
     const handleWindowKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       const isTypingTarget =
@@ -282,7 +323,7 @@ export function useSpinnerMode() {
         return;
       }
 
-      if (event.key.toLowerCase() !== 'd') {
+      if (event.key.toLowerCase() !== triggerKey) {
         return;
       }
 
@@ -291,7 +332,7 @@ export function useSpinnerMode() {
     };
 
     const handleWindowKeyUp = (event: KeyboardEvent) => {
-      if (event.key.toLowerCase() !== 'd') {
+      if (event.key.toLowerCase() !== triggerKey) {
         return;
       }
 
@@ -305,7 +346,7 @@ export function useSpinnerMode() {
       window.removeEventListener('keydown', handleWindowKeyDown);
       window.removeEventListener('keyup', handleWindowKeyUp);
     };
-  }, [endKeycapPress]);
+  }, [endKeycapPress, fidgetToggleKey]);
 
   const captionText = useMemo(
     () =>

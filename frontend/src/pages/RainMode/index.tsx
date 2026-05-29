@@ -1,5 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import character01_1 from '../../assets/user/character01_1.png';
+import character02_1 from '../../assets/user/character02_1.png';
+import character03_1 from '../../assets/user/character03_1.png';
+import character04_1 from '../../assets/user/character04_1.png';
+import character05_1 from '../../assets/user/character05_1.png';
+import character06_1 from '../../assets/user/character06_1.png';
+import character07_1 from '../../assets/user/character07_1.png';
+import character08_1 from '../../assets/user/character08_1.png';
 import { ROUTES } from '../../constants/routes';
 import ComboIndicator from '../../features/player/rain/ComboIndicator';
 import FallingKeywords from '../../features/player/rain/FallingKeywords';
@@ -18,8 +26,68 @@ import { endGame } from '../../services/game.api';
 import { useAuthStore } from '../../store/authStore';
 import { usePlayerStore, type RainDifficulty } from '../../store/usePlayerStore';
 
-const FOCUS_CHARACTER_IMAGE_URL =
-  'https://www.figma.com/api/mcp/asset/1a6b4480-5dc9-4b33-8258-a43eb0d8fcfc';
+type AvatarKey =
+  | 'character01'
+  | 'character02'
+  | 'character03'
+  | 'character04'
+  | 'character05'
+  | 'character06'
+  | 'character07'
+  | 'character08';
+
+const RAIN_AVATAR_IMAGES: Record<AvatarKey, string> = {
+  character01: character01_1,
+  character02: character02_1,
+  character03: character03_1,
+  character04: character04_1,
+  character05: character05_1,
+  character06: character06_1,
+  character07: character07_1,
+  character08: character08_1,
+};
+
+const RAIN_AVATAR_BACKGROUND_COLORS: Record<AvatarKey, string> = {
+  character01: '#FFF4CD',
+  character02: '#D2F2EA',
+  character03: '#F1E0F9',
+  character04: '#FFDDE7',
+  character05: '#C8DFFF',
+  character06: '#F1ECC8',
+  character07: '#FDE6D6',
+  character08: '#DDE4FF',
+};
+
+function normalizeAvatarKey(value?: string | null): AvatarKey {
+  switch (value) {
+    case 'character_1':
+    case 'character01':
+      return 'character01';
+    case 'character_2':
+    case 'character02':
+      return 'character02';
+    case 'character_3':
+    case 'character03':
+      return 'character03';
+    case 'character_4':
+    case 'character04':
+      return 'character04';
+    case 'character_5':
+    case 'character05':
+      return 'character05';
+    case 'character_6':
+    case 'character06':
+      return 'character06';
+    case 'character_7':
+    case 'character07':
+      return 'character07';
+    case 'character_8':
+    case 'character08':
+      return 'character08';
+    default:
+      return 'character01';
+  }
+}
 
 function mapStimulationLevelToDifficulty(stimulationLevel?: number): RainDifficulty {
   if (stimulationLevel === undefined || stimulationLevel === null) {
@@ -40,6 +108,9 @@ function mapStimulationLevelToDifficulty(stimulationLevel?: number): RainDifficu
 function RainModePage() {
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
+  const avatarKey = normalizeAvatarKey(user?.avatarType);
+  const avatarImageSrc = RAIN_AVATAR_IMAGES[avatarKey];
+  const avatarBackgroundColor = RAIN_AVATAR_BACKGROUND_COLORS[avatarKey];
   const setRainDifficulty = usePlayerStore((state) => state.setRainDifficulty);
   const [isEndingStudy, setIsEndingStudy] = useState(false);
   const [judgment, setJudgment] = useState<{ key: number; combo: number } | null>(null);
@@ -351,12 +422,12 @@ function RainModePage() {
             >
               <ComboIndicator combo={combo} animationKey={comboAnimationKey} />
 
-            <aside className="shrink-0 overflow-hidden rounded-[12px] bg-[#FFF4CD] shadow-[0_8px_24px_rgba(3,46,78,0.08)]">
-              <div className="flex h-[183px] items-end justify-center overflow-hidden">
+            <aside className="aspect-square w-full shrink-0 overflow-hidden rounded-[12px] shadow-[0_8px_24px_rgba(3,46,78,0.08)]" style={{ backgroundColor: avatarBackgroundColor }}>
+              <div className="relative flex h-full w-full items-end justify-center overflow-hidden">
                 <img
-                  src={FOCUS_CHARACTER_IMAGE_URL}
+                  src={avatarImageSrc}
                   alt="집중 캐릭터"
-                  className="h-[198px] w-[198px] max-w-none object-cover"
+                  className="absolute bottom-0 left-1/2 h-[194px] w-auto max-w-none -translate-x-1/2 object-contain"
                 />
               </div>
             </aside>

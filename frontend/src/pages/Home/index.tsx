@@ -344,6 +344,17 @@ function HomePage() {
             {videoLoadError ? <p className="text-sm text-rose-500">{videoLoadError}</p> : null}
           </div>
 
+          {!isLoadingVideos && !videoLoadError && videos.length === 0 ? (
+            <div className="space-y-2 py-10 text-left">
+              <p className="font-paperlogy text-[24px] font-semibold leading-[1.5] text-zinc-900">
+                아직 학습한 영상이 없어요
+              </p>
+              <p className="text-[16px] leading-[1.6] text-slate-500">
+                영상 파일이나 유튜브 링크를 업로드해서 첫 학습을 시작해보세요.
+              </p>
+            </div>
+          ) : null}
+
           <VideoGrid
             videos={videos}
             openMenuId={openMenuId}

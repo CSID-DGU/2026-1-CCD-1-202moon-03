@@ -2,42 +2,22 @@ import { useState } from 'react';
 
 interface PlayerDebugPanelProps {
   debug: {
+    [key: string]: unknown;
     sessionId: string | null;
     state: string;
     currentAiStatus: string | null;
-    isStreamingCurrentSession: boolean;
-    activeStreamStrategy?: string | null;
-    actualStreamRequestKey?: string | null;
-    shouldResumeFileCurrentSession?: boolean;
-    recoveryStrategy?: string | null;
-    hasStartedStreamRequest?: boolean;
-    lastStreamRequestType?: string | null;
-    streamingSourceType: string | null;
-    streamingSourceSessionId: string | null;
-    sessionSourceType?: string | null;
     playerType?: string;
     playerSrc?: string;
     isPlayerReady?: boolean;
-    isLocalPlayerReady?: boolean;
-    hasController?: boolean;
-    lastControlAction?: string | null;
-    youtubeVideoId?: string | null;
-    youtubePlayerStage?: string | null;
-    hasVideoUrl?: boolean;
-    hasStartGameData?: boolean;
     loadedSegments: number;
     loadedQuizzes: number;
     loadedFallEvents: number;
-    loadedChapterIndexes: number[];
-    lastStreamEventType: string;
-    lastChunkSegments: number | null;
-    lastMergedTotalSegments: number | null;
-    errorMessage: string;
+    preparedFallEvents?: number;
+    unmatchedFallEvents?: number;
     rainDifficulty?: string;
     adaptiveMode?: string;
     adaptiveDecision?: string;
     adaptiveStreak?: number;
-    windowSize?: number;
     windowAccuracy?: number | null;
     windowMissRate?: number | null;
     adaptiveSamplingStep?: number;
@@ -45,41 +25,53 @@ interface PlayerDebugPanelProps {
     fallSpeed?: number;
     fallLeadTimeOffset?: number;
     minFallDuration?: number;
-    missEndBufferSeconds?: number;
     missGraceSeconds?: number;
-    adaptiveMaxCombo?: number;
     activeKeywordId?: string | null;
     pendingKeywordCount?: number;
     visibleKeywordCount?: number;
-    nextTargetTime?: number | null;
-    nextFallDuration?: number | null;
-    missedKeywordCount?: number;
     lastJudgement?: string | null;
-    rafCurrentTime?: number;
-    activeKeywordTargetTime?: number | null;
-    activeKeywordSegmentId?: number | null;
-    preparedFallEvents?: number;
-    unmatchedFallEvents?: number;
-    droppedByBlankLimit?: number;
-    duplicateKeywordCandidates?: number;
-    invalidTargetTimeCount?: number;
-    editingBlankKey?: string | null;
-    primaryInputKey?: string | null;
-    visibleBlankKeys?: string[];
-    draftValuesByBlankKey?: Record<string, string>;
-    draftValuesByKey?: Record<string, string>;
-    lastAutoFocusReason?: string | null;
-    isCaptionComposing?: boolean;
-    captionSegmentId?: number | null;
-    prunedTypedValueCount?: number;
     tabSwitchCount?: number;
-    mascotVisualState?: string;
-    mascotPromptType?: string;
-    isStretchGuideOpen?: boolean;
-    stretchCountdownSeconds?: number;
-    focusMessage?: string | null;
-    hasShownStretchPrompt?: boolean;
+    errorMessage: string;
   };
+}
+
+function Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="mt-3 first:mt-0">
+      <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-sky-300/90">
+        {title}
+      </p>
+      <div className="space-y-0.5">{children}</div>
+    </section>
+  );
+}
+
+function Row({
+  label,
+  value,
+}: {
+  label: string;
+  value: React.ReactNode;
+}) {
+  return (
+    <div className="break-words">
+      {label}: {value}
+    </div>
+  );
+}
+
+function formatNumber(value: number | null | undefined, digits = 2) {
+  if (typeof value !== 'number') {
+    return '-';
+  }
+
+  return value.toFixed(digits);
 }
 
 function PlayerDebugPanel({ debug }: PlayerDebugPanelProps) {
@@ -98,7 +90,7 @@ function PlayerDebugPanel({ debug }: PlayerDebugPanelProps) {
   }
 
   return (
-    <div className="fixed bottom-4 right-4 z-[100] w-[320px] rounded-[14px] border border-[#334155] bg-[rgba(15,23,42,0.92)] p-4 text-left text-[12px] leading-[1.5] text-slate-200 shadow-[0_14px_36px_rgba(0,0,0,0.35)]">
+    <div className="fixed bottom-4 right-4 z-[100] w-[340px] rounded-[14px] border border-[#334155] bg-[rgba(15,23,42,0.92)] p-4 text-left text-[12px] leading-[1.5] text-slate-200 shadow-[0_14px_36px_rgba(0,0,0,0.35)]">
       <div className="mb-2 flex items-center justify-between gap-3">
         <p className="font-semibold text-sky-300">Debug</p>
         <button
@@ -109,179 +101,53 @@ function PlayerDebugPanel({ debug }: PlayerDebugPanelProps) {
           숨기기
         </button>
       </div>
-      <div>sessionId: {debug.sessionId ?? '-'}</div>
-      <div>state: {debug.state}</div>
-      <div>aiStatus: {debug.currentAiStatus ?? '-'}</div>
-      <div>isStreamingCurrentSession: {String(debug.isStreamingCurrentSession)}</div>
-      {debug.activeStreamStrategy !== undefined ? (
-        <div>activeStreamStrategy: {debug.activeStreamStrategy ?? '-'}</div>
-      ) : null}
-      {debug.actualStreamRequestKey !== undefined ? (
-        <div>actualStreamRequestKey: {debug.actualStreamRequestKey ?? '-'}</div>
-      ) : null}
-      {debug.shouldResumeFileCurrentSession !== undefined ? (
-        <div>shouldResumeFileCurrentSession: {String(debug.shouldResumeFileCurrentSession)}</div>
-      ) : null}
-      {debug.recoveryStrategy !== undefined ? (
-        <div>recoveryStrategy: {debug.recoveryStrategy ?? '-'}</div>
-      ) : null}
-      {debug.hasStartedStreamRequest !== undefined ? (
-        <div>hasStartedStreamRequest: {String(debug.hasStartedStreamRequest)}</div>
-      ) : null}
-      {debug.lastStreamRequestType !== undefined ? (
-        <div>lastStreamRequestType: {debug.lastStreamRequestType ?? '-'}</div>
-      ) : null}
-      <div>streamingSourceType: {debug.streamingSourceType ?? '-'}</div>
-      <div>streamingSourceSessionId: {debug.streamingSourceSessionId ?? '-'}</div>
-      {debug.sessionSourceType !== undefined ? (
-        <div>sessionSourceType: {debug.sessionSourceType ?? '-'}</div>
-      ) : null}
-      {debug.playerType !== undefined ? <div>playerType: {debug.playerType}</div> : null}
-      {debug.playerSrc !== undefined ? <div>playerSrc: {debug.playerSrc || '-'}</div> : null}
-      {debug.isPlayerReady !== undefined ? (
-        <div>isPlayerReady: {String(debug.isPlayerReady)}</div>
-      ) : null}
-      {debug.isLocalPlayerReady !== undefined ? (
-        <div>isLocalPlayerReady: {String(debug.isLocalPlayerReady)}</div>
-      ) : null}
-      {debug.hasController !== undefined ? (
-        <div>hasController: {String(debug.hasController)}</div>
-      ) : null}
-      {debug.lastControlAction !== undefined ? (
-        <div>lastControlAction: {debug.lastControlAction ?? '-'}</div>
-      ) : null}
-      {debug.youtubeVideoId !== undefined ? (
-        <div>youtubeVideoId: {debug.youtubeVideoId ?? '-'}</div>
-      ) : null}
-      {debug.youtubePlayerStage !== undefined ? (
-        <div>youtubePlayerStage: {debug.youtubePlayerStage ?? '-'}</div>
-      ) : null}
-      {debug.hasVideoUrl !== undefined ? <div>hasVideoUrl: {String(debug.hasVideoUrl)}</div> : null}
-      {debug.hasStartGameData !== undefined ? (
-        <div>hasStartGameData: {String(debug.hasStartGameData)}</div>
-      ) : null}
-      <div>lastStreamEventType: {debug.lastStreamEventType || '-'}</div>
-      <div>loadedSegments: {debug.loadedSegments}</div>
-      <div>loadedQuizzes: {debug.loadedQuizzes}</div>
-      <div>loadedFallEvents: {debug.loadedFallEvents}</div>
-      <div>loadedChapterIndexes: {debug.loadedChapterIndexes.join(', ') || '-'}</div>
-      <div>lastChunkSegments: {debug.lastChunkSegments ?? '-'}</div>
-      <div>lastMergedTotalSegments: {debug.lastMergedTotalSegments ?? '-'}</div>
-      {typeof debug.activeBlanks === 'number' ? <div>activeBlanks: {debug.activeBlanks}</div> : null}
-      {typeof debug.fallSpeed === 'number' ? <div>fallSpeed: {debug.fallSpeed}</div> : null}
-      {typeof debug.minFallDuration === 'number' ? (
-        <div>minFallDuration: {debug.minFallDuration}</div>
-      ) : null}
-      {typeof debug.pendingKeywordCount === 'number' ? (
-        <div>pendingKeywordCount: {debug.pendingKeywordCount}</div>
-      ) : null}
-      {typeof debug.visibleKeywordCount === 'number' ? (
-        <div>visibleKeywordCount: {debug.visibleKeywordCount}</div>
-      ) : null}
-      {typeof debug.nextTargetTime === 'number' ? (
-        <div>nextTargetTime: {debug.nextTargetTime.toFixed(2)}</div>
-      ) : null}
-      {typeof debug.nextFallDuration === 'number' ? (
-        <div>nextFallDuration: {debug.nextFallDuration.toFixed(2)}</div>
-      ) : null}
-      {typeof debug.rafCurrentTime === 'number' ? (
-        <div>rafCurrentTime: {debug.rafCurrentTime.toFixed(2)}</div>
-      ) : null}
-      {typeof debug.activeKeywordTargetTime === 'number' ? (
-        <div>activeKeywordTargetTime: {debug.activeKeywordTargetTime.toFixed(2)}</div>
-      ) : null}
-      {typeof debug.activeKeywordSegmentId === 'number' ? (
-        <div>activeKeywordSegmentId: {debug.activeKeywordSegmentId}</div>
-      ) : null}
-      {typeof debug.missedKeywordCount === 'number' ? (
-        <div>missedKeywordCount: {debug.missedKeywordCount}</div>
-      ) : null}
-      {typeof debug.preparedFallEvents === 'number' ? (
-        <div>preparedFallEvents: {debug.preparedFallEvents}</div>
-      ) : null}
-      {typeof debug.unmatchedFallEvents === 'number' ? (
-        <div>unmatchedFallEvents: {debug.unmatchedFallEvents}</div>
-      ) : null}
-      {typeof debug.droppedByBlankLimit === 'number' ? (
-        <div>droppedByBlankLimit: {debug.droppedByBlankLimit}</div>
-      ) : null}
-      {typeof debug.duplicateKeywordCandidates === 'number' ? (
-        <div>duplicateKeywordCandidates: {debug.duplicateKeywordCandidates}</div>
-      ) : null}
-      {typeof debug.invalidTargetTimeCount === 'number' ? (
-        <div>invalidTargetTimeCount: {debug.invalidTargetTimeCount}</div>
-      ) : null}
-      {debug.editingBlankKey !== undefined ? (
-        <div>editingBlankKey: {debug.editingBlankKey ?? '-'}</div>
-      ) : null}
-      {debug.isCaptionComposing !== undefined ? (
-        <div>isCaptionComposing: {String(debug.isCaptionComposing)}</div>
-      ) : null}
-      {typeof debug.captionSegmentId === 'number' ? (
-        <div>captionSegmentId: {debug.captionSegmentId}</div>
-      ) : null}
-      {typeof debug.prunedTypedValueCount === 'number' ? (
-        <div>prunedTypedValueCount: {debug.prunedTypedValueCount}</div>
-      ) : null}
-      {typeof debug.tabSwitchCount === 'number' ? (
-        <div>tabSwitchCount: {debug.tabSwitchCount}</div>
-      ) : null}
-      {debug.mascotVisualState !== undefined ? <div>mascotVisualState: {debug.mascotVisualState}</div> : null}
-      {debug.mascotPromptType !== undefined ? <div>mascotPromptType: {debug.mascotPromptType}</div> : null}
-      {debug.isStretchGuideOpen !== undefined ? (
-        <div>isStretchGuideOpen: {String(debug.isStretchGuideOpen)}</div>
-      ) : null}
-      {typeof debug.stretchCountdownSeconds === 'number' ? (
-        <div>stretchCountdownSeconds: {debug.stretchCountdownSeconds}</div>
-      ) : null}
-      {debug.focusMessage !== undefined ? <div>focusMessage: {debug.focusMessage ?? '-'}</div> : null}
-      {debug.hasShownStretchPrompt !== undefined ? (
-        <div>hasShownStretchPrompt: {String(debug.hasShownStretchPrompt)}</div>
-      ) : null}
-      {debug.activeKeywordId !== undefined ? <div>activeKeywordId: {debug.activeKeywordId ?? '-'}</div> : null}
-      {debug.lastJudgement !== undefined ? <div>lastJudgement: {debug.lastJudgement ?? '-'}</div> : null}
-      <div className="mt-2 break-words text-rose-300">errorMessage: {debug.errorMessage || '-'}</div>
-      {debug.rainDifficulty !== undefined ? <div className="mt-2">rainDifficulty: {debug.rainDifficulty}</div> : null}
-      {debug.adaptiveMode !== undefined ? <div>adaptiveMode: {debug.adaptiveMode}</div> : null}
-      {debug.adaptiveDecision !== undefined ? <div>adaptiveDecision: {debug.adaptiveDecision}</div> : null}
-      {typeof debug.adaptiveStreak === 'number' ? (
-        <div>adaptiveStreak: {debug.adaptiveStreak}</div>
-      ) : null}
-      {typeof debug.windowSize === 'number' ? <div>windowSize: {debug.windowSize}</div> : null}
-      {typeof debug.windowAccuracy === 'number' ? (
-        <div>windowAccuracy: {debug.windowAccuracy}</div>
-      ) : null}
-      {typeof debug.windowMissRate === 'number' ? (
-        <div>windowMissRate: {debug.windowMissRate}</div>
-      ) : null}
-      {typeof debug.adaptiveSamplingStep === 'number' ? (
-        <div>adaptiveSamplingStep: {debug.adaptiveSamplingStep}</div>
-      ) : null}
-      {typeof debug.fallLeadTimeOffset === 'number' ? (
-        <div>fallLeadTimeOffset: {debug.fallLeadTimeOffset}</div>
-      ) : null}
-      {typeof debug.missEndBufferSeconds === 'number' ? (
-        <div>missEndBufferSeconds: {debug.missEndBufferSeconds}</div>
-      ) : null}
-      {typeof debug.missGraceSeconds === 'number' ? (
-        <div>missGraceSeconds: {debug.missGraceSeconds}</div>
-      ) : null}
-      {typeof debug.adaptiveMaxCombo === 'number' ? (
-        <div>adaptiveMaxCombo: {debug.adaptiveMaxCombo}</div>
-      ) : null}
-      {debug.primaryInputKey !== undefined ? <div>primaryInputKey: {debug.primaryInputKey ?? '-'}</div> : null}
-      {debug.lastAutoFocusReason !== undefined ? (
-        <div>lastAutoFocusReason: {debug.lastAutoFocusReason ?? '-'}</div>
-      ) : null}
-      {debug.visibleBlankKeys !== undefined ? (
-        <div>visibleBlankKeys: {debug.visibleBlankKeys.join(', ') || '-'}</div>
-      ) : null}
-      {debug.draftValuesByBlankKey !== undefined ? (
-        <div>draftValuesByBlankKey: {JSON.stringify(debug.draftValuesByBlankKey)}</div>
-      ) : null}
-      {debug.draftValuesByKey !== undefined ? (
-        <div>draftValuesByKey: {JSON.stringify(debug.draftValuesByKey)}</div>
-      ) : null}
+
+      <Section title="Session">
+        <Row label="sessionId" value={debug.sessionId ?? '-'} />
+        <Row label="state" value={debug.state} />
+        <Row label="aiStatus" value={debug.currentAiStatus ?? '-'} />
+        <div className="mt-1 break-words text-rose-300">errorMessage: {debug.errorMessage || '-'}</div>
+      </Section>
+
+      <Section title="Player">
+        <Row label="playerType" value={debug.playerType ?? '-'} />
+        <Row label="playerSrc" value={debug.playerSrc || '-'} />
+        <Row label="isPlayerReady" value={String(debug.isPlayerReady ?? false)} />
+      </Section>
+
+      <Section title="Data">
+        <Row label="loadedSegments" value={debug.loadedSegments} />
+        <Row label="loadedQuizzes" value={debug.loadedQuizzes} />
+        <Row label="loadedFallEvents" value={debug.loadedFallEvents} />
+        <Row label="preparedFallEvents" value={debug.preparedFallEvents ?? '-'} />
+        <Row label="unmatchedFallEvents" value={debug.unmatchedFallEvents ?? '-'} />
+      </Section>
+
+      <Section title="Difficulty">
+        <Row label="adaptiveMode" value={debug.adaptiveMode ?? '-'} />
+        <Row label="rainDifficulty" value={debug.rainDifficulty ?? '-'} />
+        <Row label="activeBlanks" value={debug.activeBlanks ?? '-'} />
+        <Row label="fallSpeed" value={formatNumber(debug.fallSpeed)} />
+        <Row label="adaptiveSamplingStep" value={debug.adaptiveSamplingStep ?? '-'} />
+        <Row label="minFallDuration" value={formatNumber(debug.minFallDuration)} />
+        <Row label="fallLeadTimeOffset" value={formatNumber(debug.fallLeadTimeOffset)} />
+        <Row label="missGraceSeconds" value={formatNumber(debug.missGraceSeconds)} />
+        <Row label="adaptiveDecision" value={debug.adaptiveDecision ?? '-'} />
+        <Row label="adaptiveStreak" value={debug.adaptiveStreak ?? '-'} />
+        <Row label="windowAccuracy" value={formatNumber(debug.windowAccuracy)} />
+        <Row label="windowMissRate" value={formatNumber(debug.windowMissRate)} />
+      </Section>
+
+      <Section title="Rain">
+        <Row label="activeKeywordId" value={debug.activeKeywordId ?? '-'} />
+        <Row label="pendingKeywordCount" value={debug.pendingKeywordCount ?? '-'} />
+        <Row label="visibleKeywordCount" value={debug.visibleKeywordCount ?? '-'} />
+        <Row label="lastJudgement" value={debug.lastJudgement ?? '-'} />
+      </Section>
+
+      <Section title="Meta">
+        <Row label="tabSwitchCount" value={debug.tabSwitchCount ?? '-'} />
+      </Section>
     </div>
   );
 }

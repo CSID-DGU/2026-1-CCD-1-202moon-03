@@ -5,6 +5,8 @@ export interface UserProfileData {
   username: string;
   nickname: string;
   email: string;
+  birth_date?: string;
+  gender?: 'male' | 'female';
   avatar_type: string;
   stimulation_level: number;
   is_tutorial_done: boolean;
@@ -15,11 +17,15 @@ export type UserProfileResponse = ApiResponse<UserProfileData>;
 
 export interface UpdateMyProfileRequest {
   nickname?: string;
+  birth_date?: string;
+  gender?: 'male' | 'female';
   avatar_type?: string;
 }
 
 export type UpdateMyProfileResponse = ApiResponse<{
   nickname: string;
+  birth_date?: string;
+  gender?: 'male' | 'female';
   avatar_type: string;
 }>;
 
