@@ -21,7 +21,7 @@ function Header() {
       </div>
       <div
         aria-hidden="true"
-        className="absolute inset-x-0 bottom-0 h-px bg-[#E3E7EE]"
+        className="absolute bottom-0 left-1/2 h-px w-screen -translate-x-1/2 bg-[#E3E7EE]"
       />
     </header>
   );
