@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { RAIN_DIFFICULTY_PRESETS } from './rainDifficultyPresets';
 
 export interface RainSettings {
   mode: 'auto' | 'manual';
@@ -13,24 +14,6 @@ interface RainSettingsModalProps {
   onClose: () => void;
   onApply: (settings: RainSettings) => void;
 }
-
-const AUTO_DIFFICULTY_TO_MANUAL_SETTINGS: Record<
-  RainSettings['difficulty'],
-  Pick<RainSettings, 'blankCount' | 'fallSpeed'>
-> = {
-  easy: {
-    blankCount: 1,
-    fallSpeed: 1,
-  },
-  normal: {
-    blankCount: 2,
-    fallSpeed: 2,
-  },
-  hard: {
-    blankCount: 2,
-    fallSpeed: 4,
-  },
-};
 
 function RainSettingsModal({
   isOpen,
@@ -67,7 +50,10 @@ function RainSettingsModal({
   }
 
   const applyDifficultyToManualSettings = (difficulty: RainSettings['difficulty']) =>
-    AUTO_DIFFICULTY_TO_MANUAL_SETTINGS[difficulty];
+    ({
+      blankCount: RAIN_DIFFICULTY_PRESETS[difficulty].manual.blankCount,
+      fallSpeed: RAIN_DIFFICULTY_PRESETS[difficulty].manual.speedLevel,
+    });
 
   return (
     <>

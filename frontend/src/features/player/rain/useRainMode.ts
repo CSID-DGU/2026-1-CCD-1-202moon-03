@@ -16,27 +16,10 @@ import type {
   RainQuizState,
 } from './types';
 import type { RainSettings } from './RainSettingsModal';
-
-const RAIN_DIFFICULTY = {
-  easy: {
-    activeBlanks: 1,
-    fallSpeed: 0.7,
-    minFallDuration: 7.0,
-    segmentSampleRate: 5,
-  },
-  normal: {
-    activeBlanks: 2,
-    fallSpeed: 0.9,
-    minFallDuration: 6.0,
-    segmentSampleRate: 3,
-  },
-  hard: {
-    activeBlanks: 2,
-    fallSpeed: 1.1,
-    minFallDuration: 5.0,
-    segmentSampleRate: 1,
-  },
-};
+import {
+  RAIN_DIFFICULTY_PRESETS,
+  type RainDifficultyPresetKey,
+} from './rainDifficultyPresets';
 
 const FALL_PROGRESS_START = -12;
 const FALL_PROGRESS_END = 86;
@@ -117,34 +100,15 @@ function roundToTenth(value: number) {
 }
 
 function createAdaptiveDifficultyState(
-  difficulty: keyof typeof RAIN_DIFFICULTY,
+  difficulty: RainDifficultyPresetKey,
 ): AdaptiveDifficultyState {
-  if (difficulty === 'easy') {
-    return {
-      samplingStep: 5,
-      activeBlanks: 1,
-      fallSpeedMultiplier: 0.7,
-      fallLeadTimeOffset: 0.4,
-      missGraceSeconds: 1.5,
-    };
-  }
-
-  if (difficulty === 'hard') {
-    return {
-      samplingStep: 1,
-      activeBlanks: 2,
-      fallSpeedMultiplier: 1.1,
-      fallLeadTimeOffset: 0,
-      missGraceSeconds: 1.0,
-    };
-  }
-
+  const preset = RAIN_DIFFICULTY_PRESETS[difficulty].auto;
   return {
-    samplingStep: 3,
-    activeBlanks: 2,
-    fallSpeedMultiplier: 0.9,
-    fallLeadTimeOffset: 0.2,
-    missGraceSeconds: 1.2,
+    samplingStep: preset.samplingStep,
+    activeBlanks: preset.activeBlanks,
+    fallSpeedMultiplier: preset.fallSpeedMultiplier,
+    fallLeadTimeOffset: preset.fallLeadTimeOffset,
+    missGraceSeconds: preset.missGraceSeconds,
   };
 }
 
@@ -461,10 +425,10 @@ export function useRainMode(settings?: RainSettings) {
   const performanceWindowRef = useRef<PerformanceWindowEntry[]>([]);
   const performanceEntryCountRef = useRef(0);
   const isManualSettings = settings?.mode === 'manual';
-  const selectedDifficulty = settings?.difficulty ?? rainDifficulty;
-  const difficultySettings = RAIN_DIFFICULTY[selectedDifficulty];
+  const selectedDifficulty = (settings?.difficulty ?? rainDifficulty) as RainDifficultyPresetKey;
+  const difficultySettings = RAIN_DIFFICULTY_PRESETS[selectedDifficulty].gameplay;
   const effectiveActiveBlanks = isManualSettings
-    ? settings?.blankCount ?? difficultySettings.activeBlanks
+    ? settings?.blankCount ?? RAIN_DIFFICULTY_PRESETS[selectedDifficulty].manual.blankCount
     : adaptiveDifficultyState.activeBlanks;
   // 수동 속도 1~5 → 실제 배속 0.5~2.0
   const MANUAL_SPEED_MAP: Record<number, number> = { 1: 0.3, 2: 0.5, 3: 0.75, 4: 1.0, 5: 1.5 };

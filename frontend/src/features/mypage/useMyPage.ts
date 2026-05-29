@@ -22,10 +22,27 @@ import type {
   UserSettingsData,
 } from '../../types';
 
-const AVATAR_OPTIONS = ['character_1', 'character_2', 'character_3', 'character_4'] as const;
+const AVATAR_OPTIONS = [
+  'character01',
+  'character02',
+  'character03',
+  'character04',
+  'character05',
+  'character06',
+  'character07',
+  'character08',
+] as const;
 const FIDGET_KEY_OPTIONS = ['alt', 'ctrl', 'shift'] as const;
 
-type MyPageDialog = 'profile' | 'password' | 'settings' | 'delete' | 'passwordSuccess' | 'deleteSuccess' | null;
+type MyPageDialog =
+  | 'profile'
+  | 'avatar'
+  | 'password'
+  | 'settings'
+  | 'delete'
+  | 'passwordSuccess'
+  | 'deleteSuccess'
+  | null;
 
 interface LearningStats {
   completedVideoCount: number;
@@ -57,14 +74,79 @@ function mapProfileToAuthUser(profile: UserProfileData) {
 
 function mapDisplayKeyToSettingKey(key: string) {
   switch (key) {
-    case 'a':
+    case 'enter':
       return 'ctrl';
-    case 'b':
+    case 'shift':
       return 'shift';
     case 'd':
       return 'alt';
     default:
       return null;
+  }
+}
+
+function normalizeBirthDate(value?: string) {
+  const normalized = value?.trim() ?? '';
+
+  if (!normalized) {
+    return undefined;
+  }
+
+  return normalized.replace(/\s*[./]\s*/g, '-');
+}
+
+function normalizeAvatarType(value?: string | null) {
+  switch (value) {
+    case 'character_1':
+      return 'character01';
+    case 'character_2':
+      return 'character02';
+    case 'character_3':
+      return 'character03';
+    case 'character_4':
+      return 'character04';
+    case 'character_5':
+      return 'character05';
+    case 'character_6':
+      return 'character06';
+    case 'character_7':
+      return 'character07';
+    case 'character_8':
+      return 'character08';
+    case 'character01':
+    case 'character02':
+    case 'character03':
+    case 'character04':
+    case 'character05':
+    case 'character06':
+    case 'character07':
+    case 'character08':
+      return value;
+    default:
+      return AVATAR_OPTIONS[0];
+  }
+}
+
+function toApiAvatarType(value?: string | null) {
+  switch (normalizeAvatarType(value)) {
+    case 'character01':
+      return 'character_1';
+    case 'character02':
+      return 'character_2';
+    case 'character03':
+      return 'character_3';
+    case 'character04':
+      return 'character_4';
+    case 'character05':
+      return 'character_5';
+    case 'character06':
+      return 'character_6';
+    case 'character07':
+      return 'character_7';
+    case 'character08':
+      return 'character_8';
+    default:
+      return 'character_1';
   }
 }
 
@@ -91,6 +173,8 @@ export function useMyPage() {
 
   const [profileForm, setProfileForm] = useState<UpdateMyProfileRequest>({
     nickname: '',
+    birth_date: '',
+    gender: undefined,
     avatar_type: AVATAR_OPTIONS[0],
   });
   const [passwordForm, setPasswordForm] = useState<ChangeMyPasswordRequest>({
@@ -128,7 +212,9 @@ export function useMyPage() {
         setHistory(historyResponse.data);
         setProfileForm({
           nickname: profileResponse.data.nickname,
-          avatar_type: profileResponse.data.avatar_type || AVATAR_OPTIONS[0],
+          birth_date: profileResponse.data.birth_date || '',
+          gender: profileResponse.data.gender,
+          avatar_type: normalizeAvatarType(profileResponse.data.avatar_type),
         });
         setUser(mapProfileToAuthUser(profileResponse.data));
       } catch (error) {
@@ -152,8 +238,22 @@ export function useMyPage() {
   }, [isAuthenticated, isHydrated, setUser]);
 
   useEffect(() => {
-    setNotice('');
+    if (dialog !== null) {
+      setNotice('');
+    }
   }, [dialog]);
+
+  useEffect(() => {
+    if (!notice || dialog !== null) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setNotice('');
+    }, 3000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [dialog, notice]);
 
   useEffect(() => {
     if (dialog !== 'settings' || !pendingKeySelection) {
@@ -165,7 +265,7 @@ export function useMyPage() {
       const nextKey = mapDisplayKeyToSettingKey(key);
 
       if (!nextKey) {
-        setNotice('현재는 D, A, B 키만 설정할 수 있어요.');
+        setNotice('D, Enter, Shift 키만 설정할 수 있어요.');
         return;
       }
 
@@ -242,12 +342,14 @@ export function useMyPage() {
   const openDialog = (nextDialog: Exclude<MyPageDialog, 'passwordSuccess' | 'deleteSuccess' | null>) => {
     setNotice('');
     setDialog(nextDialog);
-    if (nextDialog === 'profile' && profile) {
-      setProfileForm({
-        nickname: profile.nickname,
-        avatar_type: profile.avatar_type || AVATAR_OPTIONS[0],
-      });
-    }
+      if ((nextDialog === 'profile' || nextDialog === 'avatar') && profile) {
+        setProfileForm({
+          nickname: profile.nickname,
+          birth_date: profile.birth_date || '',
+          gender: profile.gender,
+          avatar_type: normalizeAvatarType(profile.avatar_type),
+        });
+      }
     if (nextDialog === 'password') {
       setPasswordForm({
         current_password: '',
@@ -278,16 +380,18 @@ export function useMyPage() {
     setIsSavingProfile(true);
     setNotice('');
 
-    try {
-      await updateMyProfile({
-        nickname: profileForm.nickname.trim(),
-        avatar_type: profileForm.avatar_type,
-      });
+      try {
+        await updateMyProfile({
+          nickname: profileForm.nickname.trim(),
+          birth_date: normalizeBirthDate(profileForm.birth_date),
+          gender: profileForm.gender,
+          avatar_type: toApiAvatarType(profileForm.avatar_type),
+        });
       const refreshed = await getMyProfile();
       setProfile(refreshed.data);
       setUser(mapProfileToAuthUser(refreshed.data));
       setDialog(null);
-      setNotice('개인정보가 수정되었습니다.');
+      setNotice('개인정보 수정이 완료되었습니다.');
     } catch (error) {
       setNotice(extractErrorMessage(error, '개인정보 수정에 실패했습니다.'));
     } finally {

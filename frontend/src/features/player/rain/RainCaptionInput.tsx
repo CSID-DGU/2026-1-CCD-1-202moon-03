@@ -390,7 +390,7 @@ const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProp
                   onSubmit(item.key, submitValue);
                 }}
                 style={{ width: `${getAnswerBoxWidth(getCompactAnswerLength(item.blank.keyword))}px` }}
-                className={`${allowWrap ? 'mx-[6px] my-1' : 'mx-1'} inline-block h-[42px] w-[100px] shrink-0 rounded-[8px] border px-[10px] py-[6px] align-middle text-center text-[18px] font-semibold leading-[1.2] outline-none placeholder:text-[18px] placeholder:text-[#9CA3AF] ${
+                className={`${allowWrap ? 'ml-0 mr-1 my-[2px]' : 'mx-1'} inline-block h-[42px] w-[100px] shrink-0 rounded-[8px] border px-[10px] py-0 align-middle text-center text-[18px] font-semibold leading-[40px] outline-none translate-y-[-1px] placeholder:text-[18px] placeholder:leading-[40px] placeholder:text-[#9CA3AF] ${
                   item.resolvedState === 'cleared'
                     ? 'border-[#16A34A] bg-[#F0FDF4] text-[#166534]'
                     : item.resolvedState === 'missed'
@@ -402,17 +402,19 @@ const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProp
           );
 
     return (
-      <div
-        ref={rootRef}
-        className={`min-w-full text-[22px] font-semibold leading-[1.45] text-white ${
-          allowWrap ? 'block text-left' : 'inline-flex items-center whitespace-nowrap'
-        }`}
-      >
-        {allowWrap ? (
-          <div className="max-w-full whitespace-normal text-left align-top [word-break:keep-all]">
-            {renderedItems}
-          </div>
-        ) : (
+        <div
+          ref={rootRef}
+          className={`min-w-full font-semibold text-white ${
+            allowWrap
+              ? 'block text-left text-[21px] leading-[1.4] tracking-[-0.01em]'
+              : 'inline-flex items-center whitespace-nowrap text-[22px] leading-[1.45]'
+          }`}
+        >
+          {allowWrap ? (
+            <div className="max-w-[96%] whitespace-normal text-left align-top leading-[1.4] [word-break:keep-all]">
+              {renderedItems}
+            </div>
+          ) : (
           renderedItems
         )}
       </div>

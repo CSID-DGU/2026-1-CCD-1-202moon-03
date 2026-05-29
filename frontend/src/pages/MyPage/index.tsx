@@ -1,11 +1,104 @@
-import type { ButtonHTMLAttributes, ReactNode } from 'react';
-import { PageHeader } from '../../components/common/PageHeader';
+import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from 'react';
+import clockIcon from '../../assets/icons/clock.svg';
+import clapperboardIcon from '../../assets/icons/clapperboard.svg';
+import character01_1 from '../../assets/user/character01_1.png';
+import character01_2 from '../../assets/user/character01_2.png';
+import character01_3 from '../../assets/user/character01_3.png';
+import character02_1 from '../../assets/user/character02_1.png';
+import character02_2 from '../../assets/user/character02_2.png';
+import character02_3 from '../../assets/user/character02_3.png';
+import character03_1 from '../../assets/user/character03_1.png';
+import character03_2 from '../../assets/user/character03_2.png';
+import character03_3 from '../../assets/user/character03_3.png';
+import character04_1 from '../../assets/user/character04_1.png';
+import character04_2 from '../../assets/user/character04_2.png';
+import character04_3 from '../../assets/user/character04_3.png';
+import character05_1 from '../../assets/user/character05_1.png';
+import character05_2 from '../../assets/user/character05_2.png';
+import character05_3 from '../../assets/user/character05_3.png';
+import character06_1 from '../../assets/user/character06_1.png';
+import character06_2 from '../../assets/user/character06_2.png';
+import character06_3 from '../../assets/user/character06_3.png';
+import character07_1 from '../../assets/user/character07_1.png';
+import character07_2 from '../../assets/user/character07_2.png';
+import character07_3 from '../../assets/user/character07_3.png';
+import character08_1 from '../../assets/user/character08_1.png';
+import character08_2 from '../../assets/user/character08_2.png';
+import character08_3 from '../../assets/user/character08_3.png';
 import { useMyPage } from '../../features/mypage/useMyPage';
 import type { LearningHistoryItem } from '../../types';
 
+type AvatarKey =
+  | 'character01'
+  | 'character02'
+  | 'character03'
+  | 'character04'
+  | 'character05'
+  | 'character06'
+  | 'character07'
+  | 'character08';
+
+const AVATAR_GROUPS: { key: AvatarKey; images: [string, string, string] }[] = [
+  { key: 'character01', images: [character01_1, character01_2, character01_3] },
+  { key: 'character02', images: [character02_1, character02_2, character02_3] },
+  { key: 'character03', images: [character03_1, character03_2, character03_3] },
+  { key: 'character04', images: [character04_1, character04_2, character04_3] },
+  { key: 'character05', images: [character05_1, character05_2, character05_3] },
+  { key: 'character06', images: [character06_1, character06_2, character06_3] },
+  { key: 'character07', images: [character07_1, character07_2, character07_3] },
+  { key: 'character08', images: [character08_1, character08_2, character08_3] },
+];
+
+const AVATAR_BACKGROUND_COLORS: Record<AvatarKey, string> = {
+  character01: '#FFF4CD',
+  character02: '#D2F2EA',
+  character03: '#F1E0F9',
+  character04: '#FFDDE7',
+  character05: '#C8DFFF',
+  character06: '#F1ECC8',
+  character07: '#FDE6D6',
+  character08: '#DDE4FF',
+};
+
+function normalizeAvatarKey(value?: string | null): AvatarKey {
+  switch (value) {
+    case 'character_1':
+    case 'character01':
+      return 'character01';
+    case 'character_2':
+    case 'character02':
+      return 'character02';
+    case 'character_3':
+    case 'character03':
+      return 'character03';
+    case 'character_4':
+    case 'character04':
+      return 'character04';
+    case 'character_5':
+    case 'character05':
+      return 'character05';
+    case 'character_6':
+    case 'character06':
+      return 'character06';
+    case 'character_7':
+    case 'character07':
+      return 'character07';
+    case 'character_8':
+    case 'character08':
+      return 'character08';
+    default:
+      return 'character01';
+  }
+}
+
+function getAvatarGroup(value?: string | null) {
+  const key = normalizeAvatarKey(value);
+  return AVATAR_GROUPS.find((group) => group.key === key) ?? AVATAR_GROUPS[0];
+}
+
 function formatJoinedDate(value?: string) {
   if (!value) {
-    return '가입일 정보를 불러오는 중';
+    return 'No date available';
   }
 
   const date = new Date(value);
@@ -15,208 +108,345 @@ function formatJoinedDate(value?: string) {
 
   return `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(
     date.getDate(),
-  ).padStart(2, '0')} 가입`;
-}
-
-function formatCompletedDate(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  return `${date.getMonth() + 1}월 ${date.getDate()}일`;
+  ).padStart(2, '0')}`;
 }
 
 function formatStudyTime(totalStudySeconds: number) {
   if (totalStudySeconds <= 0) {
-    return '집계 중';
+    return '0 min';
   }
 
   const hours = Math.floor(totalStudySeconds / 3600);
   const minutes = Math.round((totalStudySeconds % 3600) / 60);
 
   if (hours > 0) {
-    return `${hours}시간 ${minutes}분`;
+    return minutes > 0 ? `${hours} hr ${minutes} min` : `${hours} hr`;
   }
 
-  return `${minutes}분`;
+  return `${minutes} min`;
 }
 
 function formatWatchRate(value: number) {
   return `${Math.round(value * 100)}%`;
 }
 
-function getAvatarLabel(avatarType?: string) {
-  switch (avatarType) {
-    case 'character_2':
-      return 'B';
-    case 'character_3':
-      return 'C';
-    case 'character_4':
-      return 'D';
-    default:
-      return 'A';
-  }
-}
-
-function getAvatarColor(avatarType?: string) {
-  switch (avatarType) {
-    case 'character_2':
-      return 'from-[#FFD9A8] to-[#F79B72]';
-    case 'character_3':
-      return 'from-[#C9F2C7] to-[#56C98E]';
-    case 'character_4':
-      return 'from-[#D3DAFF] to-[#7A8CFF]';
-    default:
-      return 'from-[#B7E5FF] to-[#1A9AF5]';
-  }
-}
-
 function getDisplayKey(settingKey?: string | null) {
   switch (settingKey) {
     case 'ctrl':
-      return 'A';
+      return 'Enter';
     case 'shift':
-      return 'B';
+      return 'Shift';
     case 'alt':
     default:
       return 'D';
   }
 }
 
-function SectionCard({
-  title,
-  description,
-  children,
-}: {
-  title: string;
-  description?: string;
-  children: ReactNode;
-}) {
+function PencilIcon() {
   return (
-    <section className="rounded-[28px] border border-[#E7EDF5] bg-white p-6 shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
-      <div className="flex flex-col gap-5">
-        <div className="space-y-1">
-          <h2 className="text-[22px] font-semibold tracking-[-0.03em] text-[#15171C]">{title}</h2>
-          {description ? <p className="text-sm leading-6 text-[#697180]">{description}</p> : null}
-        </div>
-        {children}
-      </div>
-    </section>
+    <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M4.2 13.9 3.5 16.5l2.6-.7L14.8 7a1.8 1.8 0 0 0 0-2.5l-.3-.3a1.8 1.8 0 0 0-2.5 0L4.2 13.9Z" />
+      <path d="m10.8 5.4 3.8 3.8" />
+    </svg>
   );
 }
 
-function GhostButton({
-  children,
-  tone = 'primary',
-  ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { tone?: 'primary' | 'danger' }) {
-  const className =
-    tone === 'danger'
-      ? 'border-[#FFD2D8] bg-[#FFF5F7] text-[#D62B45] hover:bg-[#FFE8EC]'
-      : 'border-[#CFE5F8] bg-[#F8FBFF] text-[#1A6FB3] hover:bg-[#EEF7FF]';
+function ChevronRightIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-5 w-5 text-[#15171C]"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+    >
+      <path d="m9 6 6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="m6 6 12 12M18 6 6 18" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.2">
+      <path d="m5 12.5 4.2 4.2L19 7" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function AvatarPreview({
+  avatarType,
+  size = 128,
+  editable = false,
+  onClick,
+}: {
+  avatarType?: string | null;
+  size?: number;
+  editable?: boolean;
+  onClick?: () => void;
+}) {
+  const avatarGroup = getAvatarGroup(avatarType);
+  const imageSrc = avatarGroup.images[0];
+  const backgroundColor = AVATAR_BACKGROUND_COLORS[avatarGroup.key];
 
   return (
     <button
-      {...props}
-      className={`inline-flex h-12 items-center justify-center rounded-[16px] border px-5 text-sm font-semibold transition-colors ${className} ${props.className ?? ''}`}
+      type="button"
+      onClick={onClick}
+      disabled={!onClick}
+      className="relative shrink-0 disabled:cursor-default"
+      style={{ width: size, height: size }}
+    >
+      <div
+        className="relative h-full w-full overflow-hidden rounded-full"
+        style={{ backgroundColor }}
+      >
+        <img
+          src={imageSrc}
+          alt=""
+          aria-hidden="true"
+          className="absolute bottom-0 left-1/2 h-[102%] w-auto max-w-none -translate-x-1/2 object-contain"
+        />
+      </div>
+      {editable ? (
+        <div className="absolute bottom-0 right-0 flex h-9 w-9 items-center justify-center rounded-full bg-[#1A9AF5] text-white shadow-[0_6px_16px_rgba(26,154,245,0.28)]">
+          <PencilIcon />
+        </div>
+      ) : null}
+    </button>
+  );
+}
+
+function SideMenuItem({
+  active,
+  onClick,
+  children,
+}: {
+  active?: boolean;
+  onClick?: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex w-full items-center rounded-[10px] px-4 py-3 text-left text-[18px] leading-[1.5] tracking-[-0.025em] transition-colors ${
+        active ? 'font-semibold text-[#15171C]' : 'font-medium text-[#9499A3] hover:text-[#15171C]'
+      }`}
     >
       {children}
     </button>
   );
 }
 
-function PrimaryButton(props: ButtonHTMLAttributes<HTMLButtonElement>) {
+function OutlineButton({
+  className = '',
+  children,
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button
       {...props}
-      className={`inline-flex h-12 items-center justify-center rounded-[16px] bg-[#1A9AF5] px-5 text-sm font-semibold text-white shadow-[inset_0px_4px_4px_rgba(81,183,255,0.45),inset_0px_-4px_4px_rgba(6,132,222,0.35)] transition-opacity hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50 ${props.className ?? ''}`}
-    />
+      className={`inline-flex h-10 items-center justify-center rounded-[10px] border border-[#D9DEE8] bg-white px-4 text-[15px] font-medium text-[#15171C] transition-colors hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
+    >
+      {children}
+    </button>
   );
 }
 
-function InfoRow({
+function PrimaryButton({
+  className = '',
+  children,
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button
+      {...props}
+      className={`inline-flex h-14 items-center justify-center rounded-[16px] border border-[#1A9AF5] bg-[#1A9AF5] px-7 text-[16px] font-bold tracking-[-0.025em] text-white shadow-[inset_0_4px_4px_rgba(81,183,255,0.45),inset_0_-4px_4px_rgba(6,132,222,0.35)] transition-opacity hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function SectionTitle({ children }: { children: ReactNode }) {
+  return (
+    <h2 className="text-[28px] font-bold leading-[1.25] tracking-[-0.03em] text-[#15171C]">
+      {children}
+    </h2>
+  );
+}
+
+function StatCard({
   label,
   value,
-  action,
+  icon,
 }: {
   label: string;
   value: string;
-  action?: ReactNode;
+  icon: ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-3 rounded-[20px] border border-[#EEF2F7] bg-[#FCFDFE] px-5 py-4 md:flex-row md:items-center md:justify-between">
-      <div className="space-y-1">
-        <p className="text-sm font-medium text-[#697180]">{label}</p>
-        <p className="text-base font-semibold text-[#15171C]">{value}</p>
+    <div className="flex min-h-[132px] flex-1 flex-col rounded-[10px] border border-[#E5E7EC] bg-white px-8 py-7">
+      <div className="flex items-start justify-between gap-4">
+        <span className="text-[16px] font-medium tracking-[-0.02em] text-[#15171C]">{label}</span>
+        <div className="mt-1 shrink-0">{icon}</div>
       </div>
-      {action}
+      <strong className="mt-4 text-[44px] font-bold leading-none tracking-[-0.04em] text-[#15171C]">
+        {value}
+      </strong>
     </div>
   );
 }
 
-function HistoryItemCard({ item }: { item: LearningHistoryItem }) {
+function ActionRow({
+  label,
+  onClick,
+  danger = false,
+}: {
+  label: string;
+  onClick: () => void;
+  danger?: boolean;
+}) {
   return (
-    <div className="flex items-center gap-4 rounded-[20px] border border-[#EEF2F7] bg-white px-4 py-4">
-      <div className="flex h-14 w-14 flex-none items-center justify-center rounded-[18px] bg-[#F0F7FF] text-sm font-bold uppercase text-[#1A9AF5]">
-        {item.mode === 'rain' ? 'RAIN' : 'SPIN'}
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex min-h-[76px] w-full items-center justify-between rounded-[10px] border border-[#E5E7EC] bg-white px-7 text-left transition-colors hover:bg-[#FBFCFE]"
+    >
+      <span className={`text-[16px] font-medium tracking-[-0.02em] ${danger ? 'text-[#E5484D]' : 'text-[#15171C]'}`}>
+        {label}
+      </span>
+      <ChevronRightIcon />
+    </button>
+  );
+}
+
+function ToastNotice({ children }: { children: ReactNode }) {
+  return (
+    <div className="pointer-events-none fixed bottom-8 left-1/2 z-[70] flex w-full max-w-[420px] -translate-x-1/2 items-center gap-3 rounded-[12px] bg-[#3A3D45] px-4 py-4 text-white shadow-[0_18px_44px_rgba(0,0,0,0.24)]">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#22C55E] text-white">
+        <CheckIcon />
       </div>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-base font-semibold text-[#15171C]">{item.title}</p>
-        <p className="mt-1 text-sm text-[#697180]">
-          {formatCompletedDate(item.completed_at)} · 시청률 {formatWatchRate(item.watch_rate)}
-        </p>
-      </div>
-      <div className="text-right text-sm text-[#697180]">
-        <p>
-          퀴즈 {item.quiz_correct}/{item.quiz_total}
-        </p>
-        {typeof item.total_score === 'number' ? <p>점수 {item.total_score}</p> : null}
-      </div>
+      <p className="text-[16px] font-medium leading-[1.45] tracking-[-0.02em] text-white">{children}</p>
     </div>
   );
 }
 
 function ModalShell({
   title,
-  description,
-  children,
   onClose,
+  children,
+  widthClassName = 'max-w-[420px]',
 }: {
   title: string;
-  description?: string;
-  children: ReactNode;
   onClose: () => void;
+  children: ReactNode;
+  widthClassName?: string;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(15,23,42,0.45)] px-5 py-10">
-      <div className="absolute inset-0" aria-hidden="true" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-[560px] rounded-[28px] bg-white p-7 shadow-[0_24px_80px_rgba(15,23,42,0.18)]">
-        <div className="mb-6 flex items-start justify-between gap-4">
-          <div className="space-y-2">
-            <h3 className="text-[24px] font-semibold tracking-[-0.03em] text-[#15171C]">{title}</h3>
-            {description ? <p className="text-sm leading-6 text-[#697180]">{description}</p> : null}
-          </div>
-          <button
-            type="button"
-            aria-label="닫기"
-            onClick={onClose}
-            className="flex h-10 w-10 items-center justify-center rounded-full text-[#697180] transition-colors hover:bg-[#F2F5F8]"
-          >
-            ✕
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(21,23,28,0.32)] px-6 py-8">
+      <div className={`w-full rounded-[28px] bg-white shadow-[0_30px_90px_rgba(16,24,40,0.18)] ${widthClassName}`}>
+        <div className="flex items-center justify-between px-8 pb-4 pt-8">
+          <h3 className="text-[20px] font-bold tracking-[-0.03em] text-[#15171C]">{title}</h3>
+          <button type="button" onClick={onClose} className="text-[#15171C] transition-opacity hover:opacity-70">
+            <CloseIcon />
           </button>
         </div>
-        {children}
+        <div className="px-8 pb-8">{children}</div>
       </div>
     </div>
   );
 }
 
-function MyPage() {
+function FormField({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <label className="flex flex-col gap-3">
+      <span className="text-[16px] font-medium tracking-[-0.02em] text-[#15171C]">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+function TextInput(props: InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <input
+      {...props}
+      className={`h-[56px] rounded-[12px] border border-[#CBD4E1] bg-white px-4 text-[16px] font-medium tracking-[-0.02em] text-[#15171C] outline-none transition-colors placeholder:text-[#B6BDC8] focus:border-[#1A9AF5] ${props.className ?? ''}`}
+    />
+  );
+}
+
+function DisabledField({ value }: { value?: string }) {
+  return (
+    <div className="flex h-[56px] items-center rounded-[12px] border border-[#CBD4E1] bg-[#F6F8FB] px-4 text-[16px] font-medium tracking-[-0.02em] text-[#B6BDC8]">
+      {value || '-'}
+    </div>
+  );
+}
+
+function NoticeText({ children, danger = false }: { children: ReactNode; danger?: boolean }) {
+  return (
+    <p className={`text-[14px] leading-[1.5] ${danger ? 'text-[#E5484D]' : 'text-[#6B7280]'}`}>
+      {children}
+    </p>
+  );
+}
+
+function HistorySummary({ history }: { history: LearningHistoryItem[] }) {
+  if (!history.length) {
+    return (
+      <div className="rounded-[10px] border border-[#E5E7EC] bg-white px-7 py-6 text-[16px] text-[#6B7280]">
+        No learning history yet.
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-[10px] border border-[#E5E7EC] bg-white px-7 py-6 text-[16px] font-medium tracking-[-0.02em] text-[#15171C]">
+      Recent learning count {history.length}, average watch rate{' '}
+      {formatWatchRate(history.reduce((sum, item) => sum + item.watch_rate, 0) / history.length)}
+    </div>
+  );
+}
+
+function SuccessContent({
+  message,
+  buttonLabel,
+  onConfirm,
+}: {
+  message: string;
+  buttonLabel: string;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="flex flex-col items-center gap-7 px-2 pb-1 pt-5 text-center">
+      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#E9F8EF] text-[#22C55E]">
+        <CheckIcon />
+      </div>
+      <p className="text-[18px] font-semibold leading-[1.5] tracking-[-0.02em] text-[#15171C]">{message}</p>
+      <PrimaryButton onClick={onConfirm} className="w-full">
+        {buttonLabel}
+      </PrimaryButton>
+    </div>
+  );
+}
+
+export default function MyPage() {
   const {
-    avatarOptions,
-    fidgetKeyOptions,
-    authUser,
     profile,
     settings,
     history,
@@ -248,236 +478,250 @@ function MyPage() {
     logoutToOnboarding,
   } = useMyPage();
 
-  const displayName = profile?.nickname || authUser?.nickname || authUser?.username || '사용자';
-  const username = profile?.username || authUser?.username || '';
-  const createdAt = profile?.created_at || authUser?.createdAt;
-  const email = profile?.email || authUser?.email || '이메일 정보 없음';
+  const isSettingsView = dialog === 'settings';
+  const activeAvatarGroup = getAvatarGroup(profileForm.avatar_type ?? profile?.avatar_type);
 
   return (
-    <div className="space-y-8">
-      <PageHeader
-        eyebrow="MYPAGE"
-        title="마이페이지"
-        description="프로필, 학습 통계, 보안 설정과 회원탈퇴까지 한 곳에서 관리할 수 있어요."
-      />
+    <div className="min-h-screen bg-white text-[#15171C]">
+      <div className="mx-auto flex max-w-[1280px] px-8 pb-20 pt-10">
+        <aside className="w-[220px] shrink-0 border-r border-[#E5E7EC] pr-8 pt-10">
+          <nav className="flex flex-col gap-1">
+            <SideMenuItem active={!isSettingsView} onClick={() => closeDialog()}>
+              My Page
+            </SideMenuItem>
+            <SideMenuItem active={isSettingsView} onClick={() => openDialog('settings')}>
+              Settings
+            </SideMenuItem>
+          </nav>
+        </aside>
 
-      {pageError ? (
-        <div className="rounded-[20px] border border-[#FFD6DC] bg-[#FFF5F7] px-5 py-4 text-sm text-[#C7254E]">
-          {pageError}
-        </div>
-      ) : null}
-
-      {notice && dialog === null ? (
-        <div className="rounded-[20px] border border-[#D6ECFF] bg-[#F5FBFF] px-5 py-4 text-sm text-[#1A6FB3]">
-          {notice}
-        </div>
-      ) : null}
-
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
-        <SectionCard title="프로필" description="캐릭터와 기본 정보를 확인하고 수정할 수 있어요.">
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-center">
-            <div
-              className={`flex h-28 w-28 items-center justify-center rounded-[32px] bg-gradient-to-br ${getAvatarColor(
-                profile?.avatar_type || authUser?.avatarType,
-              )} text-[40px] font-bold text-white shadow-[0_18px_40px_rgba(26,154,245,0.24)]`}
-            >
-              {getAvatarLabel(profile?.avatar_type || authUser?.avatarType)}
+        <main className="flex-1 pl-10 pt-6">
+          {isLoading ? (
+            <div className="flex min-h-[320px] items-center justify-center text-[18px] text-[#6B7280]">
+              Loading...
             </div>
-            <div className="flex-1 space-y-3">
-              <div>
-                <h2 className="text-[28px] font-semibold tracking-[-0.04em] text-[#15171C]">
-                  {displayName}
-                  {username ? (
-                    <span className="ml-2 text-[18px] font-medium text-[#697180]">({username})</span>
-                  ) : null}
-                </h2>
-                <p className="mt-2 text-sm text-[#697180]">{formatJoinedDate(createdAt)}</p>
+          ) : pageError ? (
+            <div className="rounded-[16px] border border-[#F3C1C4] bg-[#FFF5F5] px-6 py-5 text-[16px] text-[#B42318]">
+              {pageError}
+            </div>
+          ) : isSettingsView ? (
+            <section className="max-w-[720px]">
+              <SectionTitle>Settings</SectionTitle>
+              <div className="mt-12 rounded-[16px] border border-[#E5E7EC] bg-white px-8 py-8">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h3 className="text-[18px] font-semibold tracking-[-0.025em] text-[#15171C]">
+                      Fidget mode key
+                    </h3>
+                    <p className="mt-2 text-[15px] leading-[1.6] text-[#6B7280]">
+                      Current selected key: {getDisplayKey(settings?.fidget_toggle_key)}
+                    </p>
+                  </div>
+                  <p className="max-w-[280px] text-right text-[14px] leading-[1.6] text-[#6B7280]">
+                    Choose one key from D, Enter, and Shift.
+                  </p>
+                </div>
+
+                <div className="mt-8 flex items-center gap-3">
+                  {['alt', 'ctrl', 'shift'].map((key) => {
+                    const label = getDisplayKey(key);
+                    const selected = (pendingKeySelection ?? settings?.fidget_toggle_key) === key;
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => setPendingKeySelection(key)}
+                        className={`flex h-[56px] min-w-[96px] items-center justify-center rounded-[12px] border text-[18px] font-semibold transition-colors ${
+                          selected
+                            ? 'border-[#1A9AF5] bg-[#E8F4FE] text-[#1A9AF5]'
+                            : 'border-[#D7DDE7] bg-white text-[#9499A3] hover:border-[#AEB7C5] hover:text-[#15171C]'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {notice ? <p className="mt-4 text-[14px] text-[#6B7280]">{notice}</p> : null}
+
+                <div className="mt-8 flex justify-end">
+                  <PrimaryButton onClick={() => void saveSettings()} disabled={isSavingSettings} className="min-w-[120px]">
+                    {isSavingSettings ? 'Saving...' : 'Save'}
+                  </PrimaryButton>
+                </div>
               </div>
-              <div className="flex flex-wrap gap-3">
-                <GhostButton onClick={() => openDialog('profile')}>편집</GhostButton>
-                <GhostButton onClick={() => openDialog('settings')}>환경설정</GhostButton>
+            </section>
+          ) : (
+            <section className="max-w-[940px]">
+              <div className="flex items-start justify-between gap-8">
+                <div className="flex items-center gap-8">
+                  <AvatarPreview avatarType={profile?.avatar_type} size={132} editable onClick={() => openDialog('avatar')} />
+                  <div className="pt-1">
+                    <h1 className="text-[28px] font-bold leading-[1.25] tracking-[-0.03em] text-[#15171C]">
+                      {profile?.nickname || 'User'}
+                    </h1>
+                    <p className="mt-3 text-[18px] tracking-[-0.025em] text-[#15171C]">
+                      Joined: {formatJoinedDate(profile?.created_at)}
+                    </p>
+                  </div>
+                </div>
+
+                <OutlineButton onClick={() => openDialog('profile')}>Edit profile</OutlineButton>
               </div>
-            </div>
-          </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="rounded-[24px] bg-[#F6FAFE] px-5 py-5">
-              <p className="text-sm font-medium text-[#697180]">총 학습 시간</p>
-              <p className="mt-2 text-[28px] font-semibold tracking-[-0.04em] text-[#15171C]">
-                {formatStudyTime(stats.totalStudySeconds)}
-              </p>
-            </div>
-            <div className="rounded-[24px] bg-[#F9F7FF] px-5 py-5">
-              <p className="text-sm font-medium text-[#697180]">완료한 영상 수</p>
-              <p className="mt-2 text-[28px] font-semibold tracking-[-0.04em] text-[#15171C]">
-                {stats.completedVideoCount}개
-              </p>
-            </div>
-          </div>
-        </SectionCard>
-
-        <SectionCard title="보안 설정" description="비밀번호 변경과 탈퇴는 본인 확인 후 바로 처리됩니다.">
-          <div className="space-y-4">
-            <InfoRow
-              label="비밀번호"
-              value="현재 비밀번호를 확인한 뒤 새 비밀번호로 변경할 수 있어요."
-              action={<GhostButton onClick={() => openDialog('password')}>비밀번호 변경</GhostButton>}
-            />
-            <InfoRow
-              label="회원탈퇴"
-              value="탈퇴 후 아이디는 복구할 수 없으며 관련 법령에 따라 정보가 보관 후 삭제됩니다."
-              action={
-                <GhostButton tone="danger" onClick={() => openDialog('delete')}>
-                  회원탈퇴
-                </GhostButton>
-              }
-            />
-            <GhostButton className="w-full" onClick={() => void logoutToOnboarding()}>
-              로그아웃
-            </GhostButton>
-          </div>
-        </SectionCard>
-      </div>
-
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-        <SectionCard
-          title="환경설정"
-          description="키캡 모드에서 사용할 키를 바꿀 수 있어요. 기본값은 D키예요."
-        >
-          <InfoRow
-            label="현재 설정된 키"
-            value={`${getDisplayKey(settings?.fidget_toggle_key || pendingKeySelection || 'alt')}키`}
-            action={<GhostButton onClick={() => openDialog('settings')}>변경</GhostButton>}
-          />
-          <div className="rounded-[20px] border border-dashed border-[#D7E4F3] bg-[#FBFDFF] px-4 py-4 text-sm text-[#697180]">
-            키 변경 버튼을 누르면 입력 대기 상태로 바뀌고, D / A / B 중 하나를 눌러 저장할 수 있어요.
-          </div>
-        </SectionCard>
-
-        <SectionCard
-          title="최근 학습 기록"
-          description="완료된 학습 세션을 최근 순서대로 확인할 수 있어요."
-        >
-          {isLoading ? <p className="text-sm text-[#697180]">학습 기록을 불러오는 중입니다.</p> : null}
-
-          {!isLoading && history.length === 0 ? (
-            <div className="rounded-[20px] border border-dashed border-[#D7E4F3] bg-[#FBFDFF] px-4 py-6 text-sm text-[#697180]">
-              아직 완료된 학습 기록이 없어요.
-            </div>
-          ) : null}
-
-          <div className="space-y-3">
-            {history.slice(0, 4).map((item) => (
-              <HistoryItemCard key={item.session_id} item={item} />
-            ))}
-          </div>
-
-          {history.length > 0 ? (
-            <div className="grid gap-3 rounded-[20px] border border-[#EEF2F7] bg-[#FCFDFE] px-5 py-4 sm:grid-cols-2">
-              <div>
-                <p className="text-sm font-medium text-[#697180]">평균 시청률</p>
-                <p className="mt-1 text-xl font-semibold text-[#15171C]">
-                  {formatWatchRate(stats.averageWatchRate)}
-                </p>
+              <div className="mt-16">
+                <SectionTitle>Learning stats</SectionTitle>
+                <div className="mt-7 grid gap-5 md:grid-cols-2">
+                  <StatCard
+                    label="Total study time"
+                    value={formatStudyTime(stats.totalStudySeconds)}
+                    icon={<img src={clockIcon} alt="" aria-hidden="true" className="h-6 w-6" />}
+                  />
+                  <StatCard
+                    label="Completed videos"
+                    value={`${stats.completedVideoCount}`}
+                    icon={<img src={clapperboardIcon} alt="" aria-hidden="true" className="h-6 w-6" />}
+                  />
+                </div>
+                <div className="mt-4">
+                  <HistorySummary history={history} />
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-medium text-[#697180]">등록 이메일</p>
-                <p className="mt-1 truncate text-base font-semibold text-[#15171C]">{email}</p>
+
+              <div className="mt-16">
+                <SectionTitle>Change password</SectionTitle>
+                <div className="mt-7">
+                  <ActionRow label="Change password" onClick={() => openDialog('password')} />
+                </div>
               </div>
-            </div>
-          ) : null}
-        </SectionCard>
+
+              <div className="mt-16">
+                <SectionTitle>Delete account</SectionTitle>
+                <div className="mt-7">
+                  <ActionRow label="Delete account" onClick={() => openDialog('delete')} danger />
+                </div>
+                <div className="mt-5 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => void logoutToOnboarding()}
+                    className="inline-flex h-11 items-center justify-center rounded-[10px] px-4 text-[16px] font-medium text-[#6B7280] transition-colors hover:bg-[#F6F8FB] hover:text-[#15171C]"
+                  >
+                    Log out
+                  </button>
+                </div>
+              </div>
+            </section>
+          )}
+        </main>
       </div>
 
       {dialog === 'profile' ? (
-        <ModalShell
-          title="개인정보 수정"
-          description="현재 API 기준으로 캐릭터와 이름을 수정할 수 있어요. 이메일은 로그인 ID라 수정되지 않습니다."
-          onClose={closeDialog}
-        >
-          <div className="space-y-5">
-            <div className="space-y-3">
-              <p className="text-sm font-medium text-[#697180]">캐릭터 선택</p>
-              <div className="grid grid-cols-4 gap-3">
-                {avatarOptions.map((avatar) => {
-                  const isActive = profileForm.avatar_type === avatar;
+        <ModalShell title="Edit profile" onClose={closeDialog}>
+          <div className="flex flex-col gap-6">
+            <FormField label="Name">
+              <TextInput
+                value={profileForm.nickname ?? ''}
+                onChange={(event) => setProfileForm((current) => ({ ...current, nickname: event.target.value }))}
+              />
+            </FormField>
+
+            <FormField label="Birth date">
+              <TextInput
+                value={profileForm.birth_date ?? ''}
+                placeholder="2000/10/10"
+                onChange={(event) => setProfileForm((current) => ({ ...current, birth_date: event.target.value }))}
+              />
+            </FormField>
+
+            <FormField label="Email">
+              <DisabledField value={profile?.email} />
+            </FormField>
+
+            <FormField label="Gender">
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { value: 'male', label: 'Male' },
+                  { value: 'female', label: 'Female' },
+                ].map((option) => {
+                  const selected = profileForm.gender === option.value;
                   return (
                     <button
-                      key={avatar}
+                      key={option.value}
                       type="button"
-                      onClick={() => setProfileForm((current) => ({ ...current, avatar_type: avatar }))}
-                      className={`flex h-20 items-center justify-center rounded-[24px] bg-gradient-to-br text-2xl font-bold text-white transition-transform hover:-translate-y-0.5 ${getAvatarColor(
-                        avatar,
-                      )} ${isActive ? 'ring-4 ring-[#BFE1FF]' : ''}`}
+                      onClick={() =>
+                        setProfileForm((current) => ({
+                          ...current,
+                          gender: option.value as 'male' | 'female',
+                        }))
+                      }
+                      className={`flex h-[48px] items-center justify-center rounded-[12px] border text-[16px] font-semibold transition-colors ${
+                        selected
+                          ? 'border-[#1A9AF5] bg-[#E8F4FE] text-[#1A9AF5]'
+                          : 'border-[#D7DDE7] bg-white text-[#9499A3] hover:border-[#AEB7C5] hover:text-[#15171C]'
+                      }`}
                     >
-                      {getAvatarLabel(avatar)}
+                      {option.label}
                     </button>
                   );
                 })}
               </div>
+            </FormField>
+
+            {notice ? <NoticeText danger>{notice}</NoticeText> : null}
+
+            <div className="flex justify-end pt-2">
+              <PrimaryButton onClick={() => void saveProfile()} disabled={isSavingProfile} className="min-w-[120px]">
+                {isSavingProfile ? 'Saving...' : 'Save'}
+              </PrimaryButton>
+            </div>
+          </div>
+        </ModalShell>
+      ) : null}
+
+      {dialog === 'avatar' ? (
+        <ModalShell title="Change avatar" onClose={closeDialog} widthClassName="max-w-[760px]">
+          <div className="flex flex-col">
+            <div className="flex justify-center pb-8 pt-2">
+              <AvatarPreview avatarType={activeAvatarGroup.key} size={200} />
             </div>
 
-            <FormField label="이름">
-              <input
-                value={profileForm.nickname ?? ''}
-                onChange={(event) =>
-                  setProfileForm((current) => ({ ...current, nickname: event.target.value }))
-                }
-                placeholder="이름을 입력해주세요"
-                className="h-12 w-full rounded-[16px] border border-[#D7E4F3] px-4 text-base outline-none transition-colors focus:border-[#1A9AF5]"
-              />
-            </FormField>
-
-            <FormField label="이메일">
-              <input
-                value={email}
-                readOnly
-                className="h-12 w-full rounded-[16px] border border-[#E8EDF3] bg-[#F7F9FC] px-4 text-base text-[#697180] outline-none"
-              />
-            </FormField>
-
-            <FormField label="아이디">
-              <input
-                value={username}
-                readOnly
-                className="h-12 w-full rounded-[16px] border border-[#E8EDF3] bg-[#F7F9FC] px-4 text-base text-[#697180] outline-none"
-              />
-            </FormField>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <FormField label="생년월일">
-                <input
-                  value="현재 API 미지원"
-                  readOnly
-                  className="h-12 w-full rounded-[16px] border border-[#E8EDF3] bg-[#F7F9FC] px-4 text-base text-[#9AA3AF] outline-none"
-                />
-              </FormField>
-              <FormField label="성별">
-                <div className="grid grid-cols-2 gap-3">
+            <div className="grid max-h-[630px] grid-cols-2 gap-x-6 gap-y-7 overflow-y-auto px-2 py-2 sm:grid-cols-4">
+              {AVATAR_GROUPS.map((group) => {
+                const selected = normalizeAvatarKey(profileForm.avatar_type) === group.key;
+                const backgroundColor = AVATAR_BACKGROUND_COLORS[group.key];
+                return (
                   <button
+                    key={group.key}
                     type="button"
-                    disabled
-                    className="h-12 rounded-[16px] border border-[#E8EDF3] bg-[#F7F9FC] text-sm font-medium text-[#9AA3AF]"
+                    onClick={() => setProfileForm((current) => ({ ...current, avatar_type: group.key }))}
+                    className={`flex items-center justify-center rounded-full p-[6px] transition-all ${
+                      selected
+                        ? 'bg-[#EAF5FF] ring-2 ring-inset ring-[#1A9AF5]'
+                        : 'bg-transparent hover:bg-[#F5F9FF]'
+                    }`}
                   >
-                    남성
+                    <div
+                      className="relative aspect-square w-full overflow-hidden rounded-full"
+                      style={{ backgroundColor }}
+                    >
+                      <img
+                        src={group.images[0]}
+                        alt=""
+                        aria-hidden="true"
+                        className="absolute bottom-0 left-1/2 h-[102%] w-auto max-w-none -translate-x-1/2 object-contain"
+                      />
+                    </div>
                   </button>
-                  <button
-                    type="button"
-                    disabled
-                    className="h-12 rounded-[16px] border border-[#E8EDF3] bg-[#F7F9FC] text-sm font-medium text-[#9AA3AF]"
-                  >
-                    여성
-                  </button>
-                </div>
-              </FormField>
+                );
+              })}
             </div>
 
-            {notice ? <NoticeText>{notice}</NoticeText> : null}
+            {notice ? <p className="mt-4 text-[14px] text-[#E5484D]">{notice}</p> : null}
 
-            <div className="flex justify-end gap-3">
-              <GhostButton onClick={closeDialog}>취소</GhostButton>
-              <PrimaryButton disabled={isSavingProfile} onClick={() => void saveProfile()}>
-                {isSavingProfile ? '저장 중...' : '개인정보 수정'}
+            <div className="mt-8 flex justify-end">
+              <PrimaryButton onClick={() => void saveProfile()} disabled={isSavingProfile} className="min-w-[120px]">
+                {isSavingProfile ? 'Saving...' : 'Save'}
               </PrimaryButton>
             </div>
           </div>
@@ -485,121 +729,39 @@ function MyPage() {
       ) : null}
 
       {dialog === 'password' ? (
-        <ModalShell
-          title="비밀번호 변경"
-          description="영문 대소문자, 숫자, 특수문자를 포함한 8자 이상 비밀번호를 권장해요."
-          onClose={closeDialog}
-        >
-          <div className="space-y-5">
-            <FormField label="현재 비밀번호">
-              <input
+        <ModalShell title="Change password" onClose={closeDialog}>
+          <div className="flex flex-col gap-6">
+            <FormField label="Current password">
+              <TextInput
                 type="password"
                 value={passwordForm.current_password}
                 onChange={(event) =>
-                  setPasswordForm((current) => ({
-                    ...current,
-                    current_password: event.target.value,
-                  }))
+                  setPasswordForm((current) => ({ ...current, current_password: event.target.value }))
                 }
-                className="h-12 w-full rounded-[16px] border border-[#D7E4F3] px-4 text-base outline-none transition-colors focus:border-[#1A9AF5]"
               />
             </FormField>
-            <FormField label="새 비밀번호">
-              <input
+            <FormField label="New password">
+              <TextInput
                 type="password"
                 value={passwordForm.new_password}
                 onChange={(event) =>
-                  setPasswordForm((current) => ({
-                    ...current,
-                    new_password: event.target.value,
-                  }))
+                  setPasswordForm((current) => ({ ...current, new_password: event.target.value }))
                 }
-                className="h-12 w-full rounded-[16px] border border-[#D7E4F3] px-4 text-base outline-none transition-colors focus:border-[#1A9AF5]"
               />
             </FormField>
-            <FormField label="새 비밀번호 확인">
-              <input
+            <FormField label="Confirm new password">
+              <TextInput
                 type="password"
                 value={passwordForm.new_password_confirm}
                 onChange={(event) =>
-                  setPasswordForm((current) => ({
-                    ...current,
-                    new_password_confirm: event.target.value,
-                  }))
+                  setPasswordForm((current) => ({ ...current, new_password_confirm: event.target.value }))
                 }
-                className="h-12 w-full rounded-[16px] border border-[#D7E4F3] px-4 text-base outline-none transition-colors focus:border-[#1A9AF5]"
               />
             </FormField>
-
-            {notice ? <NoticeText>{notice}</NoticeText> : null}
-
-            <div className="flex justify-end gap-3">
-              <GhostButton onClick={closeDialog}>취소</GhostButton>
-              <PrimaryButton disabled={isSavingPassword} onClick={() => void savePassword()}>
-                {isSavingPassword ? '변경 중...' : '비밀번호 변경'}
-              </PrimaryButton>
-            </div>
-          </div>
-        </ModalShell>
-      ) : null}
-
-      {dialog === 'passwordSuccess' ? (
-        <ModalShell
-          title="비밀번호 변경 완료"
-          description="보안을 위해 다시 로그인해주세요."
-          onClose={() => void confirmPasswordChange()}
-        >
-          <div className="space-y-5">
-            <NoticeText>비밀번호 변경이 완료되었습니다.</NoticeText>
-            <div className="flex justify-end">
-              <PrimaryButton onClick={() => void confirmPasswordChange()}>로그인</PrimaryButton>
-            </div>
-          </div>
-        </ModalShell>
-      ) : null}
-
-      {dialog === 'settings' ? (
-        <ModalShell
-          title="환경설정"
-          description="변경 버튼을 누른 뒤 D, A, B 키를 눌러도 되고, 아래 옵션을 바로 선택해도 됩니다."
-          onClose={closeDialog}
-        >
-          <div className="space-y-5">
-            <FormField label="현재 선택된 키">
-              <div className="flex h-12 items-center rounded-[16px] border border-[#D7E4F3] bg-[#FBFDFF] px-4 text-base font-semibold text-[#15171C]">
-                {getDisplayKey(pendingKeySelection || settings?.fidget_toggle_key || 'alt')}키
-              </div>
-            </FormField>
-            <div className="grid grid-cols-3 gap-3">
-              {fidgetKeyOptions.map((option) => {
-                const isActive = (pendingKeySelection || settings?.fidget_toggle_key) === option;
-                return (
-                  <button
-                    key={option}
-                    type="button"
-                    onClick={() => setPendingKeySelection(option)}
-                    className={`h-12 rounded-[16px] border text-sm font-semibold transition-colors ${
-                      isActive
-                        ? 'border-[#1A9AF5] bg-[#EAF6FF] text-[#1A6FB3]'
-                        : 'border-[#D7E4F3] bg-white text-[#697180] hover:bg-[#F8FBFF]'
-                    }`}
-                  >
-                    {getDisplayKey(option)}키
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="rounded-[18px] bg-[#F7FAFE] px-4 py-4 text-sm leading-6 text-[#697180]">
-              현재 화면에서는 D, A, B 키로 보여주고 저장되도록 맞췄습니다.
-            </div>
-
-            {notice ? <NoticeText>{notice}</NoticeText> : null}
-
-            <div className="flex justify-end gap-3">
-              <GhostButton onClick={closeDialog}>취소</GhostButton>
-              <PrimaryButton disabled={isSavingSettings} onClick={() => void saveSettings()}>
-                {isSavingSettings ? '저장 중...' : '환경설정 저장'}
+            {notice ? <NoticeText danger>{notice}</NoticeText> : null}
+            <div className="flex justify-end pt-2">
+              <PrimaryButton onClick={() => void savePassword()} disabled={isSavingPassword} className="min-w-[120px]">
+                {isSavingPassword ? 'Saving...' : 'Save'}
               </PrimaryButton>
             </div>
           </div>
@@ -607,93 +769,46 @@ function MyPage() {
       ) : null}
 
       {dialog === 'delete' ? (
-        <ModalShell
-          title="회원탈퇴"
-          description={`${displayName}님 정말 회원탈퇴하시겠어요? 탈퇴 후 아이디는 복구할 수 없어요.`}
-          onClose={closeDialog}
-        >
-          <div className="space-y-5">
-            <FormField label="비밀번호 확인">
-              <input
-                type="password"
-                value={deletePassword}
-                onChange={(event) => setDeletePassword(event.target.value)}
-                placeholder="회원탈퇴를 위해 비밀번호를 입력해주세요"
-                className="h-12 w-full rounded-[16px] border border-[#D7E4F3] px-4 text-base outline-none transition-colors focus:border-[#1A9AF5]"
-              />
+        <ModalShell title="Delete account" onClose={closeDialog}>
+          <div className="flex flex-col gap-6">
+            <p className="text-[15px] leading-[1.6] text-[#6B7280]">
+              Deleting your account removes your learning history and profile information.
+              Enter your password to continue.
+            </p>
+            <FormField label="Password">
+              <TextInput type="password" value={deletePassword} onChange={(event) => setDeletePassword(event.target.value)} />
             </FormField>
-
-            <div className="rounded-[18px] bg-[#FFF6F7] px-4 py-4 text-sm leading-6 text-[#C7254E]">
-              회원 탈퇴 시 개인정보는 관련 법령에 따라 일정 기간 보관 후 삭제되며, 탈퇴 즉시 서비스를 다시 이용하려면 새 계정이 필요합니다.
-            </div>
-
-            {notice ? <NoticeText tone="danger">{notice}</NoticeText> : null}
-
-            <div className="flex justify-end gap-3">
-              <GhostButton onClick={closeDialog}>취소</GhostButton>
-              <PrimaryButton
-                disabled={isDeletingAccount}
-                onClick={() => void removeAccount()}
-                className="bg-[#F04452] shadow-none hover:opacity-90"
-              >
-                {isDeletingAccount ? '탈퇴 처리 중...' : '회원탈퇴'}
+            {notice ? <NoticeText danger>{notice}</NoticeText> : null}
+            <div className="flex justify-end pt-2">
+              <PrimaryButton onClick={() => void removeAccount()} disabled={isDeletingAccount} className="min-w-[120px]">
+                {isDeletingAccount ? 'Deleting...' : 'Delete account'}
               </PrimaryButton>
             </div>
           </div>
         </ModalShell>
       ) : null}
 
-      {dialog === 'deleteSuccess' ? (
-        <ModalShell
-          title="회원탈퇴 완료"
-          description="이용해주셔서 감사합니다."
-          onClose={() => void confirmDeleteAccount()}
-        >
-          <div className="space-y-5">
-            <NoticeText>회원탈퇴가 완료되었습니다.</NoticeText>
-            <div className="flex justify-end">
-              <PrimaryButton onClick={() => void confirmDeleteAccount()}>확인</PrimaryButton>
-            </div>
-          </div>
+      {dialog === 'passwordSuccess' ? (
+        <ModalShell title="Password changed" onClose={confirmPasswordChange}>
+          <SuccessContent
+            message="Your password has been changed. Please log in again."
+            buttonLabel="OK"
+            onConfirm={() => void confirmPasswordChange()}
+          />
         </ModalShell>
       ) : null}
+
+      {dialog === 'deleteSuccess' ? (
+        <ModalShell title="Account deleted" onClose={confirmDeleteAccount}>
+          <SuccessContent
+            message="Your account has been deleted."
+            buttonLabel="OK"
+            onConfirm={() => void confirmDeleteAccount()}
+          />
+        </ModalShell>
+      ) : null}
+
+      {notice && dialog === null ? <ToastNotice>{notice}</ToastNotice> : null}
     </div>
   );
 }
-
-function FormField({
-  label,
-  children,
-}: {
-  label: string;
-  children: ReactNode;
-}) {
-  return (
-    <label className="block space-y-2">
-      <span className="text-sm font-medium text-[#697180]">{label}</span>
-      {children}
-    </label>
-  );
-}
-
-function NoticeText({
-  children,
-  tone = 'info',
-}: {
-  children: ReactNode;
-  tone?: 'info' | 'danger';
-}) {
-  return (
-    <div
-      className={`rounded-[16px] px-4 py-3 text-sm ${
-        tone === 'danger'
-          ? 'bg-[#FFF5F7] text-[#C7254E]'
-          : 'bg-[#F5FBFF] text-[#1A6FB3]'
-      }`}
-    >
-      {children}
-    </div>
-  );
-}
-
-export default MyPage;

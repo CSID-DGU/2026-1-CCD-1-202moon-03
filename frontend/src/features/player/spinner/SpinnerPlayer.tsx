@@ -1029,20 +1029,20 @@ function SpinnerPlayer({
       </div>
 
       {hasSubtitlePanel ? (
-        <div
-          ref={subtitleBarRef}
-          className={`flex w-full items-center rounded-b-[11.455px] bg-[rgba(0,0,0,0.78)] px-6 text-white transition-[padding,height] duration-150 ${
-            isSubtitleWrapped ? 'py-3 min-h-[118px]' : 'py-4 min-h-[76px]'
-          }`}
-        >
           <div
-            ref={subtitleContentRef}
-            className={`w-full text-left text-[22px] font-semibold leading-[1.45] text-white ${
-              isSubtitleWrapped
-                ? 'whitespace-normal [word-break:keep-all]'
-                : 'overflow-hidden whitespace-nowrap'
+            ref={subtitleBarRef}
+            className={`flex w-full rounded-b-[11.455px] bg-[rgba(0,0,0,0.78)] px-6 text-white transition-[padding,height] duration-150 ${
+              isSubtitleWrapped ? 'items-center py-[10px] min-h-[86px]' : 'items-center py-3 min-h-[68px]'
             }`}
           >
+            <div
+              ref={subtitleContentRef}
+              className={`w-full text-left text-[22px] font-semibold text-white ${
+                isSubtitleWrapped
+                  ? 'max-w-[96%] whitespace-normal text-[21px] leading-[1.36] tracking-[-0.01em] [word-break:keep-all]'
+                  : 'overflow-hidden whitespace-nowrap leading-[1.4]'
+              }`}
+            >
             {renderSubtitleContent
               ? renderSubtitleContent(isSubtitleWrapped)
               : subtitleContent ?? <p>{captionText}</p>}
