@@ -56,6 +56,7 @@ export function useGameSessionData() {
     sessionError,
     isHydrated,
     isAuthenticated,
+    sessionPlaybackMode,
   } = usePlayerSession();
   const storeStreamingSource = usePlayerStore((state) => state.streamingSource);
   const streamingSource = storeStreamingSource ?? getTransientStreamingSource();
@@ -87,6 +88,7 @@ export function useGameSessionData() {
     Boolean(sessionId) &&
     !streamingSource &&
     sessionDetail?.source_type === 'file' &&
+    sessionPlaybackMode !== 'replay' &&
     !hasCompletedStreamingData &&
     currentAiStatus !== null &&
     currentAiStatus !== 'done' &&
@@ -131,10 +133,11 @@ export function useGameSessionData() {
       currentAiStatus,
       state,
       activeStreamStrategy,
-      isHydrated,
-      isAuthenticated,
-      streamingSource,
-      isStreamingCurrentSession,
+    isHydrated,
+    isAuthenticated,
+    sessionPlaybackMode,
+    streamingSource,
+    isStreamingCurrentSession,
       shouldResumeFileCurrentSession,
     });
   }, [
@@ -146,6 +149,7 @@ export function useGameSessionData() {
     sessionDetail?.id,
     sessionDetail?.session_id,
     sessionId,
+    sessionPlaybackMode,
     shouldResumeFileCurrentSession,
     state,
     streamingSource,
@@ -186,6 +190,10 @@ export function useGameSessionData() {
   }, [isAuthenticated, isHydrated]);
 
   useEffect(() => {
+    if (sessionPlaybackMode === 'replay') {
+      return;
+    }
+
     const shouldUseSourceStreaming = Boolean(sessionId && streamingSource && isStreamingCurrentSession);
     const shouldUseResumeStreaming = Boolean(sessionId && shouldResumeFileCurrentSession);
 
@@ -392,6 +400,7 @@ export function useGameSessionData() {
     sessionId,
     shouldResumeFileCurrentSession,
     streamingSource,
+    sessionPlaybackMode,
   ]);
 
   useEffect(() => {
@@ -572,6 +581,7 @@ export function useGameSessionData() {
     statusLabel,
     currentAiStatus,
     isStreamingCurrentSession,
+    sessionPlaybackMode,
     debug: {
       sessionId,
       state,

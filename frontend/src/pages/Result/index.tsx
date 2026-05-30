@@ -7,6 +7,7 @@ import type { VideoInputSubmitPayload } from '../../features/home/useVideoInput'
 import QuizRetryModal from '../../features/result/QuizRetryModal';
 import { useQuizRetry } from '../../features/result/useQuizRetry';
 import { useResult } from '../../features/result/useResult';
+import { usePlayerStore } from '../../store/usePlayerStore';
 
 function stripInlineMarkdown(value: string) {
   return value
@@ -50,12 +51,14 @@ function ResultPage() {
   const { result, isLoading, error } = useResult();
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const quizRetry = useQuizRetry(result.sessionId);
+  const setSessionPlaybackMode = usePlayerStore((state) => state.setSessionPlaybackMode);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'auto' });
   }, []);
 
   const handleReplay = () => {
+    setSessionPlaybackMode('replay');
     navigate(`${ROUTES.HOME}?modeSelect=${encodeURIComponent(result.sessionId)}`);
   };
 

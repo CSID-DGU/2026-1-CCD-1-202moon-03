@@ -286,22 +286,19 @@ function RainModePage() {
 
             <div className="flex items-start gap-2">
               <div className="relative">
-              <div className="rounded-[18px] border border-[#3D4150] bg-[#1E2028] p-[5px]">
                 <button
                   type="button"
                   onClick={() => setIsSettingsOpen((prev) => !prev)}
-                  className="rounded-[12px] bg-[#1A9AF5] px-4 py-[7px] text-[14px] font-bold text-white transition-opacity hover:opacity-90 active:opacity-75"
+                  className="flex h-12 w-[124px] items-center justify-center rounded-[12px] border border-[#3D4150] bg-[#1A9AF5] text-[14px] font-bold text-white transition-opacity hover:opacity-90 active:opacity-75"
                 >
                   <span className="font-paperlogy">모드 설정</span>
                 </button>
-              </div>
-
-              <RainSettingsModal
-                isOpen={isSettingsOpen}
-                settings={rainSettings}
-                onClose={() => setIsSettingsOpen(false)}
-                onApply={(next) => setRainSettings(next)}
-              />
+                <RainSettingsModal
+                  isOpen={isSettingsOpen}
+                  settings={rainSettings}
+                  onClose={() => setIsSettingsOpen(false)}
+                  onApply={(next) => setRainSettings(next)}
+                />
               </div>
               <FullscreenToggleButton targetRef={fullscreenRootRef} />
             </div>

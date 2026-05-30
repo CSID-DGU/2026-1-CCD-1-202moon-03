@@ -35,7 +35,7 @@ function FullscreenToggleButton({ targetRef }: FullscreenToggleButtonProps) {
     <button
       type="button"
       onClick={() => void handleToggleFullscreen()}
-      className="rounded-[12px] border border-[#3D4150] bg-[#25272E] px-4 py-[7px] text-[14px] font-bold text-white transition-colors hover:border-[#1A9AF5] hover:bg-[#2D3039] active:bg-[#202229]"
+      className="flex h-12 w-[124px] items-center justify-center rounded-[12px] border border-[#3D4150] bg-[#25272E] text-[14px] font-bold text-white transition-colors hover:border-[#1A9AF5] hover:bg-[#2D3039] active:bg-[#202229]"
       aria-label={isFullscreen ? '전체화면 종료' : '전체화면 전환'}
       title={isFullscreen ? '전체화면 종료' : '전체화면'}
     >

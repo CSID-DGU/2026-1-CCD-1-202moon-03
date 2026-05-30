@@ -63,6 +63,7 @@ function HomePage() {
   const setSelectedMode = usePlayerStore((state) => state.setSelectedMode);
   const setSessionId = usePlayerStore((state) => state.setSessionId);
   const setStreamingSource = usePlayerStore((state) => state.setStreamingSource);
+  const setSessionPlaybackMode = usePlayerStore((state) => state.setSessionPlaybackMode);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isModeSelectOpen, setIsModeSelectOpen] = useState(false);
   const [pendingSourceLabel, setPendingSourceLabel] = useState('');
@@ -86,6 +87,7 @@ function HomePage() {
 
   useEffect(() => {
     if (!replayVideoId) {
+      setSessionPlaybackMode('live');
       return;
     }
 
@@ -172,6 +174,7 @@ function HomePage() {
   const handleModeSelect = async (mode: 'spinner' | 'rain') => {
     if (!pendingUploadPayload) {
       setStreamingSource(null);
+      setSessionPlaybackMode(replayVideoId ? 'replay' : 'live');
       setSelectedMode(mode);
       setSessionId(replayVideoId ?? `mock-session-${mode}-${Date.now()}`);
       setIsModeSelectOpen(false);
@@ -239,6 +242,7 @@ function HomePage() {
       setPendingUploadPayload(null);
       setPendingSourceLabel('');
       setSelectedMode(mode);
+      setSessionPlaybackMode('live');
       const nextSourceType =
         pendingUploadPayload.sourceType === 'url' && pendingUploadPayload.url
           ? mapUrlSourceType(pendingUploadPayload.url)

@@ -4,7 +4,6 @@ import { getMySettings } from '../../../services/user.api';
 import { getTransientStreamingSource, usePlayerStore } from '../../../store/usePlayerStore';
 import type { ApiErrorResponse } from '../../../types';
 import { resolvePlayerSource } from '../shared/playback';
-import { useAuthenticatedVideoUrl } from '../shared/useAuthenticatedVideoUrl';
 import { useGameSessionData } from '../shared/useGameSessionData';
 import { useLocalFilePlayerSrc } from '../shared/useLocalFilePlayerSrc';
 import type { MediaController, PlayerType } from '../shared/playback';
@@ -69,6 +68,7 @@ export function useSpinnerMode() {
     errorMessage,
     statusLabel,
     currentAiStatus,
+    sessionPlaybackMode,
     debug,
   } = useGameSessionData();
   const storeStreamingSource = usePlayerStore((playerStore) => playerStore.streamingSource);
@@ -356,13 +356,6 @@ export function useSpinnerMode() {
   );
 
   const localFileUrl = useLocalFilePlayerSrc(sessionId, streamingSource);
-  const authenticatedVideoUrl = useAuthenticatedVideoUrl({
-    enabled:
-      !localFileUrl &&
-      sessionDetail?.source_type === 'file' &&
-      Boolean(sessionDetail?.video_url),
-    sourceUrl: sessionDetail?.video_url,
-  });
 
   const resolvedPlayerSource = useMemo(() => {
     if (localFileUrl) {
@@ -372,20 +365,12 @@ export function useSpinnerMode() {
       };
     }
 
-    if (authenticatedVideoUrl) {
-      return {
-        playerType: 'html5' as const,
-        playerSrc: authenticatedVideoUrl,
-      };
-    }
-
     return resolvePlayerSource({
       sourceType: sessionDetail?.source_type ?? streamingSource?.type,
       sourceUrl: sessionDetail?.source_url ?? streamingSource?.url,
       fallbackSrc: sessionDetail?.video_url ?? '',
     });
   }, [
-    authenticatedVideoUrl,
     localFileUrl,
     sessionDetail?.source_type,
     sessionDetail?.source_url,

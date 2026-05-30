@@ -13,7 +13,10 @@ interface PlayerDebugPanelProps {
     loadedQuizzes: number;
     loadedFallEvents: number;
     preparedFallEvents?: number;
-    unmatchedFallEvents?: number;
+    missingSegmentEvents?: number;
+    missingBlankMatchEvents?: number;
+    droppedByBlankLimit?: number;
+    invalidTargetTimeCount?: number;
     rainDifficulty?: string;
     adaptiveMode?: string;
     adaptiveDecision?: string;
@@ -75,7 +78,7 @@ function formatNumber(value: number | null | undefined, digits = 2) {
 }
 
 function PlayerDebugPanel({ debug }: PlayerDebugPanelProps) {
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(false);
 
   if (!isOpen) {
     return (
@@ -120,7 +123,10 @@ function PlayerDebugPanel({ debug }: PlayerDebugPanelProps) {
         <Row label="loadedQuizzes" value={debug.loadedQuizzes} />
         <Row label="loadedFallEvents" value={debug.loadedFallEvents} />
         <Row label="preparedFallEvents" value={debug.preparedFallEvents ?? '-'} />
-        <Row label="unmatchedFallEvents" value={debug.unmatchedFallEvents ?? '-'} />
+        <Row label="missingSegmentEvents" value={debug.missingSegmentEvents ?? '-'} />
+        <Row label="missingBlankMatchEvents" value={debug.missingBlankMatchEvents ?? '-'} />
+        <Row label="droppedByBlankLimit" value={debug.droppedByBlankLimit ?? '-'} />
+        <Row label="invalidTargetTimeCount" value={debug.invalidTargetTimeCount ?? '-'} />
       </Section>
 
       <Section title="Difficulty">
