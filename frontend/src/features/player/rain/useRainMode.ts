@@ -61,6 +61,12 @@ type PreparedRainSummary = {
   events: PreparedRainEvent[];
   missingSegmentCount: number;
   missingBlankMatchCount: number;
+  missingBlankMatchDetails: Array<{
+    segmentId: number;
+    eventKeyword: string;
+    normalizedEventKeyword: string;
+    segmentBlankKeywords: string[];
+  }>;
   droppedByBlankLimit: number;
   duplicateKeywordCandidates: number;
   invalidTargetTimeCount: number;
@@ -540,7 +546,7 @@ export function useRainMode(settings?: RainSettings) {
 
     const tick = () => {
       const elapsed = (performance.now() - lastWallTimeRef.current) / 1000;
-      setRafCurrentTime(lastVideoTimeRef.current + elapsed);
+      setRafCurrentTime(lastVideoTimeRef.current + elapsed * playbackRate);
       rafIdRef.current = requestAnimationFrame(tick);
     };
 
@@ -552,7 +558,7 @@ export function useRainMode(settings?: RainSettings) {
         rafIdRef.current = null;
       }
     };
-  }, [isPlaying]);
+  }, [isPlaying, playbackRate]);
 
   useEffect(() => {
     lastVideoTimeRef.current = currentTime;
@@ -705,6 +711,7 @@ export function useRainMode(settings?: RainSettings) {
     const usedBlankKeys = new Set<string>();
     let missingSegmentCount = 0;
     let missingBlankMatchCount = 0;
+    const missingBlankMatchDetails: PreparedRainSummary['missingBlankMatchDetails'] = [];
     let droppedByBlankLimit = 0;
     let duplicateKeywordCandidates = 0;
     let invalidTargetTimeCount = 0;
@@ -739,6 +746,12 @@ export function useRainMode(settings?: RainSettings) {
 
       if (matchingBlanks.length === 0) {
         missingBlankMatchCount += 1;
+        missingBlankMatchDetails.push({
+          segmentId: event.segmentId,
+          eventKeyword: event.keyword,
+          normalizedEventKeyword,
+          segmentBlankKeywords: segment.blanks.map((blank) => blank.keyword),
+        });
         return prepared;
       }
 
@@ -822,6 +835,7 @@ export function useRainMode(settings?: RainSettings) {
       events,
       missingSegmentCount,
       missingBlankMatchCount,
+      missingBlankMatchDetails,
       droppedByBlankLimit,
       duplicateKeywordCandidates,
       invalidTargetTimeCount,
@@ -835,6 +849,14 @@ export function useRainMode(settings?: RainSettings) {
     gameData.segments,
     segmentBlankKeys,
   ]);
+
+  useEffect(() => {
+    if (preparedRainSummary.missingBlankMatchDetails.length === 0) {
+      return;
+    }
+
+    console.warn('[useRainMode] missing blank match details', preparedRainSummary.missingBlankMatchDetails);
+  }, [preparedRainSummary.missingBlankMatchDetails]);
 
   const preparedEvents = preparedRainSummary.events;
 
@@ -1623,6 +1645,7 @@ export function useRainMode(settings?: RainSettings) {
       minFallDuration: effectiveMinFallDuration,
       missEndBufferSeconds: MISS_END_BUFFER_SECONDS,
       adaptiveMaxCombo: windowMetrics.maxCombo,
+      videoTimeSeconds: rafCurrentTime,
       activeKeywordId: activeKeyword?.id ?? null,
       pendingKeywordCount,
       visibleKeywordCount,
@@ -1636,6 +1659,10 @@ export function useRainMode(settings?: RainSettings) {
       preparedFallEvents: preparedEvents.length,
       missingSegmentEvents: preparedRainSummary.missingSegmentCount,
       missingBlankMatchEvents: preparedRainSummary.missingBlankMatchCount,
+      missingBlankMatchDetails:
+        preparedRainSummary.missingBlankMatchDetails.length > 0
+          ? JSON.stringify(preparedRainSummary.missingBlankMatchDetails)
+          : null,
       droppedByBlankLimit: preparedRainSummary.droppedByBlankLimit,
       duplicateKeywordCandidates: preparedRainSummary.duplicateKeywordCandidates,
       invalidTargetTimeCount: preparedRainSummary.invalidTargetTimeCount,

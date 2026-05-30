@@ -25,6 +25,9 @@ export type PlayerDataState =
 
 type ActiveStreamStrategy = 'source' | 'resume' | null;
 
+const RETRYABLE_EMPTY_SEGMENTS_ERROR_MESSAGE = '세그먼트가 없어 게임 데이터를 만들 수 없음';
+const STREAM_RETRY_DELAY_MS = 3000;
+
 function isQuizMissingPersistedId(quizId: number | null) {
   return quizId === null || quizId <= 0;
 }
@@ -47,6 +50,18 @@ function getErrorMessage(error: unknown, fallbackMessage: string) {
   return apiError.response?.data?.message || apiError.response?.data?.detail || fallbackMessage;
 }
 
+function isRetryableStreamingError(params: {
+  message: string;
+  sourceType: string | null | undefined;
+  currentAiStatus: string | null;
+}) {
+  return (
+    params.sourceType === 'youtube_url' &&
+    params.message.includes(RETRYABLE_EMPTY_SEGMENTS_ERROR_MESSAGE) &&
+    params.currentAiStatus !== 'failed'
+  );
+}
+
 export function useGameSessionData() {
   const {
     sessionId,
@@ -63,6 +78,7 @@ export function useGameSessionData() {
   const initializedStreamingRequestKeyRef = useRef<string | null>(null);
   const loadedStoredGameSessionRef = useRef<string | null>(null);
   const hydratedPersistedStreamSessionRef = useRef<string | null>(null);
+  const streamRetryTimeoutRef = useRef<number | null>(null);
   const latestGameDataRef = useRef<NormalizedGameData>(createEmptyNormalizedGameData());
   const saveStreamedQuizzes = useStreamedQuizStore((state) => state.saveStreamedQuizzes);
 
@@ -75,6 +91,7 @@ export function useGameSessionData() {
   const [lastMergedTotalSegments, setLastMergedTotalSegments] = useState<number | null>(null);
   const [lastStreamRequestType, setLastStreamRequestType] = useState<ActiveStreamStrategy>(null);
   const [hasStartedStreamRequest, setHasStartedStreamRequest] = useState(false);
+  const [streamRetryNonce, setStreamRetryNonce] = useState(0);
 
   const currentAiStatus = sessionStatus?.ai_status ?? sessionDetail?.ai_status ?? null;
   const hasVideoUrl = Boolean(sessionDetail?.video_url);
@@ -170,11 +187,16 @@ export function useGameSessionData() {
     setLastMergedTotalSegments(null);
     setLastStreamRequestType(null);
     setHasStartedStreamRequest(false);
+    setStreamRetryNonce(0);
     setActiveStreamStrategy(null);
     setState(!isHydrated ? 'auth_loading' : 'session_loading');
     initializedStreamingRequestKeyRef.current = null;
     loadedStoredGameSessionRef.current = null;
     hydratedPersistedStreamSessionRef.current = null;
+    if (streamRetryTimeoutRef.current !== null) {
+      window.clearTimeout(streamRetryTimeoutRef.current);
+      streamRetryTimeoutRef.current = null;
+    }
   }, [isHydrated, sessionId]);
 
   useEffect(() => {
@@ -223,6 +245,10 @@ export function useGameSessionData() {
 
     const run = async () => {
       try {
+        if (streamRetryTimeoutRef.current !== null) {
+          window.clearTimeout(streamRetryTimeoutRef.current);
+          streamRetryTimeoutRef.current = null;
+        }
         initializedStreamingRequestKeyRef.current = requestKey;
         setLastStreamRequestType(streamStrategy);
         setHasStartedStreamRequest(true);
@@ -257,6 +283,10 @@ export function useGameSessionData() {
           }
 
           if (event.type === 'chapter_ready') {
+            if (streamRetryTimeoutRef.current !== null) {
+              window.clearTimeout(streamRetryTimeoutRef.current);
+              streamRetryTimeoutRef.current = null;
+            }
             const streamEvent = event as StreamingChapterReadyEvent & {
               subtitles?: Array<Record<string, unknown>>;
             };
@@ -311,6 +341,10 @@ export function useGameSessionData() {
           }
 
           if (event.type === 'complete') {
+            if (streamRetryTimeoutRef.current !== null) {
+              window.clearTimeout(streamRetryTimeoutRef.current);
+              streamRetryTimeoutRef.current = null;
+            }
             const completedGameData = { ...latestGameDataRef.current, isComplete: true };
 
             latestGameDataRef.current = completedGameData;
@@ -368,6 +402,31 @@ export function useGameSessionData() {
           if (event.type === 'error') {
             initializedStreamingRequestKeyRef.current = null;
             setHasStartedStreamRequest(false);
+
+            if (
+              isRetryableStreamingError({
+                message: event.message,
+                sourceType: streamingSource?.type,
+                currentAiStatus,
+              })
+            ) {
+              setState('chapter_waiting');
+              setErrorMessage('');
+              if (streamRetryTimeoutRef.current !== null) {
+                window.clearTimeout(streamRetryTimeoutRef.current);
+              }
+              streamRetryTimeoutRef.current = window.setTimeout(() => {
+                streamRetryTimeoutRef.current = null;
+                setStreamRetryNonce((current) => current + 1);
+              }, STREAM_RETRY_DELAY_MS);
+              console.log('[useGameSessionData] stream retry scheduled', {
+                message: event.message,
+                delayMs: STREAM_RETRY_DELAY_MS,
+                sourceType: streamingSource?.type ?? null,
+              });
+              return;
+            }
+
             setState('failed');
             setErrorMessage(event.message);
             console.log('[useGameSessionData] stream error', event.message);
@@ -392,14 +451,20 @@ export function useGameSessionData() {
       if (initializedStreamingRequestKeyRef.current === requestKey) {
         initializedStreamingRequestKeyRef.current = null;
       }
+      if (streamRetryTimeoutRef.current !== null) {
+        window.clearTimeout(streamRetryTimeoutRef.current);
+        streamRetryTimeoutRef.current = null;
+      }
       setHasStartedStreamRequest(false);
     };
   }, [
+    currentAiStatus,
     isStreamingCurrentSession,
     saveStreamedQuizzes,
     sessionId,
     shouldResumeFileCurrentSession,
     streamingSource,
+    streamRetryNonce,
     sessionPlaybackMode,
   ]);
 
