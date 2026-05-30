@@ -8,6 +8,7 @@ import type { PlayerMode } from '../../store/usePlayerStore';
 interface ModeSelectProps {
   onBack: () => void;
   onSelect: (mode: Exclude<PlayerMode, null>) => void;
+  isSubmitting?: boolean;
 }
 
 type SelectableMode = Exclude<PlayerMode, null>;
@@ -20,7 +21,7 @@ interface ModeCardConfig {
   renderArt: () => ReactNode;
 }
 
-function ModeSelect({ onBack, onSelect }: ModeSelectProps) {
+function ModeSelect({ onBack, onSelect, isSubmitting = false }: ModeSelectProps) {
   const [selectedMode, setSelectedMode] = useState<SelectableMode | null>(null);
   const [hoveredTooltip, setHoveredTooltip] = useState<SelectableMode | null>(null);
 
@@ -79,6 +80,7 @@ function ModeSelect({ onBack, onSelect }: ModeSelectProps) {
                 >
                   <button
                     type="button"
+                    disabled={isSubmitting}
                     onClick={() => setSelectedMode(card.mode)}
                     className={`relative flex h-full w-full flex-col items-center gap-[33px] overflow-hidden rounded-[24px] border p-10 text-center transition-all duration-200 ${
                       isSelected
@@ -135,15 +137,15 @@ function ModeSelect({ onBack, onSelect }: ModeSelectProps) {
 
           <Button
             type="button"
-            disabled={!selectedMode}
+            disabled={!selectedMode || isSubmitting}
             onClick={() => {
-              if (selectedMode) {
+              if (selectedMode && !isSubmitting) {
                 onSelect(selectedMode);
               }
             }}
-            variant={selectedMode ? 'active' : 'inactive'}
+            variant={selectedMode && !isSubmitting ? 'active' : 'inactive'}
             className={`mt-12 h-[64px] w-[220px] text-[20px] tracking-[-0.03em] ${
-              selectedMode
+              selectedMode && !isSubmitting
                 ? 'shadow-[inset_0px_4px_4px_0px_rgba(64,175,254,0.6),inset_0px_-4px_4px_0px_rgba(16,137,223,0.4)]'
                 : 'shadow-[inset_0px_4px_4px_0px_rgba(64,175,254,0.08),inset_0px_-4px_4px_0px_rgba(16,137,223,0.08)]'
             }`}

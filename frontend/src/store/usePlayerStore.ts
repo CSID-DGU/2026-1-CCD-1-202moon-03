@@ -11,6 +11,7 @@ export interface StreamingPlayerSource {
   mode: SessionMode;
   url?: string;
   file?: File;
+  fileName?: string;
   presignedUrl?: string | null;
   s3Key?: string | null;
   language?: string;
@@ -26,6 +27,7 @@ interface PlayerState {
   setSelectedMode: (selectedMode: PlayerMode) => void;
   setSessionId: (sessionId: string | null) => void;
   setStreamingSource: (streamingSource: StreamingPlayerSource | null) => void;
+  markStreamingSourceUploaded: (sessionId?: string | null) => void;
   setSessionPlaybackMode: (sessionPlaybackMode: SessionPlaybackMode) => void;
   setRainDifficulty: (rainDifficulty: RainDifficulty) => void;
   resetPlayerState: () => void;
@@ -45,6 +47,29 @@ export function getTransientStreamingSource() {
   return transientStreamingSource;
 }
 
+function stripUploadedFileFromSource(
+  source: StreamingPlayerSource | null,
+  sessionId?: string | null,
+) {
+  if (!source) {
+    return null;
+  }
+
+  if (sessionId && source.sessionId && source.sessionId !== sessionId) {
+    return source;
+  }
+
+  if (!source.file) {
+    return source;
+  }
+
+  return {
+    ...source,
+    fileName: source.fileName ?? source.file.name,
+    file: undefined,
+  };
+}
+
 export const usePlayerStore = create<PlayerState>()(
   persist(
     (set) => ({
@@ -54,6 +79,12 @@ export const usePlayerStore = create<PlayerState>()(
       setStreamingSource: (streamingSource) => {
         transientStreamingSource = streamingSource;
         set({ streamingSource });
+      },
+      markStreamingSourceUploaded: (sessionId) => {
+        transientStreamingSource = stripUploadedFileFromSource(transientStreamingSource, sessionId);
+        set((state) => ({
+          streamingSource: stripUploadedFileFromSource(state.streamingSource, sessionId),
+        }));
       },
       setSessionPlaybackMode: (sessionPlaybackMode) => set({ sessionPlaybackMode }),
       setRainDifficulty: (rainDifficulty) => set({ rainDifficulty }),
@@ -74,6 +105,7 @@ export const usePlayerStore = create<PlayerState>()(
               type: state.streamingSource.type,
               mode: state.streamingSource.mode,
               url: state.streamingSource.url,
+              fileName: state.streamingSource.fileName,
               presignedUrl: state.streamingSource.presignedUrl,
               s3Key: state.streamingSource.s3Key,
               language: state.streamingSource.language,

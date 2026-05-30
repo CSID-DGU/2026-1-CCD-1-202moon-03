@@ -2,6 +2,12 @@ import type { GameBlankItem, GameQuizItem } from '../../../types';
 
 export type PlaybackRate = 0.5 | 0.75 | 1 | 1.25 | 1.5 | 2;
 
+export interface RainPlayfieldMetrics {
+  overlayHeight: number;
+  playfieldTopPx: number;
+  playfieldBottomPx: number;
+}
+
 export interface RainCaption {
   start: number;
   end: number;
@@ -16,7 +22,7 @@ export interface RainKeyword {
   lane: number;
   blankKey?: string;
   leftPercent?: number;
-  progress: number;
+  topProgress: number;
   status: 'pending' | 'active' | 'cleared' | 'missed';
 }
 

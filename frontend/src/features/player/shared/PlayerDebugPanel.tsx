@@ -15,6 +15,7 @@ interface PlayerDebugPanelProps {
     preparedFallEvents?: number;
     missingSegmentEvents?: number;
     missingBlankMatchEvents?: number;
+    missingBlankMatchDetails?: string | null;
     droppedByBlankLimit?: number;
     invalidTargetTimeCount?: number;
     rainDifficulty?: string;
@@ -29,6 +30,7 @@ interface PlayerDebugPanelProps {
     fallLeadTimeOffset?: number;
     minFallDuration?: number;
     missGraceSeconds?: number;
+    videoTimeSeconds?: number | null;
     activeKeywordId?: string | null;
     pendingKeywordCount?: number;
     visibleKeywordCount?: number;
@@ -125,6 +127,7 @@ function PlayerDebugPanel({ debug }: PlayerDebugPanelProps) {
         <Row label="preparedFallEvents" value={debug.preparedFallEvents ?? '-'} />
         <Row label="missingSegmentEvents" value={debug.missingSegmentEvents ?? '-'} />
         <Row label="missingBlankMatchEvents" value={debug.missingBlankMatchEvents ?? '-'} />
+        <Row label="missingBlankMatchDetails" value={debug.missingBlankMatchDetails ?? '-'} />
         <Row label="droppedByBlankLimit" value={debug.droppedByBlankLimit ?? '-'} />
         <Row label="invalidTargetTimeCount" value={debug.invalidTargetTimeCount ?? '-'} />
       </Section>
@@ -145,6 +148,7 @@ function PlayerDebugPanel({ debug }: PlayerDebugPanelProps) {
       </Section>
 
       <Section title="Rain">
+        <Row label="videoTimeSeconds" value={formatNumber(debug.videoTimeSeconds)} />
         <Row label="activeKeywordId" value={debug.activeKeywordId ?? '-'} />
         <Row label="pendingKeywordCount" value={debug.pendingKeywordCount ?? '-'} />
         <Row label="visibleKeywordCount" value={debug.visibleKeywordCount ?? '-'} />

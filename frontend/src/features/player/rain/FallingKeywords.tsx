@@ -1,20 +1,28 @@
-import type { RainKeyword } from './types';
+import type { RainKeyword, RainPlayfieldMetrics } from './types';
 
 interface FallingKeywordsProps {
   keywords: RainKeyword[];
   inputPositions?: Record<string, number>;
+  playfieldMetrics: RainPlayfieldMetrics;
 }
+
+const KEYWORD_BOX_HEIGHT = 42;
 
 function getAnswerBoxWidth(answerLength?: number) {
   return Math.max(100, (answerLength ?? 0) * 22 + 20);
 }
 
-function FallingKeywords({ keywords, inputPositions = {} }: FallingKeywordsProps) {
+function FallingKeywords({ keywords, inputPositions = {}, playfieldMetrics }: FallingKeywordsProps) {
+  const startTopPx = playfieldMetrics.playfieldTopPx - KEYWORD_BOX_HEIGHT;
+  const endTopPx = Math.max(playfieldMetrics.playfieldBottomPx - KEYWORD_BOX_HEIGHT, startTopPx);
+
   return (
     <div className="relative h-full w-full overflow-hidden rounded-[24px]">
       {keywords.map((keyword) => {
         const measuredLeft = keyword.blankKey ? inputPositions[keyword.blankKey] : undefined;
         const fallbackPercent = keyword.leftPercent ?? 12 + keyword.lane * 18;
+        const clampedProgress = Math.max(0, Math.min(keyword.topProgress, 1));
+        const topPx = startTopPx + clampedProgress * (endTopPx - startTopPx);
 
         if (keyword.blankKey && typeof measuredLeft !== 'number') {
           return null;
@@ -22,10 +30,10 @@ function FallingKeywords({ keywords, inputPositions = {} }: FallingKeywordsProps
 
         const translateY =
           keyword.status === 'cleared'
-            ? 'translate(-50%, -50%) scale(0.92)'
+            ? 'translateX(-50%) scale(0.92)'
             : keyword.status === 'missed'
-              ? 'translate(-50%, -50%) scale(1.04)'
-              : 'translate(-50%, -50%)';
+              ? 'translateX(-50%) scale(1.04)'
+              : 'translateX(-50%)';
 
         return (
           <div
@@ -41,9 +49,10 @@ function FallingKeywords({ keywords, inputPositions = {} }: FallingKeywordsProps
             }`}
             style={{
               left: typeof measuredLeft === 'number' ? `${measuredLeft}px` : `${fallbackPercent}%`,
-              top: `${keyword.progress}%`,
+              top: `${Math.max(Math.min(topPx, endTopPx), startTopPx)}px`,
               width: `${getAnswerBoxWidth(keyword.answerLength)}px`,
               transform: translateY,
+              transformOrigin: `center ${KEYWORD_BOX_HEIGHT / 2}px`,
             }}
           >
             {keyword.text}

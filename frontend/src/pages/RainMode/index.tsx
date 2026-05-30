@@ -18,6 +18,7 @@ import RainQuizModal from '../../features/player/rain/RainQuizModal';
 import RainSettingsModal from '../../features/player/rain/RainSettingsModal';
 import type { RainSettings } from '../../features/player/rain/RainSettingsModal';
 import ScoreBoard from '../../features/player/rain/ScoreBoard';
+import type { RainPlayfieldMetrics } from '../../features/player/rain/types';
 import { useRainMode } from '../../features/player/rain/useRainMode';
 import FullscreenToggleButton from '../../features/player/shared/FullscreenToggleButton';
 import PlayerDebugPanel from '../../features/player/shared/PlayerDebugPanel';
@@ -322,11 +323,12 @@ function RainModePage() {
                   isCaptionVisible={isCaptionVisible}
                   captionText={captionText}
                   onMeasurementRootChange={setMeasurementRoot}
-                  overlayContent={
+                  overlayContent={(playfieldMetrics: RainPlayfieldMetrics) => (
                     <div className="relative h-full w-full">
                       <FallingKeywords
                         keywords={fallingKeywords}
                         inputPositions={inputPositions}
+                        playfieldMetrics={playfieldMetrics}
                       />
                       {judgment ? (
                         <div
@@ -338,8 +340,14 @@ function RainModePage() {
                                 ? 'text-[30px] text-[#A855F7]'
                                 : judgment.combo >= 3
                                   ? 'text-[28px] text-[#3B82F6]'
-                                  : 'text-[26px] text-[#22C55E]'
+                              : 'text-[26px] text-[#22C55E]'
                           }`}
+                          style={{
+                            bottom: `${Math.max(
+                              playfieldMetrics.overlayHeight - playfieldMetrics.playfieldBottomPx + 16,
+                              16,
+                            )}px`,
+                          }}
                         >
                           {judgment.combo >= 10
                             ? 'AMAZING!'
@@ -347,11 +355,11 @@ function RainModePage() {
                               ? 'PERFECT!'
                               : judgment.combo >= 3
                                 ? 'GREAT!'
-                                : 'GOOD!'}
+                            : 'GOOD!'}
                         </div>
                       ) : null}
                     </div>
-                  }
+                  )}
                   renderSubtitleContent={
                     hasCaptionContent
                       ? (isWrapped) => (

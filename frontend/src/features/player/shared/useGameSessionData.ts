@@ -25,6 +25,23 @@ export type PlayerDataState =
 
 type ActiveStreamStrategy = 'source' | 'resume' | null;
 
+type StreamEffectDebugDeps = {
+  sessionId: string;
+  currentAiStatus: string | null;
+  isSessionFinalized: boolean;
+  isStreamingCurrentSession: boolean;
+  shouldResumeFileCurrentSession: boolean;
+  sessionPlaybackMode: string;
+  streamRetryNonce: number;
+  streamingSourceSessionId: string | null;
+  streamingSourceType: string | null;
+  hasFile: boolean;
+  activeStreamStrategy: ActiveStreamStrategy;
+};
+
+const RETRYABLE_EMPTY_SEGMENTS_ERROR_MESSAGE = '세그먼트가 없어 게임 데이터를 만들 수 없음';
+const STREAM_RETRY_DELAY_MS = 3000;
+
 function isQuizMissingPersistedId(quizId: number | null) {
   return quizId === null || quizId <= 0;
 }
@@ -47,6 +64,23 @@ function getErrorMessage(error: unknown, fallbackMessage: string) {
   return apiError.response?.data?.message || apiError.response?.data?.detail || fallbackMessage;
 }
 
+function isAbortError(error: unknown) {
+  return error instanceof DOMException && error.name === 'AbortError';
+}
+
+function isRetryableStreamingError(params: {
+  message: string;
+  sourceType: string | null | undefined;
+  currentAiStatus: string | null;
+}) {
+  return (
+    params.sourceType === 'youtube_url' &&
+    params.message.includes(RETRYABLE_EMPTY_SEGMENTS_ERROR_MESSAGE) &&
+    params.currentAiStatus !== 'done' &&
+    params.currentAiStatus !== 'failed'
+  );
+}
+
 export function useGameSessionData() {
   const {
     sessionId,
@@ -63,6 +97,9 @@ export function useGameSessionData() {
   const initializedStreamingRequestKeyRef = useRef<string | null>(null);
   const loadedStoredGameSessionRef = useRef<string | null>(null);
   const hydratedPersistedStreamSessionRef = useRef<string | null>(null);
+  const streamRetryTimeoutRef = useRef<number | null>(null);
+  const previousStreamEffectDepsRef = useRef<StreamEffectDebugDeps | null>(null);
+  const streamEffectMountIdRef = useRef(Math.random().toString(36).slice(2, 8));
   const latestGameDataRef = useRef<NormalizedGameData>(createEmptyNormalizedGameData());
   const saveStreamedQuizzes = useStreamedQuizStore((state) => state.saveStreamedQuizzes);
 
@@ -75,6 +112,7 @@ export function useGameSessionData() {
   const [lastMergedTotalSegments, setLastMergedTotalSegments] = useState<number | null>(null);
   const [lastStreamRequestType, setLastStreamRequestType] = useState<ActiveStreamStrategy>(null);
   const [hasStartedStreamRequest, setHasStartedStreamRequest] = useState(false);
+  const [streamRetryNonce, setStreamRetryNonce] = useState(0);
 
   const currentAiStatus = sessionStatus?.ai_status ?? sessionDetail?.ai_status ?? null;
   const hasVideoUrl = Boolean(sessionDetail?.video_url);
@@ -84,6 +122,8 @@ export function useGameSessionData() {
   const hasCompletedStreamingData =
     gameData.isComplete &&
     (hasGameContent(gameData) || gameData.loadedChapterIndexes.length > 0);
+  const isSessionFinalized =
+    currentAiStatus === 'done' || hasCompletedStreamingData || state === 'stream_complete';
   const shouldResumeFileCurrentSession =
     Boolean(sessionId) &&
     !streamingSource &&
@@ -94,7 +134,9 @@ export function useGameSessionData() {
     currentAiStatus !== 'done' &&
     currentAiStatus !== 'failed';
   const isStreamingFlowCurrentSession =
-    activeStreamStrategy !== null || isStreamingCurrentSession || shouldResumeFileCurrentSession;
+    activeStreamStrategy !== null ||
+    (isStreamingCurrentSession && !isSessionFinalized) ||
+    shouldResumeFileCurrentSession;
   const hasStartGameData = hasGameContent(gameData);
   const recoveryStrategy = useMemo(() => {
     if (streamingSource?.type === 'file' && streamingSource.file) {
@@ -170,11 +212,16 @@ export function useGameSessionData() {
     setLastMergedTotalSegments(null);
     setLastStreamRequestType(null);
     setHasStartedStreamRequest(false);
+    setStreamRetryNonce(0);
     setActiveStreamStrategy(null);
     setState(!isHydrated ? 'auth_loading' : 'session_loading');
     initializedStreamingRequestKeyRef.current = null;
     loadedStoredGameSessionRef.current = null;
     hydratedPersistedStreamSessionRef.current = null;
+    if (streamRetryTimeoutRef.current !== null) {
+      window.clearTimeout(streamRetryTimeoutRef.current);
+      streamRetryTimeoutRef.current = null;
+    }
   }, [isHydrated, sessionId]);
 
   useEffect(() => {
@@ -194,6 +241,55 @@ export function useGameSessionData() {
       return;
     }
 
+    const currentEffectDeps: StreamEffectDebugDeps = {
+      sessionId,
+      currentAiStatus,
+      isSessionFinalized,
+      isStreamingCurrentSession,
+      shouldResumeFileCurrentSession,
+      sessionPlaybackMode,
+      streamRetryNonce,
+      streamingSourceSessionId: streamingSource?.sessionId ?? null,
+      streamingSourceType: streamingSource?.type ?? null,
+      hasFile: Boolean(streamingSource?.file),
+      activeStreamStrategy,
+    };
+    const previousEffectDeps = previousStreamEffectDepsRef.current;
+
+    if (!previousEffectDeps) {
+      console.log('[useGameSessionData] stream effect first run', {
+        mountId: streamEffectMountIdRef.current,
+        deps: currentEffectDeps,
+      });
+    } else {
+      const changed = Object.entries(currentEffectDeps)
+        .filter(([key, value]) => previousEffectDeps[key as keyof StreamEffectDebugDeps] !== value)
+        .map(([key, value]) => ({
+          key,
+          previous: previousEffectDeps[key as keyof StreamEffectDebugDeps],
+          current: value,
+        }));
+
+      console.log('[useGameSessionData] stream effect rerun', {
+        mountId: streamEffectMountIdRef.current,
+        changed,
+        deps: currentEffectDeps,
+      });
+    }
+
+    previousStreamEffectDepsRef.current = currentEffectDeps;
+
+    if (isSessionFinalized) {
+      if (streamRetryTimeoutRef.current !== null) {
+        window.clearTimeout(streamRetryTimeoutRef.current);
+        streamRetryTimeoutRef.current = null;
+      }
+      if (activeStreamStrategy !== null) {
+        setActiveStreamStrategy(null);
+      }
+      return;
+    }
+
     const shouldUseSourceStreaming = Boolean(sessionId && streamingSource && isStreamingCurrentSession);
     const shouldUseResumeStreaming = Boolean(sessionId && shouldResumeFileCurrentSession);
 
@@ -202,6 +298,7 @@ export function useGameSessionData() {
     }
 
     let isCancelled = false;
+    const abortController = new AbortController();
     const streamStrategy: Exclude<ActiveStreamStrategy, null> = shouldUseSourceStreaming
       ? 'source'
       : 'resume';
@@ -223,16 +320,24 @@ export function useGameSessionData() {
 
     const run = async () => {
       try {
+        if (streamRetryTimeoutRef.current !== null) {
+          window.clearTimeout(streamRetryTimeoutRef.current);
+          streamRetryTimeoutRef.current = null;
+        }
         initializedStreamingRequestKeyRef.current = requestKey;
         setLastStreamRequestType(streamStrategy);
         setHasStartedStreamRequest(true);
 
         const eventStream =
           streamStrategy === 'source' && streamingSource
-            ? startStreamingSession({ source: streamingSource })
+            ? startStreamingSession({
+                source: streamingSource,
+                signal: abortController.signal,
+              })
             : resumeStreamingSession({
                 sessionId,
                 language: streamingSource?.language ?? 'ko',
+                signal: abortController.signal,
               });
 
         for await (const event of eventStream) {
@@ -240,7 +345,14 @@ export function useGameSessionData() {
             break;
           }
 
-          console.log('[useGameSessionData] stream event', event);
+          const eventWithRequestId = event as typeof event & { request_id?: string | number };
+          console.log('[useGameSessionData] stream event', {
+            sessionId,
+            streamStrategy,
+            type: event.type,
+            requestId: eventWithRequestId.request_id ?? null,
+            event,
+          });
           setLastStreamEventType(event.type);
 
           if (event.type === 'init') {
@@ -257,6 +369,10 @@ export function useGameSessionData() {
           }
 
           if (event.type === 'chapter_ready') {
+            if (streamRetryTimeoutRef.current !== null) {
+              window.clearTimeout(streamRetryTimeoutRef.current);
+              streamRetryTimeoutRef.current = null;
+            }
             const streamEvent = event as StreamingChapterReadyEvent & {
               subtitles?: Array<Record<string, unknown>>;
             };
@@ -311,10 +427,15 @@ export function useGameSessionData() {
           }
 
           if (event.type === 'complete') {
+            if (streamRetryTimeoutRef.current !== null) {
+              window.clearTimeout(streamRetryTimeoutRef.current);
+              streamRetryTimeoutRef.current = null;
+            }
             const completedGameData = { ...latestGameDataRef.current, isComplete: true };
 
             latestGameDataRef.current = completedGameData;
             setGameData(completedGameData);
+            setActiveStreamStrategy(null);
             setState('stream_complete');
             console.log('[useGameSessionData] stream complete');
 
@@ -368,6 +489,32 @@ export function useGameSessionData() {
           if (event.type === 'error') {
             initializedStreamingRequestKeyRef.current = null;
             setHasStartedStreamRequest(false);
+
+            if (
+              isRetryableStreamingError({
+                message: event.message,
+                sourceType: streamingSource?.type,
+                currentAiStatus,
+              })
+            ) {
+              setState('chapter_waiting');
+              setErrorMessage('');
+              if (streamRetryTimeoutRef.current !== null) {
+                window.clearTimeout(streamRetryTimeoutRef.current);
+              }
+              streamRetryTimeoutRef.current = window.setTimeout(() => {
+                streamRetryTimeoutRef.current = null;
+                setStreamRetryNonce((current) => current + 1);
+              }, STREAM_RETRY_DELAY_MS);
+              console.log('[useGameSessionData] stream retry scheduled', {
+                message: event.message,
+                delayMs: STREAM_RETRY_DELAY_MS,
+                sourceType: streamingSource?.type ?? null,
+              });
+              return;
+            }
+
+            setActiveStreamStrategy(null);
             setState('failed');
             setErrorMessage(event.message);
             console.log('[useGameSessionData] stream error', event.message);
@@ -375,7 +522,12 @@ export function useGameSessionData() {
           }
         }
       } catch (error) {
+        if (isCancelled || isAbortError(error)) {
+          return;
+        }
+
         if (!isCancelled) {
+          setActiveStreamStrategy(null);
           setState('failed');
           setErrorMessage(getErrorMessage(error, '스트리밍 연결에 실패했습니다.'));
           initializedStreamingRequestKeyRef.current = null;
@@ -388,18 +540,31 @@ export function useGameSessionData() {
     void run();
 
     return () => {
+      console.log('[useGameSessionData] stream effect cleanup', {
+        mountId: streamEffectMountIdRef.current,
+        sessionId,
+        requestKey,
+        activeStreamStrategy,
+      });
       isCancelled = true;
+      abortController.abort();
       if (initializedStreamingRequestKeyRef.current === requestKey) {
         initializedStreamingRequestKeyRef.current = null;
+      }
+      if (streamRetryTimeoutRef.current !== null) {
+        window.clearTimeout(streamRetryTimeoutRef.current);
+        streamRetryTimeoutRef.current = null;
       }
       setHasStartedStreamRequest(false);
     };
   }, [
+    isSessionFinalized,
     isStreamingCurrentSession,
     saveStreamedQuizzes,
     sessionId,
     shouldResumeFileCurrentSession,
     streamingSource,
+    streamRetryNonce,
     sessionPlaybackMode,
   ]);
 

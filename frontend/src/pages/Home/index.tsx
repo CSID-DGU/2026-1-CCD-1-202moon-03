@@ -172,6 +172,10 @@ function HomePage() {
   };
 
   const handleModeSelect = async (mode: 'spinner' | 'rain') => {
+    if (isCreatingSession) {
+      return;
+    }
+
     if (!pendingUploadPayload) {
       setStreamingSource(null);
       setSessionPlaybackMode(replayVideoId ? 'replay' : 'live');
@@ -256,6 +260,7 @@ function HomePage() {
               mode: sessionMode,
               url: pendingUploadPayload.url,
               file: pendingUploadPayload.file,
+              fileName: pendingUploadPayload.file?.name,
               presignedUrl: sessionData.presigned_url,
               s3Key: sessionData.s3_key,
               sessionId: nextSessionId,
@@ -398,7 +403,11 @@ function HomePage() {
 
       {isModeSelectOpen ? (
         <div className="fixed inset-0 z-40 bg-white">
-          <ModeSelect onBack={closeModeSelect} onSelect={handleModeSelect} />
+          <ModeSelect
+            onBack={closeModeSelect}
+            onSelect={handleModeSelect}
+            isSubmitting={isCreatingSession}
+          />
         </div>
       ) : null}
     </div>

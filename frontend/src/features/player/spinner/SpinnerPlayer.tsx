@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent, ReactNode, RefObject } from 'react';
 import triDownIcon from '../../../assets/icons/tri-down.svg';
 import triUpIcon from '../../../assets/icons/tri-up.svg';
+import type { RainPlayfieldMetrics } from '../rain/types';
 import type { MediaController, PlayerType } from '../shared/playback';
 import type { SpinnerAssistTool, SpinnerPlaybackRate } from './types';
 
@@ -56,7 +57,7 @@ interface SpinnerPlayerProps {
   isCaptionVisible: boolean;
   captionText: string;
   selectedTool?: SpinnerAssistTool;
-  overlayContent?: ReactNode;
+  overlayContent?: ReactNode | ((metrics: RainPlayfieldMetrics) => ReactNode);
   subtitleContent?: ReactNode;
   renderSubtitleContent?: (isWrapped: boolean) => ReactNode;
   onMeasurementRootChange?: (element: HTMLElement | null) => void;
@@ -83,6 +84,18 @@ interface SpinnerPlayerProps {
   onPlay: () => void;
   onPause: () => void;
   onEnded: () => void;
+}
+
+const PLAYFIELD_TOP_INSET_PX = 24;
+const PLAYFIELD_BOTTOM_INSET_PX = 100;
+const FALLBACK_PLAYFIELD_HEIGHT_PX = 360;
+
+function createFallbackPlayfieldMetrics(): RainPlayfieldMetrics {
+  return {
+    overlayHeight: FALLBACK_PLAYFIELD_HEIGHT_PX,
+    playfieldTopPx: PLAYFIELD_TOP_INSET_PX,
+    playfieldBottomPx: Math.max(FALLBACK_PLAYFIELD_HEIGHT_PX - PLAYFIELD_BOTTOM_INSET_PX, 0),
+  };
 }
 
 function extractYoutubeVideoId(playerSrc: string) {
@@ -212,7 +225,9 @@ function SpinnerPlayer({
   onEnded,
 }: SpinnerPlayerProps) {
   const sectionRef = useRef<HTMLElement | null>(null);
+  const videoFrameRef = useRef<HTMLDivElement | null>(null);
   const seekTrackRef = useRef<HTMLDivElement | null>(null);
+  const controlsContainerRef = useRef<HTMLDivElement | null>(null);
   const subtitleBarRef = useRef<HTMLDivElement | null>(null);
   const subtitleContentRef = useRef<HTMLDivElement | null>(null);
   const hideControlsTimeoutRef = useRef<number | null>(null);
@@ -235,6 +250,9 @@ function SpinnerPlayer({
   const [isLocalPlayerReady, setIsLocalPlayerReady] = useState(false);
   const [hasLocalController, setHasLocalController] = useState(false);
   const [isControlsVisible, setIsControlsVisible] = useState(true);
+  const [playfieldMetrics, setPlayfieldMetrics] = useState<RainPlayfieldMetrics>(
+    createFallbackPlayfieldMetrics,
+  );
   const isYoutubePlayer = playerType === 'youtube';
   const hasCustomSubtitleContent = Boolean(subtitleContent || renderSubtitleContent);
   const canControlPlayback =
@@ -247,6 +265,8 @@ function SpinnerPlayer({
     isCaptionVisible && (subtitleContent || renderSubtitleContent || captionText),
   );
   const progressPercent = duration > 0 ? Math.min((currentTime / duration) * 100, 100) : 0;
+  const resolvedOverlayContent =
+    typeof overlayContent === 'function' ? overlayContent(playfieldMetrics) : overlayContent;
 
   const emitYoutubeDebug = ({
     action,
@@ -484,6 +504,64 @@ function SpinnerPlayer({
       window.removeEventListener('resize', scheduleMeasure);
     };
   }, [captionText, hasCustomSubtitleContent, isCaptionVisible, renderSubtitleContent, subtitleContent]);
+
+  useEffect(() => {
+    let frameId = 0;
+
+    const measurePlayfield = () => {
+      const videoFrame = videoFrameRef.current;
+      if (!videoFrame) {
+        return;
+      }
+
+      const videoFrameRect = videoFrame.getBoundingClientRect();
+      const overlayHeight = Math.max(videoFrameRect.height, 0);
+
+      const nextMetrics: RainPlayfieldMetrics = {
+        overlayHeight,
+        playfieldTopPx: Math.min(PLAYFIELD_TOP_INSET_PX, overlayHeight),
+        playfieldBottomPx: Math.max(overlayHeight - PLAYFIELD_BOTTOM_INSET_PX, 0),
+      };
+
+      setPlayfieldMetrics((current) =>
+        current.overlayHeight === nextMetrics.overlayHeight &&
+        current.playfieldTopPx === nextMetrics.playfieldTopPx &&
+        current.playfieldBottomPx === nextMetrics.playfieldBottomPx
+          ? current
+          : nextMetrics,
+      );
+    };
+
+    const scheduleMeasure = () => {
+      window.cancelAnimationFrame(frameId);
+      frameId = window.requestAnimationFrame(measurePlayfield);
+    };
+
+    scheduleMeasure();
+
+    const resizeObserver =
+      typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => scheduleMeasure()) : null;
+
+    if (videoFrameRef.current) {
+      resizeObserver?.observe(videoFrameRef.current);
+    }
+
+    if (controlsContainerRef.current) {
+      resizeObserver?.observe(controlsContainerRef.current);
+    }
+
+    if (subtitleBarRef.current) {
+      resizeObserver?.observe(subtitleBarRef.current);
+    }
+
+    window.addEventListener('resize', scheduleMeasure);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      resizeObserver?.disconnect();
+      window.removeEventListener('resize', scheduleMeasure);
+    };
+  }, [hasSubtitlePanel, isCaptionVisible, isControlsVisible]);
 
   useEffect(() => {
     if (!isYoutubePlayer) {
@@ -882,6 +960,7 @@ function SpinnerPlayer({
   return (
     <section ref={sectionRef} className="flex w-[min(1120px,98vw)] flex-col items-center">
       <div
+        ref={videoFrameRef}
         className={`relative aspect-video w-full overflow-hidden bg-black ${
           hasSubtitlePanel ? 'rounded-t-[11.455px]' : 'rounded-[11.455px]'
         }`}
@@ -910,13 +989,14 @@ function SpinnerPlayer({
 
         <div className="pointer-events-none absolute inset-0 z-10 bg-[linear-gradient(180deg,rgba(0,0,0,0)_0%,rgba(0,0,0,0)_70%,rgba(0,0,0,0.42)_100%)]" />
 
-        {overlayContent ? (
-          <div className="pointer-events-none absolute inset-x-0 bottom-[152px] top-[24px] z-20">
-            {overlayContent}
+        {resolvedOverlayContent ? (
+          <div className="pointer-events-none absolute inset-0 z-20">
+            {resolvedOverlayContent}
           </div>
         ) : null}
 
         <div
+          ref={controlsContainerRef}
           className={`absolute inset-x-0 bottom-0 z-30 overflow-visible transition-opacity duration-200 ${
             isControlsVisible ? 'opacity-100' : 'pointer-events-none opacity-0'
           } ${
