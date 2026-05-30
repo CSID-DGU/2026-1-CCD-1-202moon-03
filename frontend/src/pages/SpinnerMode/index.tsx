@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '../../constants/routes';
 import RainQuizModal from '../../features/player/rain/RainQuizModal';
+import FullscreenToggleButton from '../../features/player/shared/FullscreenToggleButton';
 import PlayerDebugPanel from '../../features/player/shared/PlayerDebugPanel';
 import PlayerStatusOverlay from '../../features/player/shared/PlayerStatusOverlay';
 import SpinnerPlayer from '../../features/player/spinner/SpinnerPlayer';
@@ -12,6 +13,7 @@ import { endGame } from '../../services/game.api';
 function SpinnerModePage() {
   const navigate = useNavigate();
   const [isEndingStudy, setIsEndingStudy] = useState(false);
+  const fullscreenRootRef = useRef<HTMLElement | null>(null);
   const {
     sessionId,
     playerType,
@@ -98,7 +100,7 @@ function SpinnerModePage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#15171C]">
+    <main ref={fullscreenRootRef} className="min-h-screen bg-[#15171C]">
       <div className="overflow-x-auto">
         <div className="mx-auto flex w-full max-w-[1440px] min-w-fit flex-col px-[40px] pb-[48px] pt-[32px]">
           <div className="flex items-start justify-between pb-[40px]">
@@ -126,6 +128,7 @@ function SpinnerModePage() {
             </div>
           </div>
 
+          <div className="flex items-center gap-2">
           <div className="rounded-[12px] border border-[#52555F] bg-[#25272E] p-2">
             <div className="flex items-center gap-[6px]">
               <ModeChip
@@ -139,6 +142,8 @@ function SpinnerModePage() {
                 onClick={() => handleSelectTool('keycap')}
               />
             </div>
+          </div>
+            <FullscreenToggleButton targetRef={fullscreenRootRef} />
           </div>
         </div>
 

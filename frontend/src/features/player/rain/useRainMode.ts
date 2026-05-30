@@ -4,7 +4,6 @@ import { getTransientStreamingSource, usePlayerStore } from '../../../store/useP
 import { useRainStore } from '../../../store/useRainStore';
 import type { ApiErrorResponse, GameBlankItem } from '../../../types';
 import { useGameSessionData } from '../shared/useGameSessionData';
-import { useAuthenticatedVideoUrl } from '../shared/useAuthenticatedVideoUrl';
 import { useLocalFilePlayerSrc } from '../shared/useLocalFilePlayerSrc';
 import type { MediaController, PlayerType } from '../shared/playback';
 import { resolvePlayerSource } from '../shared/playback';
@@ -62,7 +61,8 @@ type PreparedRainEvent = {
 
 type PreparedRainSummary = {
   events: PreparedRainEvent[];
-  unmatchedCount: number;
+  missingSegmentCount: number;
+  missingBlankMatchCount: number;
   droppedByBlankLimit: number;
   duplicateKeywordCandidates: number;
   invalidTargetTimeCount: number;
@@ -348,6 +348,7 @@ export function useRainMode(settings?: RainSettings) {
     errorMessage,
     statusLabel,
     currentAiStatus,
+    sessionPlaybackMode,
     debug,
   } = useGameSessionData();
   const storeStreamingSource = usePlayerStore((playerStore) => playerStore.streamingSource);
@@ -704,7 +705,8 @@ export function useRainMode(settings?: RainSettings) {
 
   const preparedRainSummary = useMemo<PreparedRainSummary>(() => {
     const usedBlankKeys = new Set<string>();
-    let unmatchedCount = 0;
+    let missingSegmentCount = 0;
+    let missingBlankMatchCount = 0;
     let droppedByBlankLimit = 0;
     let duplicateKeywordCandidates = 0;
     let invalidTargetTimeCount = 0;
@@ -713,7 +715,7 @@ export function useRainMode(settings?: RainSettings) {
       const segment = gameData.segments.find((item) => item.segmentId === event.segmentId);
 
       if (!segment) {
-        unmatchedCount += 1;
+        missingSegmentCount += 1;
         return prepared;
       }
 
@@ -738,7 +740,7 @@ export function useRainMode(settings?: RainSettings) {
       }
 
       if (matchingBlanks.length === 0) {
-        unmatchedCount += 1;
+        missingBlankMatchCount += 1;
         return prepared;
       }
 
@@ -765,7 +767,7 @@ export function useRainMode(settings?: RainSettings) {
       const blank = candidateBlanks[0];
 
       if (!blank) {
-        unmatchedCount += 1;
+        missingBlankMatchCount += 1;
         return prepared;
       }
 
@@ -820,7 +822,8 @@ export function useRainMode(settings?: RainSettings) {
 
     return {
       events,
-      unmatchedCount,
+      missingSegmentCount,
+      missingBlankMatchCount,
       droppedByBlankLimit,
       duplicateKeywordCandidates,
       invalidTargetTimeCount,
@@ -844,13 +847,6 @@ export function useRainMode(settings?: RainSettings) {
   );
 
   const localFileUrl = useLocalFilePlayerSrc(sessionId, streamingSource);
-  const authenticatedVideoUrl = useAuthenticatedVideoUrl({
-    enabled:
-      !localFileUrl &&
-      sessionDetail?.source_type === 'file' &&
-      Boolean(sessionDetail?.video_url),
-    sourceUrl: sessionDetail?.video_url,
-  });
 
   const resolvedPlayerSource = useMemo(() => {
     if (localFileUrl) {
@@ -860,20 +856,12 @@ export function useRainMode(settings?: RainSettings) {
       };
     }
 
-    if (authenticatedVideoUrl) {
-      return {
-        playerType: 'html5' as const,
-        playerSrc: authenticatedVideoUrl,
-      };
-    }
-
     return resolvePlayerSource({
       sourceType: sessionDetail?.source_type ?? streamingSource?.type,
       sourceUrl: sessionDetail?.source_url ?? streamingSource?.url,
       fallbackSrc: sessionDetail?.video_url ?? '',
     });
   }, [
-    authenticatedVideoUrl,
     localFileUrl,
     sessionDetail?.source_type,
     sessionDetail?.source_url,
@@ -1646,7 +1634,8 @@ export function useRainMode(settings?: RainSettings) {
       activeKeywordTargetTime: activePreparedEvent?.targetTime ?? null,
       activeKeywordSegmentId: activePreparedEvent?.segmentId ?? null,
       preparedFallEvents: preparedEvents.length,
-      unmatchedFallEvents: preparedRainSummary.unmatchedCount,
+      missingSegmentEvents: preparedRainSummary.missingSegmentCount,
+      missingBlankMatchEvents: preparedRainSummary.missingBlankMatchCount,
       droppedByBlankLimit: preparedRainSummary.droppedByBlankLimit,
       duplicateKeywordCandidates: preparedRainSummary.duplicateKeywordCandidates,
       invalidTargetTimeCount: preparedRainSummary.invalidTargetTimeCount,
@@ -1688,8 +1677,9 @@ export function useRainMode(settings?: RainSettings) {
       preparedEvents.length,
       preparedRainSummary.droppedByBlankLimit,
       preparedRainSummary.duplicateKeywordCandidates,
+      preparedRainSummary.missingBlankMatchCount,
+      preparedRainSummary.missingSegmentCount,
       preparedRainSummary.invalidTargetTimeCount,
-      preparedRainSummary.unmatchedCount,
       prunedTypedValueCount,
       rafCurrentTime,
       selectedDifficulty,

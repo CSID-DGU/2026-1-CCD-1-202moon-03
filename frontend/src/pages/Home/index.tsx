@@ -63,6 +63,7 @@ function HomePage() {
   const setSelectedMode = usePlayerStore((state) => state.setSelectedMode);
   const setSessionId = usePlayerStore((state) => state.setSessionId);
   const setStreamingSource = usePlayerStore((state) => state.setStreamingSource);
+  const setSessionPlaybackMode = usePlayerStore((state) => state.setSessionPlaybackMode);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isModeSelectOpen, setIsModeSelectOpen] = useState(false);
   const [pendingSourceLabel, setPendingSourceLabel] = useState('');
@@ -86,6 +87,7 @@ function HomePage() {
 
   useEffect(() => {
     if (!replayVideoId) {
+      setSessionPlaybackMode('live');
       return;
     }
 
@@ -172,6 +174,7 @@ function HomePage() {
   const handleModeSelect = async (mode: 'spinner' | 'rain') => {
     if (!pendingUploadPayload) {
       setStreamingSource(null);
+      setSessionPlaybackMode(replayVideoId ? 'replay' : 'live');
       setSelectedMode(mode);
       setSessionId(replayVideoId ?? `mock-session-${mode}-${Date.now()}`);
       setIsModeSelectOpen(false);
@@ -184,7 +187,7 @@ function HomePage() {
 
     try {
       const sessionMode = mapPlayerModeToSessionMode(mode);
-      const response =
+      const sessionData =
         pendingUploadPayload.sourceType === 'url' && pendingUploadPayload.url
           ? await createSessionFromUrl({
               source_type: mapUrlSourceType(pendingUploadPayload.url),
@@ -197,14 +200,14 @@ function HomePage() {
               mode: sessionMode,
             });
 
-      console.log('[HomePage] createSession response', response.data);
+      console.log('[HomePage] createSession response', sessionData);
 
-      const nextSessionId = getSessionResponseId(response.data);
+      const nextSessionId = getSessionResponseId(sessionData);
       const uploadedFileName = pendingUploadPayload.file?.name?.trim() ?? '';
       const resolvedResponseTitle =
-        pendingUploadPayload.sourceType === 'file' && isDefaultSessionTitle(response.data.title)
-          ? uploadedFileName || response.data.title
-          : response.data.title;
+        pendingUploadPayload.sourceType === 'file' && isDefaultSessionTitle(sessionData.title)
+          ? uploadedFileName || sessionData.title
+          : sessionData.title;
 
       const [latestSessionResponse, latestHistoryResponse] = await Promise.allSettled([
         getSessionList(),
@@ -217,7 +220,7 @@ function HomePage() {
                 ? {
                     ...session,
                     title: resolvedResponseTitle || session.title,
-                    thumbnail_url: response.data.thumbnail_url ?? session.thumbnail_url,
+                    thumbnail_url: sessionData.thumbnail_url ?? session.thumbnail_url,
                   }
                 : session,
             )
@@ -239,6 +242,7 @@ function HomePage() {
       setPendingUploadPayload(null);
       setPendingSourceLabel('');
       setSelectedMode(mode);
+      setSessionPlaybackMode('live');
       const nextSourceType =
         pendingUploadPayload.sourceType === 'url' && pendingUploadPayload.url
           ? mapUrlSourceType(pendingUploadPayload.url)
@@ -252,6 +256,8 @@ function HomePage() {
               mode: sessionMode,
               url: pendingUploadPayload.url,
               file: pendingUploadPayload.file,
+              presignedUrl: sessionData.presigned_url,
+              s3Key: sessionData.s3_key,
               sessionId: nextSessionId,
               language: 'ko',
             }

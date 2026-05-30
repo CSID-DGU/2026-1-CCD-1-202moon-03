@@ -22,6 +22,7 @@ export function usePlayerSession() {
   const isHydrated = useAuthStore((state) => state.isHydrated);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const sessionId = usePlayerStore((state) => state.sessionId);
+  const sessionPlaybackMode = usePlayerStore((state) => state.sessionPlaybackMode);
   const [sessionDetail, setSessionDetail] = useState<SessionDetailData | null>(null);
   const [isLoadingSession, setIsLoadingSession] = useState(false);
   const [sessionError, setSessionError] = useState('');
@@ -94,5 +95,6 @@ export function usePlayerSession() {
     sessionError,
     isAuthenticated,
     isHydrated,
+    sessionPlaybackMode,
   };
 }

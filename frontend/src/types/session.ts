@@ -39,6 +39,8 @@ export interface CreateSessionResponseData {
   thumbnail_url?: string | null;
   thumbnail?: string | null;
   thumbnailUrl?: string | null;
+  presigned_url?: string | null;
+  s3_key?: string | null;
   ai_status: AiStatus;
   mode: SessionMode;
 }

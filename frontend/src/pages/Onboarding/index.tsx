@@ -9,9 +9,9 @@ function OnboardingPage() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
   return (
-    <section className="-mx-6 -my-10 flex min-h-screen items-center justify-center bg-[linear-gradient(180deg,#FFF_0%,#ECF8FF_100%)] px-6 py-10">
-      <div className="flex min-h-[900px] w-full max-w-[1440px] flex-col items-center justify-center">
-        <div className="flex flex-col items-center gap-[140px]">
+    <section className="flex h-full w-full items-center justify-center overflow-hidden bg-[linear-gradient(180deg,#FFF_0%,#ECF8FF_100%)] px-6 py-8">
+      <div className="flex h-full w-full max-w-[1440px] flex-col items-center justify-center">
+        <div className="flex flex-col items-center gap-[clamp(72px,13vh,140px)]">
           <img
             src={onboardLogo}
             alt="TADAC"
