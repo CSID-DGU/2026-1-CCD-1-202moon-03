@@ -382,7 +382,12 @@ export function useSpinnerMode() {
 
   const sessionTitle = useMemo(() => {
     if (streamingSource?.type === 'file' && isDefaultSessionTitle(sessionDetail?.title)) {
-      return streamingSource.file?.name?.trim() || sessionDetail?.title || 'Spinner mode';
+      return (
+        streamingSource.file?.name?.trim() ||
+        streamingSource.fileName?.trim() ||
+        sessionDetail?.title ||
+        'Spinner mode'
+      );
     }
 
     return sessionDetail?.title || 'Spinner mode';

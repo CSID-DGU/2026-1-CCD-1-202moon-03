@@ -896,7 +896,12 @@ export function useRainMode(settings?: RainSettings) {
 
   const sessionTitle = useMemo(() => {
     if (streamingSource?.type === 'file' && isDefaultSessionTitle(sessionDetail?.title)) {
-      return streamingSource.file?.name?.trim() || sessionDetail?.title || 'Rain mode';
+      return (
+        streamingSource.file?.name?.trim() ||
+        streamingSource.fileName?.trim() ||
+        sessionDetail?.title ||
+        'Rain mode'
+      );
     }
 
     return sessionDetail?.title || 'Rain mode';

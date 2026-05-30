@@ -25,6 +25,20 @@ export type PlayerDataState =
 
 type ActiveStreamStrategy = 'source' | 'resume' | null;
 
+type StreamEffectDebugDeps = {
+  sessionId: string;
+  currentAiStatus: string | null;
+  isSessionFinalized: boolean;
+  isStreamingCurrentSession: boolean;
+  shouldResumeFileCurrentSession: boolean;
+  sessionPlaybackMode: string;
+  streamRetryNonce: number;
+  streamingSourceSessionId: string | null;
+  streamingSourceType: string | null;
+  hasFile: boolean;
+  activeStreamStrategy: ActiveStreamStrategy;
+};
+
 const RETRYABLE_EMPTY_SEGMENTS_ERROR_MESSAGE = '세그먼트가 없어 게임 데이터를 만들 수 없음';
 const STREAM_RETRY_DELAY_MS = 3000;
 
@@ -84,6 +98,8 @@ export function useGameSessionData() {
   const loadedStoredGameSessionRef = useRef<string | null>(null);
   const hydratedPersistedStreamSessionRef = useRef<string | null>(null);
   const streamRetryTimeoutRef = useRef<number | null>(null);
+  const previousStreamEffectDepsRef = useRef<StreamEffectDebugDeps | null>(null);
+  const streamEffectMountIdRef = useRef(Math.random().toString(36).slice(2, 8));
   const latestGameDataRef = useRef<NormalizedGameData>(createEmptyNormalizedGameData());
   const saveStreamedQuizzes = useStreamedQuizStore((state) => state.saveStreamedQuizzes);
 
@@ -224,6 +240,44 @@ export function useGameSessionData() {
     if (sessionPlaybackMode === 'replay') {
       return;
     }
+
+    const currentEffectDeps: StreamEffectDebugDeps = {
+      sessionId,
+      currentAiStatus,
+      isSessionFinalized,
+      isStreamingCurrentSession,
+      shouldResumeFileCurrentSession,
+      sessionPlaybackMode,
+      streamRetryNonce,
+      streamingSourceSessionId: streamingSource?.sessionId ?? null,
+      streamingSourceType: streamingSource?.type ?? null,
+      hasFile: Boolean(streamingSource?.file),
+      activeStreamStrategy,
+    };
+    const previousEffectDeps = previousStreamEffectDepsRef.current;
+
+    if (!previousEffectDeps) {
+      console.log('[useGameSessionData] stream effect first run', {
+        mountId: streamEffectMountIdRef.current,
+        deps: currentEffectDeps,
+      });
+    } else {
+      const changed = Object.entries(currentEffectDeps)
+        .filter(([key, value]) => previousEffectDeps[key as keyof StreamEffectDebugDeps] !== value)
+        .map(([key, value]) => ({
+          key,
+          previous: previousEffectDeps[key as keyof StreamEffectDebugDeps],
+          current: value,
+        }));
+
+      console.log('[useGameSessionData] stream effect rerun', {
+        mountId: streamEffectMountIdRef.current,
+        changed,
+        deps: currentEffectDeps,
+      });
+    }
+
+    previousStreamEffectDepsRef.current = currentEffectDeps;
 
     if (isSessionFinalized) {
       if (streamRetryTimeoutRef.current !== null) {
@@ -486,6 +540,12 @@ export function useGameSessionData() {
     void run();
 
     return () => {
+      console.log('[useGameSessionData] stream effect cleanup', {
+        mountId: streamEffectMountIdRef.current,
+        sessionId,
+        requestKey,
+        activeStreamStrategy,
+      });
       isCancelled = true;
       abortController.abort();
       if (initializedStreamingRequestKeyRef.current === requestKey) {
@@ -498,8 +558,6 @@ export function useGameSessionData() {
       setHasStartedStreamRequest(false);
     };
   }, [
-    activeStreamStrategy,
-    currentAiStatus,
     isSessionFinalized,
     isStreamingCurrentSession,
     saveStreamedQuizzes,

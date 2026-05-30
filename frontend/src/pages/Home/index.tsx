@@ -260,6 +260,7 @@ function HomePage() {
               mode: sessionMode,
               url: pendingUploadPayload.url,
               file: pendingUploadPayload.file,
+              fileName: pendingUploadPayload.file?.name,
               presignedUrl: sessionData.presigned_url,
               s3Key: sessionData.s3_key,
               sessionId: nextSessionId,
