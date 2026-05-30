@@ -20,11 +20,9 @@ import {
   type RainDifficultyPresetKey,
 } from './rainDifficultyPresets';
 
-const FALL_PROGRESS_START = -12;
-const FALL_PROGRESS_END = 86;
 const TARGET_TIME_SEGMENT_TOLERANCE_SECONDS = 3;
 const DEFAULT_MISS_GRACE_SECONDS = 1.2;
-const MISS_END_BUFFER_SECONDS = 0.1;
+const MISS_END_BUFFER_SECONDS = 0.15;
 const MISSED_DISPLAY_BUFFER = 0.75;
 const SHORT_SEGMENT_THRESHOLD_SECONDS = 4;
 const MIN_BLANK_SEGMENT_DURATION_SECONDS = 2.0;
@@ -218,7 +216,7 @@ function adjustAdaptiveDifficulty(
 }
 
 function clampProgress(value: number) {
-  return Math.max(FALL_PROGRESS_START, Math.min(value, FALL_PROGRESS_END));
+  return Math.max(0, Math.min(value, 1));
 }
 
 function normalizeAnswer(value: string) {
@@ -238,17 +236,17 @@ const FIXED_LANE_POSITIONS: number[] = [18, 39, 60];
 
 function resolveKeywordProgress(currentTime: number, event: PreparedRainEvent) {
   if (currentTime <= event.fallStartTime) {
-    return FALL_PROGRESS_START;
+    return 0;
   }
 
   if (currentTime >= event.missDeadline) {
-    return FALL_PROGRESS_END;
+    return 1;
   }
 
   const totalDuration = Math.max(event.missDeadline - event.fallStartTime, 0.001);
   const ratio = (currentTime - event.fallStartTime) / totalDuration;
 
-  return clampProgress(FALL_PROGRESS_START + ratio * (FALL_PROGRESS_END - FALL_PROGRESS_START));
+  return clampProgress(ratio);
 }
 
 function buildCaptionDisplay(
@@ -951,7 +949,7 @@ export function useRainMode(settings?: RainSettings) {
       lane: currentEvent.lane,
       blankKey: currentEvent.blankKey,
       leftPercent: currentEvent.leftPercent,
-      progress: resolveKeywordProgress(rafCurrentTime, currentEvent),
+      topProgress: resolveKeywordProgress(rafCurrentTime, currentEvent),
       status: 'active' as const,
       blank: currentEvent.blank,
     };
@@ -1023,7 +1021,8 @@ export function useRainMode(settings?: RainSettings) {
               lane: event.lane,
               blankKey: event.blankKey,
               leftPercent: event.leftPercent,
-              progress: settledProgressRef.current.get(event.id) ?? resolveKeywordProgress(rafCurrentTime, event),
+              topProgress:
+                settledProgressRef.current.get(event.id) ?? resolveKeywordProgress(rafCurrentTime, event),
               status: 'cleared' as const,
             };
           }
@@ -1037,7 +1036,8 @@ export function useRainMode(settings?: RainSettings) {
               lane: event.lane,
               blankKey: event.blankKey,
               leftPercent: event.leftPercent,
-              progress: settledProgressRef.current.get(event.id) ?? resolveKeywordProgress(rafCurrentTime, event),
+              topProgress:
+                settledProgressRef.current.get(event.id) ?? resolveKeywordProgress(rafCurrentTime, event),
               status: 'missed' as const,
             };
           }
@@ -1051,7 +1051,7 @@ export function useRainMode(settings?: RainSettings) {
               lane: event.lane,
               blankKey: event.blankKey,
               leftPercent: event.leftPercent,
-              progress: FALL_PROGRESS_START,
+              topProgress: 0,
               status: 'pending' as const,
             };
           }
@@ -1064,7 +1064,7 @@ export function useRainMode(settings?: RainSettings) {
             lane: event.lane,
             blankKey: event.blankKey,
             leftPercent: event.leftPercent,
-            progress: resolveKeywordProgress(rafCurrentTime, event),
+            topProgress: resolveKeywordProgress(rafCurrentTime, event),
             status: activeKeyword?.id === event.id ? 'active' : 'pending',
           };
         }),
