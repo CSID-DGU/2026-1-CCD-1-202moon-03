@@ -172,6 +172,10 @@ function HomePage() {
   };
 
   const handleModeSelect = async (mode: 'spinner' | 'rain') => {
+    if (isCreatingSession) {
+      return;
+    }
+
     if (!pendingUploadPayload) {
       setStreamingSource(null);
       setSessionPlaybackMode(replayVideoId ? 'replay' : 'live');
@@ -398,7 +402,11 @@ function HomePage() {
 
       {isModeSelectOpen ? (
         <div className="fixed inset-0 z-40 bg-white">
-          <ModeSelect onBack={closeModeSelect} onSelect={handleModeSelect} />
+          <ModeSelect
+            onBack={closeModeSelect}
+            onSelect={handleModeSelect}
+            isSubmitting={isCreatingSession}
+          />
         </div>
       ) : null}
     </div>

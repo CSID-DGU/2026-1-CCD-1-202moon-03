@@ -118,8 +118,10 @@ async function* readSseEvents(response: Response) {
 
 export async function* startStreamingSession({
   source,
+  signal,
 }: {
   source: StreamingPlayerSource;
+  signal?: AbortSignal;
 }): AsyncGenerator<StreamingSessionEvent, void, void> {
   const headers = getAuthHeaders();
 
@@ -135,6 +137,7 @@ export async function* startStreamingSession({
         language: source.language ?? 'ko',
         ...(source.sessionId ? { session_id: source.sessionId } : {}),
       }),
+      signal,
     });
 
     yield* readSseEvents(response);
@@ -170,6 +173,7 @@ export async function* startStreamingSession({
     const uploadResponse = await fetch(presignedUrl, {
       method: 'PUT',
       body: await source.file.arrayBuffer(),
+      signal,
     });
 
     if (!uploadResponse.ok) {
@@ -188,6 +192,7 @@ export async function* startStreamingSession({
       s3_key: s3Key,
       language: source.language ?? 'ko',
     }),
+    signal,
   });
 
   yield* readSseEvents(response);
@@ -196,9 +201,11 @@ export async function* startStreamingSession({
 export async function* resumeStreamingSession({
   sessionId,
   language,
+  signal,
 }: {
   sessionId: string;
   language?: string;
+  signal?: AbortSignal;
 }): AsyncGenerator<StreamingSessionEvent, void, void> {
   const response = await fetch(buildAbsoluteUrl(`/api/sessions/${sessionId}/stream/resume/`), {
     method: 'POST',
@@ -209,6 +216,7 @@ export async function* resumeStreamingSession({
     body: JSON.stringify({
       language: language ?? 'ko',
     }),
+    signal,
   });
 
   yield* readSseEvents(response);
