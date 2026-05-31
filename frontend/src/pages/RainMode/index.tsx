@@ -322,6 +322,13 @@ function RainModePage() {
                   speedOptions={speedOptions}
                   isCaptionVisible={isCaptionVisible}
                   captionText={captionText}
+                  modalContent={
+                    <RainQuizModal
+                      quizState={quizState}
+                      onSelectOption={(index) => void submitQuizAnswer(index)}
+                      onContinue={() => void continueFromQuiz()}
+                    />
+                  }
                   onMeasurementRootChange={setMeasurementRoot}
                   overlayContent={(playfieldMetrics: RainPlayfieldMetrics) => (
                     <div className="relative h-full w-full">
@@ -456,11 +463,6 @@ function RainModePage() {
         </div>
       </div>
 
-      <RainQuizModal
-        quizState={quizState}
-        onSelectOption={(index) => void submitQuizAnswer(index)}
-        onContinue={() => void continueFromQuiz()}
-      />
       <PlayerDebugPanel
         debug={{
           ...debug,

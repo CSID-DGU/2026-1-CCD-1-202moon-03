@@ -164,6 +164,37 @@ function SpinnerModePage() {
                 speedOptions={speedOptions}
                 isCaptionVisible={isCaptionVisible}
                 captionText={captionText}
+                modalContent={
+                  <RainQuizModal
+                    quizState={
+                      quizState
+                        ? {
+                            quiz: {
+                              quiz_id: quizState.quizId ?? undefined,
+                              quiz_index: quizState.quizIndex,
+                              trigger_time: quizState.triggerTime,
+                              segment_range: quizState.segmentRange,
+                              question: quizState.question,
+                              options: quizState.options,
+                              answer_index: quizState.answerIndex,
+                              correct_feedback: quizState.feedback,
+                              incorrect_feedback: quizState.incorrectFeedback,
+                              explanation: quizState.explanation,
+                            },
+                            selectedIndex: quizState.selectedIndex,
+                            feedback: quizState.selectedIndex === null ? '' : quizState.feedback,
+                            explanation:
+                              quizState.selectedIndex === null ? '' : quizState.explanation,
+                            submitError: quizState.submitError,
+                            isCorrect: quizState.isCorrect,
+                            isSubmitting: quizState.isSubmitting,
+                          }
+                        : null
+                    }
+                    onSelectOption={(index) => void submitQuizAnswer(index)}
+                    onContinue={() => void continueFromQuiz()}
+                  />
+                }
                 selectedTool={selectedTool}
                 onTogglePlay={handleTogglePlay}
                 onToggleSpeedMenu={handleToggleSpeedMenu}
@@ -212,34 +243,6 @@ function SpinnerModePage() {
         </div>
       </div>
 
-      <RainQuizModal
-        quizState={
-          quizState
-            ? {
-                quiz: {
-                  quiz_id: quizState.quizId ?? undefined,
-                  quiz_index: quizState.quizIndex,
-                  trigger_time: quizState.triggerTime,
-                  segment_range: quizState.segmentRange,
-                  question: quizState.question,
-                  options: quizState.options,
-                  answer_index: quizState.answerIndex,
-                  correct_feedback: quizState.feedback,
-                  incorrect_feedback: quizState.incorrectFeedback,
-                  explanation: quizState.explanation,
-                },
-                selectedIndex: quizState.selectedIndex,
-                feedback: quizState.selectedIndex === null ? '' : quizState.feedback,
-                explanation: quizState.selectedIndex === null ? '' : quizState.explanation,
-                submitError: quizState.submitError,
-                isCorrect: quizState.isCorrect,
-                isSubmitting: quizState.isSubmitting,
-              }
-            : null
-        }
-        onSelectOption={(index) => void submitQuizAnswer(index)}
-        onContinue={() => void continueFromQuiz()}
-      />
       <PlayerDebugPanel debug={debug} />
     </main>
   );
