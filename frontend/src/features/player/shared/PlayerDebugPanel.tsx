@@ -32,8 +32,11 @@ interface PlayerDebugPanelProps {
     missGraceSeconds?: number;
     videoTimeSeconds?: number | null;
     activeKeywordId?: string | null;
+    activeKeywordSegmentId?: number | null;
+    prioritizedSegmentId?: number | null;
     pendingKeywordCount?: number;
     visibleKeywordCount?: number;
+    visibleKeywordStates?: string | null;
     lastJudgement?: string | null;
     tabSwitchCount?: number;
     errorMessage: string;
@@ -150,8 +153,11 @@ function PlayerDebugPanel({ debug }: PlayerDebugPanelProps) {
       <Section title="Rain">
         <Row label="videoTimeSeconds" value={formatNumber(debug.videoTimeSeconds)} />
         <Row label="activeKeywordId" value={debug.activeKeywordId ?? '-'} />
+        <Row label="activeKeywordSegmentId" value={debug.activeKeywordSegmentId ?? '-'} />
+        <Row label="prioritizedSegmentId" value={debug.prioritizedSegmentId ?? '-'} />
         <Row label="pendingKeywordCount" value={debug.pendingKeywordCount ?? '-'} />
         <Row label="visibleKeywordCount" value={debug.visibleKeywordCount ?? '-'} />
+        <Row label="visibleKeywordStates" value={debug.visibleKeywordStates ?? '-'} />
         <Row label="lastJudgement" value={debug.lastJudgement ?? '-'} />
       </Section>
 

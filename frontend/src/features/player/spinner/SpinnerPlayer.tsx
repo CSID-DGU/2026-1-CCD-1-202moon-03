@@ -181,7 +181,8 @@ function waitForNextFrame() {
 
 const YOUTUBE_READY_TIMEOUT_MS = 2500;
 const MAX_YOUTUBE_CONSTRUCT_RETRIES = 1;
-const CONTROLS_HIDE_DELAY_MS = 5000;
+const CONTROLS_HIDE_DELAY_MS = 4000;
+const CENTER_CONTROL_FEEDBACK_MS = 4200;
 
 function createYouTubeController(player: YouTubePlayer): MediaController {
   return {
@@ -233,6 +234,7 @@ function SpinnerPlayer({
   const subtitleBarRef = useRef<HTMLDivElement | null>(null);
   const subtitleContentRef = useRef<HTMLDivElement | null>(null);
   const hideControlsTimeoutRef = useRef<number | null>(null);
+  const centerControlTimeoutRef = useRef<number | null>(null);
   const youtubeContainerRef = useRef<HTMLDivElement | null>(null);
   const youtubePlayerRef = useRef<YouTubePlayer | null>(null);
   const youtubeProgressTimerRef = useRef<number | null>(null);
@@ -252,6 +254,7 @@ function SpinnerPlayer({
   const [isLocalPlayerReady, setIsLocalPlayerReady] = useState(false);
   const [hasLocalController, setHasLocalController] = useState(false);
   const [isControlsVisible, setIsControlsVisible] = useState(true);
+  const [showCenterControlFeedback, setShowCenterControlFeedback] = useState(false);
   const [isSectionFullscreen, setIsSectionFullscreen] = useState(false);
   const [playfieldMetrics, setPlayfieldMetrics] = useState<RainPlayfieldMetrics>(
     createFallbackPlayfieldMetrics,
@@ -269,6 +272,7 @@ function SpinnerPlayer({
     isCaptionVisible && (subtitleContent || renderSubtitleContent || captionText),
   );
   const progressPercent = duration > 0 ? Math.min((currentTime / duration) * 100, 100) : 0;
+  const showCenterControlButton = canControlPlayback && (!isPlaying || showCenterControlFeedback);
   const resolvedOverlayContent =
     typeof overlayContent === 'function' ? overlayContent(playfieldMetrics) : overlayContent;
 
@@ -336,6 +340,13 @@ function SpinnerPlayer({
     }
   }, []);
 
+  const clearCenterControlTimeout = useCallback(() => {
+    if (centerControlTimeoutRef.current !== null) {
+      window.clearTimeout(centerControlTimeoutRef.current);
+      centerControlTimeoutRef.current = null;
+    }
+  }, []);
+
   const revealControls = useCallback((shouldReschedule = true) => {
     clearControlsHideTimeout();
     setIsControlsVisible(true);
@@ -378,6 +389,30 @@ function SpinnerPlayer({
     revealControls,
     scheduleControlsHide,
   ]);
+
+  useEffect(() => {
+    clearCenterControlTimeout();
+
+    if (!canControlPlayback) {
+      setShowCenterControlFeedback(false);
+      return;
+    }
+
+    if (!isPlaying) {
+      setShowCenterControlFeedback(false);
+      return;
+    }
+
+    setShowCenterControlFeedback(true);
+    centerControlTimeoutRef.current = window.setTimeout(() => {
+      setShowCenterControlFeedback(false);
+      centerControlTimeoutRef.current = null;
+    }, CENTER_CONTROL_FEEDBACK_MS);
+
+    return () => {
+      clearCenterControlTimeout();
+    };
+  }, [canControlPlayback, clearCenterControlTimeout, isPlaying]);
 
   const clearYoutubeProgressTimer = () => {
     if (youtubeProgressTimerRef.current !== null) {
@@ -1033,6 +1068,25 @@ function SpinnerPlayer({
           />
         ) : null}
 
+        {showCenterControlButton ? (
+          <div className="pointer-events-none absolute inset-0 z-[28] flex items-center justify-center">
+            <button
+              type="button"
+              onClick={handlePlayButtonClick}
+              className="pointer-events-auto flex h-[74px] w-[74px] items-center justify-center rounded-full border border-[rgba(255,255,255,0.14)] bg-[#212121] text-white shadow-[0_10px_28px_rgba(0,0,0,0.28)] transition-transform duration-150 hover:scale-[1.03] hover:bg-[#181818] active:scale-[0.98]"
+              aria-label={isPlaying ? 'Pause video' : 'Play video'}
+            >
+              {isPlaying ? (
+                <LargePauseIcon />
+              ) : (
+                <span className="translate-x-[2.5px]">
+                  <LargePlayIcon />
+                </span>
+              )}
+            </button>
+          </div>
+        ) : null}
+
         <div
           ref={controlsContainerRef}
           className={`absolute inset-x-0 bottom-0 z-30 overflow-visible transition-opacity duration-200 ${
@@ -1209,6 +1263,23 @@ function PlayIcon() {
   return (
     <svg aria-hidden="true" viewBox="0 0 24 24" className="h-6 w-6 fill-none" xmlns="http://www.w3.org/2000/svg">
       <path d="M8 5.5L19 12L8 18.5V5.5Z" fill="currentColor" />
+    </svg>
+  );
+}
+
+function LargePlayIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-[32px] w-[32px] fill-none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M7 4.75L19 12L7 19.25V4.75Z" fill="currentColor" />
+    </svg>
+  );
+}
+
+function LargePauseIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-[30px] w-[30px] fill-none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="6.5" y="5" width="4" height="14" rx="1" fill="currentColor" />
+      <rect x="13.5" y="5" width="4" height="14" rx="1" fill="currentColor" />
     </svg>
   );
 }
