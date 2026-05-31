@@ -60,6 +60,7 @@ interface SpinnerPlayerProps {
   overlayContent?: ReactNode | ((metrics: RainPlayfieldMetrics) => ReactNode);
   subtitleContent?: ReactNode;
   renderSubtitleContent?: (isWrapped: boolean) => ReactNode;
+  modalContent?: ReactNode;
   onMeasurementRootChange?: (element: HTMLElement | null) => void;
   onTogglePlay: () => void;
   onToggleSpeedMenu: () => void;
@@ -210,6 +211,7 @@ function SpinnerPlayer({
   overlayContent,
   subtitleContent,
   renderSubtitleContent,
+  modalContent,
   onMeasurementRootChange,
   onTogglePlay,
   onToggleSpeedMenu,
@@ -250,6 +252,7 @@ function SpinnerPlayer({
   const [isLocalPlayerReady, setIsLocalPlayerReady] = useState(false);
   const [hasLocalController, setHasLocalController] = useState(false);
   const [isControlsVisible, setIsControlsVisible] = useState(true);
+  const [isSectionFullscreen, setIsSectionFullscreen] = useState(false);
   const [playfieldMetrics, setPlayfieldMetrics] = useState<RainPlayfieldMetrics>(
     createFallbackPlayfieldMetrics,
   );
@@ -261,7 +264,8 @@ function SpinnerPlayer({
     isYoutubePlayer && availablePlaybackRates.length > 0
       ? speedOptions.filter((speed) => availablePlaybackRates.includes(speed))
       : speedOptions;
-  const hasSubtitlePanel = Boolean(
+  const hasSubtitlePanel = true;
+  const hasVisibleSubtitleContent = Boolean(
     isCaptionVisible && (subtitleContent || renderSubtitleContent || captionText),
   );
   const progressPercent = duration > 0 ? Math.min((currentTime / duration) * 100, 100) : 0;
@@ -448,6 +452,19 @@ function SpinnerPlayer({
       onMeasurementRootChange?.(null);
     };
   }, [onMeasurementRootChange]);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsSectionFullscreen(document.fullscreenElement === sectionRef.current);
+    };
+
+    handleFullscreenChange();
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, []);
 
   useEffect(() => {
     if (!isCaptionVisible || (!captionText && !hasCustomSubtitleContent)) {
@@ -957,13 +974,27 @@ function SpinnerPlayer({
     onToggleCaption();
   };
 
+  const handleFullscreenButtonClick = async () => {
+    try {
+      if (document.fullscreenElement === sectionRef.current) {
+        await document.exitFullscreen();
+        return;
+      }
+
+      await sectionRef.current?.requestFullscreen();
+    } catch {
+      // Some browsers can reject fullscreen requests when the page is not focused.
+    }
+  };
+
   return (
-    <section ref={sectionRef} className="flex w-[min(1120px,98vw)] flex-col items-center">
+    <section
+      ref={sectionRef}
+      className="flex w-[min(1120px,98vw)] flex-col items-center bg-transparent fullscreen:h-screen fullscreen:w-screen fullscreen:max-w-none fullscreen:justify-center fullscreen:bg-[#15171C] fullscreen:px-6"
+    >
       <div
         ref={videoFrameRef}
-        className={`relative aspect-video w-full overflow-hidden bg-black ${
-          hasSubtitlePanel ? 'rounded-t-[11.455px]' : 'rounded-[11.455px]'
-        }`}
+        className="relative aspect-video w-full overflow-hidden rounded-t-[11.455px] bg-black"
         onPointerMove={() => revealControls()}
         onPointerEnter={() => revealControls()}
         onPointerDown={() => revealControls()}
@@ -993,6 +1024,13 @@ function SpinnerPlayer({
           <div className="pointer-events-none absolute inset-0 z-20">
             {resolvedOverlayContent}
           </div>
+        ) : null}
+
+        {isYoutubePlayer ? (
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 z-[25]"
+          />
         ) : null}
 
         <div
@@ -1063,7 +1101,7 @@ function SpinnerPlayer({
               </div>
             </div>
 
-            <div className="relative z-10 flex items-center gap-6 text-white">
+            <div className="relative z-10 flex items-center gap-5 text-white">
               <div className="relative flex items-center">
                 <button
                   type="button"
@@ -1103,6 +1141,16 @@ function SpinnerPlayer({
               <button type="button" onClick={handleCaptionButtonClick} className="p-1 text-white">
                 <SubtitleIcon isActive={isCaptionVisible} />
               </button>
+
+              <button
+                type="button"
+                onClick={() => void handleFullscreenButtonClick()}
+                className="p-1 text-white"
+                aria-label={isSectionFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+                title={isSectionFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+              >
+                <FullscreenIcon isActive={isSectionFullscreen} />
+              </button>
             </div>
           </div>
         </div>
@@ -1111,7 +1159,7 @@ function SpinnerPlayer({
       {hasSubtitlePanel ? (
           <div
             ref={subtitleBarRef}
-            className={`flex w-full rounded-b-[11.455px] bg-[rgba(0,0,0,0.78)] px-6 text-white transition-[padding,height] duration-150 ${
+            className={`flex w-full rounded-b-[11.455px] bg-[rgba(0,0,0,0.78)] px-6 text-white transition-[padding,height,opacity] duration-150 ${
               isSubtitleWrapped ? 'items-center py-[10px] min-h-[86px]' : 'items-center py-3 min-h-[68px]'
             }`}
           >
@@ -1121,14 +1169,18 @@ function SpinnerPlayer({
                 isSubtitleWrapped
                   ? 'max-w-[96%] whitespace-normal text-[21px] leading-[1.36] tracking-[-0.01em] [word-break:keep-all]'
                   : 'overflow-hidden whitespace-nowrap leading-[1.4]'
-              }`}
+              } ${hasVisibleSubtitleContent ? 'opacity-100' : 'opacity-0'}`}
             >
-            {renderSubtitleContent
-              ? renderSubtitleContent(isSubtitleWrapped)
-              : subtitleContent ?? <p>{captionText}</p>}
+            {hasVisibleSubtitleContent
+              ? renderSubtitleContent
+                ? renderSubtitleContent(isSubtitleWrapped)
+                : subtitleContent ?? <p>{captionText}</p>
+              : <p>&nbsp;</p>}
           </div>
         </div>
       ) : null}
+
+      {modalContent}
     </section>
   );
 }
@@ -1175,6 +1227,44 @@ function SubtitleIcon({ isActive }: { isActive: boolean }) {
       <rect x="3" y="6" width="18" height="12" rx="2" stroke="currentColor" strokeWidth="1.8" />
       <path d="M7 12H10.5M13.5 12H17" stroke={isActive ? '#1A9AF5' : 'currentColor'} strokeWidth="1.8" strokeLinecap="round" />
       <path d="M7 15H12M14.5 15H17" stroke={isActive ? '#1A9AF5' : 'currentColor'} strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function FullscreenIcon({ isActive }: { isActive: boolean }) {
+  if (isActive) {
+    return (
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 24 24"
+        className="h-6 w-6"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path d="M9 5H5V9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M15 5H19V9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M9 19H5V15" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M15 19H19V15" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M10 10L5 5" stroke="#1A9AF5" strokeWidth="1.8" strokeLinecap="round" />
+        <path d="M14 10L19 5" stroke="#1A9AF5" strokeWidth="1.8" strokeLinecap="round" />
+        <path d="M10 14L5 19" stroke="#1A9AF5" strokeWidth="1.8" strokeLinecap="round" />
+        <path d="M14 14L19 19" stroke="#1A9AF5" strokeWidth="1.8" strokeLinecap="round" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-6 w-6"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path d="M9 5H5V9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M15 5H19V9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M9 19H5V15" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M15 19H19V15" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
