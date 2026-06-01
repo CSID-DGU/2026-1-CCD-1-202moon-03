@@ -88,7 +88,7 @@ interface SpinnerPlayerProps {
 }
 
 const PLAYFIELD_TOP_INSET_PX = 24;
-const PLAYFIELD_BOTTOM_INSET_PX = 100;
+const PLAYFIELD_BOTTOM_INSET_PX = 0;
 const FALLBACK_PLAYFIELD_HEIGHT_PX = 360;
 
 function createFallbackPlayfieldMetrics(): RainPlayfieldMetrics {

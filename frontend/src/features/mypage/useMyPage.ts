@@ -12,6 +12,7 @@ import {
   updateMyProfile,
   updateMySettings,
 } from '../../services/user.api';
+import { getSessionStudyTime } from '../player/shared/sessionStudyTime';
 import { useAuthStore } from '../../store/useAuthStore';
 import type {
   ApiErrorResponse,
@@ -307,13 +308,21 @@ export function useMyPage() {
       }
 
       const totalStudySeconds = detailResults.reduce((sum, result, index) => {
+        const fallbackStudyTimeSeconds = getSessionStudyTime(history[index]?.session_id ?? '');
+
         if (result.status !== 'fulfilled') {
-          return sum;
+          return sum + (fallbackStudyTimeSeconds ?? 0);
         }
 
-        const durationSec = result.value.data.duration_sec ?? 0;
+        const durationSec = result.value.data.duration_sec;
         const watchRate = history[index]?.watch_rate ?? 0;
-        return sum + durationSec * Math.max(0, Math.min(1, watchRate));
+        const normalizedWatchRate = Math.max(0, Math.min(1, watchRate));
+
+        if (typeof durationSec === 'number' && durationSec > 0) {
+          return sum + durationSec * normalizedWatchRate;
+        }
+
+        return sum + (fallbackStudyTimeSeconds ?? 0);
       }, 0);
 
       setComputedStats((current) => ({

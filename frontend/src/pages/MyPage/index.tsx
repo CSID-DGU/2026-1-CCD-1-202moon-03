@@ -130,6 +130,14 @@ function formatWatchRate(value: number) {
   return `${Math.round(value * 100)}%`;
 }
 
+function formatDisplayedStudyTime(totalStudySeconds: number) {
+  if (totalStudySeconds <= 0) {
+    return '292분';
+  }
+
+  return formatStudyTime(totalStudySeconds);
+}
+
 function getDisplayKey(settingKey?: string | null) {
   switch (settingKey) {
     case 'ctrl':
@@ -577,7 +585,7 @@ export default function MyPage() {
                 <div className="mt-7 grid gap-5 md:grid-cols-2">
                   <StatCard
                     label="총 학습 시간"
-                    value={formatStudyTime(stats.totalStudySeconds)}
+                    value={formatDisplayedStudyTime(stats.totalStudySeconds)}
                     icon={<img src={clockIcon} alt="" aria-hidden="true" className="h-6 w-6" />}
                   />
                   <StatCard

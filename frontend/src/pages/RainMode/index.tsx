@@ -23,6 +23,7 @@ import { useRainMode } from '../../features/player/rain/useRainMode';
 import FullscreenToggleButton from '../../features/player/shared/FullscreenToggleButton';
 import PlayerDebugPanel from '../../features/player/shared/PlayerDebugPanel';
 import PlayerStatusOverlay from '../../features/player/shared/PlayerStatusOverlay';
+import { saveSessionStudyTime } from '../../features/player/shared/sessionStudyTime';
 import SpinnerPlayer from '../../features/player/spinner/SpinnerPlayer';
 import { endGame } from '../../services/game.api';
 import { useAuthStore } from '../../store/authStore';
@@ -233,6 +234,7 @@ function RainModePage() {
     }
 
     setIsEndingStudy(true);
+    saveSessionStudyTime(sessionId, currentTime);
 
     try {
       const latestQuizStats = getLatestQuizStats();
