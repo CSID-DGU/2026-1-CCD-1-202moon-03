@@ -240,8 +240,13 @@ function buildBlankKey(segmentId: number, blank: GameBlankItem) {
 }
 
 const FIXED_LANE_POSITIONS: number[] = [18, 39, 60];
+const MANUAL_HARD_SPEED_BOOST = 1.08;
 
-function resolveKeywordProgress(currentTime: number, event: PreparedRainEvent) {
+function resolveKeywordProgress(
+  currentTime: number,
+  event: PreparedRainEvent,
+  useAcceleratedCurve = false,
+) {
   if (currentTime <= event.fallStartTime) {
     return 0;
   }
@@ -253,7 +258,29 @@ function resolveKeywordProgress(currentTime: number, event: PreparedRainEvent) {
   const totalDuration = Math.max(event.missDeadline - event.fallStartTime, 0.001);
   const ratio = (currentTime - event.fallStartTime) / totalDuration;
 
-  return clampProgress(ratio);
+  if (!useAcceleratedCurve) {
+    return clampProgress(ratio);
+  }
+
+  // Keep the early drop readable, then add a softer mid boost
+  // and a controlled late acceleration for manual hard.
+  if (ratio <= 0.4) {
+    return clampProgress(ratio * 0.96);
+  }
+
+  if (ratio <= 0.75) {
+    const localRatio = (ratio - 0.4) / 0.35;
+    const startProgress = 0.384;
+    const endProgress = 0.73;
+    const easedLocalRatio = localRatio * 0.88 + localRatio * localRatio * 0.12;
+    return clampProgress(startProgress + (endProgress - startProgress) * easedLocalRatio);
+  }
+
+  const localRatio = (ratio - 0.75) / 0.25;
+  const startProgress = 0.73;
+  const endProgress = 1;
+  const easedLocalRatio = localRatio * 0.55 + localRatio * localRatio * 0.45;
+  return clampProgress(startProgress + (endProgress - startProgress) * easedLocalRatio);
 }
 
 function buildCaptionDisplay(
@@ -433,14 +460,18 @@ export function useRainMode(settings?: RainSettings) {
   const performanceEntryCountRef = useRef(0);
   const isManualSettings = settings?.mode === 'manual';
   const selectedDifficulty = (settings?.difficulty ?? rainDifficulty) as RainDifficultyPresetKey;
+  const useManualHardAcceleration = isManualSettings && selectedDifficulty === 'hard';
   const difficultySettings = RAIN_DIFFICULTY_PRESETS[selectedDifficulty].gameplay;
   const effectiveActiveBlanks = isManualSettings
     ? settings?.blankCount ?? RAIN_DIFFICULTY_PRESETS[selectedDifficulty].manual.blankCount
     : adaptiveDifficultyState.activeBlanks;
   // 수동 속도 1~5 → 실제 배속 0.5~2.0
   const MANUAL_SPEED_MAP: Record<number, number> = { 1: 0.3, 2: 0.5, 3: 0.75, 4: 1.0, 5: 1.5 };
+  const manualBaseFallSpeed = MANUAL_SPEED_MAP[settings?.fallSpeed ?? 3] ?? 1.0;
   const effectiveFallSpeed = isManualSettings
-    ? (MANUAL_SPEED_MAP[settings?.fallSpeed ?? 3] ?? 1.0)
+    ? useManualHardAcceleration
+      ? manualBaseFallSpeed * MANUAL_HARD_SPEED_BOOST
+      : manualBaseFallSpeed
     : adaptiveDifficultyState.fallSpeedMultiplier;
   const effectiveMinFallDuration = difficultySettings.minFallDuration;
   const effectiveSegmentSampleRate = isManualSettings
@@ -791,6 +822,11 @@ export function useRainMode(settings?: RainSettings) {
         return prepared;
       }
 
+      if (usedBlankKeys.has(blankKey)) {
+        droppedByBlankLimit += 1;
+        return prepared;
+      }
+
       usedBlankKeys.add(blankKey);
 
       const targetTime = event.targetTime;
@@ -1004,11 +1040,15 @@ export function useRainMode(settings?: RainSettings) {
       lane: currentEvent.lane,
       blankKey: currentEvent.blankKey,
       leftPercent: currentEvent.leftPercent,
-      topProgress: resolveKeywordProgress(rafCurrentTime, currentEvent),
+      topProgress: resolveKeywordProgress(
+        rafCurrentTime,
+        currentEvent,
+        useManualHardAcceleration,
+      ),
       status: 'active' as const,
       blank: currentEvent.blank,
     };
-  }, [activePlaybackSegmentId, rafCurrentTime, unresolvedEvents]);
+  }, [activePlaybackSegmentId, rafCurrentTime, unresolvedEvents, useManualHardAcceleration]);
 
   useEffect(() => {
     const overdueEvents = preparedEvents
@@ -1026,7 +1066,10 @@ export function useRainMode(settings?: RainSettings) {
 
     overdueEvents.forEach((event) => {
       if (!settledProgressRef.current.has(event.id)) {
-        settledProgressRef.current.set(event.id, resolveKeywordProgress(rafCurrentTime, event));
+        settledProgressRef.current.set(
+          event.id,
+          resolveKeywordProgress(rafCurrentTime, event, useManualHardAcceleration),
+        );
       }
       missedKeywordIdsRef.current.add(event.id);
       recordPerformanceEntry({
@@ -1040,7 +1083,7 @@ export function useRainMode(settings?: RainSettings) {
     setAttempts((previous) => previous + overdueEvents.length);
     setMissCount((previous) => previous + overdueEvents.length);
     setLastJudgement('miss');
-  }, [preparedEvents, rafCurrentTime, setCombo]);
+  }, [preparedEvents, rafCurrentTime, setCombo, useManualHardAcceleration]);
 
   const fallingKeywords = useMemo<RainKeyword[]>(
     () =>
@@ -1077,7 +1120,8 @@ export function useRainMode(settings?: RainSettings) {
               blankKey: event.blankKey,
               leftPercent: event.leftPercent,
               topProgress:
-                settledProgressRef.current.get(event.id) ?? resolveKeywordProgress(rafCurrentTime, event),
+                settledProgressRef.current.get(event.id) ??
+                resolveKeywordProgress(rafCurrentTime, event, useManualHardAcceleration),
               status: 'cleared' as const,
             };
           }
@@ -1092,7 +1136,8 @@ export function useRainMode(settings?: RainSettings) {
               blankKey: event.blankKey,
               leftPercent: event.leftPercent,
               topProgress:
-                settledProgressRef.current.get(event.id) ?? resolveKeywordProgress(rafCurrentTime, event),
+                settledProgressRef.current.get(event.id) ??
+                resolveKeywordProgress(rafCurrentTime, event, useManualHardAcceleration),
               status: 'missed' as const,
             };
           }
@@ -1119,11 +1164,19 @@ export function useRainMode(settings?: RainSettings) {
             lane: event.lane,
             blankKey: event.blankKey,
             leftPercent: event.leftPercent,
-            topProgress: resolveKeywordProgress(rafCurrentTime, event),
+            topProgress: resolveKeywordProgress(rafCurrentTime, event, useManualHardAcceleration),
             status: activeKeyword?.id === event.id ? 'active' : 'pending',
           };
         }),
-    [activeKeyword?.id, activePlaybackSegmentId, correctCount, missCount, rafCurrentTime, preparedEvents],
+    [
+      activeKeyword?.id,
+      activePlaybackSegmentId,
+      correctCount,
+      missCount,
+      preparedEvents,
+      rafCurrentTime,
+      useManualHardAcceleration,
+    ],
   );
 
   const visibleFallingKeywords = useMemo<RainKeyword[]>(() => {
@@ -1486,7 +1539,15 @@ export function useRainMode(settings?: RainSettings) {
   };
 
   const handleTypingSubmit = (blankKey: string, value: string) => {
-    const targetEvent = preparedEvents.find((event) => event.blankKey === blankKey);
+    const targetEvent =
+      preparedEvents
+        .filter((event) => event.blankKey === blankKey)
+        .filter(
+          (event) =>
+            !answeredKeywordIdsRef.current.has(event.id) &&
+            !missedKeywordIdsRef.current.has(event.id),
+        )
+        .sort((left, right) => left.targetTime - right.targetTime)[0] ?? null;
     const typedValue = value;
     const normalizedTyped = normalizeAnswer(typedValue);
 
@@ -1509,7 +1570,10 @@ export function useRainMode(settings?: RainSettings) {
       answeredKeywordIdsRef.current.add(targetEvent.id);
       answeredAtRef.current.set(targetEvent.id, performance.now());
       prioritizedSegmentIdRef.current = targetEvent.segmentId;
-      settledProgressRef.current.set(targetEvent.id, resolveKeywordProgress(rafCurrentTime, targetEvent));
+      settledProgressRef.current.set(
+        targetEvent.id,
+        resolveKeywordProgress(rafCurrentTime, targetEvent, useManualHardAcceleration),
+      );
       setTypedValuesByBlankKey((current) => ({
         ...current,
         [blankKey]: targetEvent.keyword.replace(/\s+/g, ''),
@@ -1694,7 +1758,10 @@ export function useRainMode(settings?: RainSettings) {
       windowMissRate: windowMetrics.missRate,
       adaptiveSamplingStep: adaptiveDifficultyState.samplingStep,
       activeBlanks: effectiveActiveBlanks,
+      manualBaseFallSpeed,
       fallSpeed: effectiveFallSpeed,
+      manualHardSpeedBoost: useManualHardAcceleration ? MANUAL_HARD_SPEED_BOOST : 1,
+      manualHardAccelerationCurve: useManualHardAcceleration ? 'segmented_soft' : 'off',
       fallLeadTimeOffset: effectiveFallLeadTimeOffset,
       minFallDuration: effectiveMinFallDuration,
       missEndBufferSeconds: MISS_END_BUFFER_SECONDS,
@@ -1754,6 +1821,7 @@ export function useRainMode(settings?: RainSettings) {
       missCount,
       playerSrc,
       playerType,
+      manualBaseFallSpeed,
       activePreparedEvent?.segmentId,
       activePreparedEvent?.targetTime,
       nextFallDuration,
@@ -1772,6 +1840,7 @@ export function useRainMode(settings?: RainSettings) {
       sessionDetail?.source_type,
       tabSwitchCount,
       typedValuesByBlankKey,
+      useManualHardAcceleration,
       youtubePlayerStage,
       youtubeVideoId,
       visibleCaptionBlankKeys,
