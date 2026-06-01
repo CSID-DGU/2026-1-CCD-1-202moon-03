@@ -5,6 +5,7 @@ import RainQuizModal from '../../features/player/rain/RainQuizModal';
 import FullscreenToggleButton from '../../features/player/shared/FullscreenToggleButton';
 import PlayerDebugPanel from '../../features/player/shared/PlayerDebugPanel';
 import PlayerStatusOverlay from '../../features/player/shared/PlayerStatusOverlay';
+import { saveSessionStudyTime } from '../../features/player/shared/sessionStudyTime';
 import SpinnerPlayer from '../../features/player/spinner/SpinnerPlayer';
 import SpinnerPracticePanel from '../../features/player/spinner/SpinnerPracticePanel';
 import { useSpinnerMode } from '../../features/player/spinner/useSpinnerMode';
@@ -82,6 +83,7 @@ function SpinnerModePage() {
     }
 
     setIsEndingStudy(true);
+    saveSessionStudyTime(sessionId, currentTime);
 
     try {
       const latestQuizStats = getLatestQuizStats();
