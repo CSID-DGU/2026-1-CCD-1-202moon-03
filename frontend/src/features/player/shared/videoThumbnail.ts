@@ -1,6 +1,9 @@
 const DEFAULT_THUMBNAIL_TYPE = 'image/jpeg';
 const DEFAULT_THUMBNAIL_QUALITY = 0.85;
 const MAX_THUMBNAIL_WIDTH = 640;
+const THUMBNAIL_CAPTURE_TIME_SECONDS = 4;
+const THUMBNAIL_CAPTURE_END_BUFFER_SECONDS = 0.1;
+const FRAME_RENDER_WAIT_MS = 80;
 
 function waitForEvent<T extends Event>(target: EventTarget, eventName: string) {
   return new Promise<T>((resolve, reject) => {
@@ -22,6 +25,29 @@ function waitForEvent<T extends Event>(target: EventTarget, eventName: string) {
     target.addEventListener(eventName, handleSuccess, { once: true });
     target.addEventListener('error', handleFailure, { once: true });
   });
+}
+
+function waitForAnimationFrame() {
+  return new Promise<void>((resolve) => {
+    requestAnimationFrame(() => resolve());
+  });
+}
+
+function waitForTimeout(durationMs: number) {
+  return new Promise<void>((resolve) => {
+    window.setTimeout(resolve, durationMs);
+  });
+}
+
+async function waitForSeekedFrame(video: HTMLVideoElement) {
+  if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+    await waitForEvent(video, 'loadeddata');
+  }
+
+  // Let the browser paint the seeked frame before drawing it to canvas.
+  await waitForAnimationFrame();
+  await waitForAnimationFrame();
+  await waitForTimeout(FRAME_RENDER_WAIT_MS);
 }
 
 function getThumbnailSize(videoWidth: number, videoHeight: number) {
@@ -53,6 +79,17 @@ function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: number) 
   });
 }
 
+function getCaptureTime(duration: number) {
+  if (!Number.isFinite(duration) || duration <= 0) {
+    return THUMBNAIL_CAPTURE_TIME_SECONDS;
+  }
+
+  return Math.min(
+    THUMBNAIL_CAPTURE_TIME_SECONDS,
+    Math.max(duration - THUMBNAIL_CAPTURE_END_BUFFER_SECONDS, 0),
+  );
+}
+
 export async function createThumbnailFromVideoFile(
   file: File,
   {
@@ -66,13 +103,38 @@ export async function createThumbnailFromVideoFile(
   const objectUrl = URL.createObjectURL(file);
   const video = document.createElement('video');
 
-  video.preload = 'metadata';
+  video.preload = 'auto';
   video.muted = true;
   video.playsInline = true;
   video.src = objectUrl;
 
   try {
-    await waitForEvent(video, 'loadeddata');
+    console.log('[videoThumbnail] loadedmetadata waiting', {
+      fileName: file.name,
+      fileSize: file.size,
+    });
+    await waitForEvent(video, 'loadedmetadata');
+
+    const captureTime = getCaptureTime(video.duration);
+    console.log('[videoThumbnail] metadata ready', {
+      duration: video.duration,
+      captureTime,
+      videoWidth: video.videoWidth,
+      videoHeight: video.videoHeight,
+    });
+
+    video.currentTime = captureTime;
+    await waitForEvent(video, 'seeked');
+    console.log('[videoThumbnail] seeked', {
+      currentTime: video.currentTime,
+      readyState: video.readyState,
+    });
+
+    await waitForSeekedFrame(video);
+    console.log('[videoThumbnail] frame ready', {
+      currentTime: video.currentTime,
+      readyState: video.readyState,
+    });
 
     if (!video.videoWidth || !video.videoHeight) {
       throw new Error('영상 크기를 확인할 수 없어 썸네일을 생성하지 못했습니다.');
@@ -90,6 +152,10 @@ export async function createThumbnailFromVideoFile(
     }
 
     context.drawImage(video, 0, 0, width, height);
+    console.log('[videoThumbnail] drawImage complete', {
+      width,
+      height,
+    });
 
     return canvasToBlob(canvas, type, quality);
   } finally {

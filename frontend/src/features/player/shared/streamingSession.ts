@@ -127,15 +127,38 @@ async function uploadSessionThumbnail({
   sessionId: string;
   signal?: AbortSignal;
 }) {
+  console.log('[streamingSession] thumbnail upload start', {
+    sessionId,
+    fileName: file.name,
+    fileType: file.type,
+    fileSize: file.size,
+  });
+
   const thumbnailBlob = await createThumbnailFromVideoFile(file);
+  console.log('[streamingSession] thumbnail blob created', {
+    sessionId,
+    blobType: thumbnailBlob.type,
+    blobSize: thumbnailBlob.size,
+  });
+
   const thumbnailPresign = await createSessionThumbnailPresign(sessionId, {
     file_type: thumbnailBlob.type || 'image/jpeg',
+  });
+  console.log('[streamingSession] thumbnail presign received', {
+    sessionId,
+    hasPresignedUrl: Boolean(thumbnailPresign.presigned_url),
+    thumbnailUrl: thumbnailPresign.thumbnail_url,
   });
 
   const uploadResponse = await fetch(thumbnailPresign.presigned_url, {
     method: 'PUT',
     body: thumbnailBlob,
     signal,
+  });
+  console.log('[streamingSession] thumbnail upload response', {
+    sessionId,
+    ok: uploadResponse.ok,
+    status: uploadResponse.status,
   });
 
   if (!uploadResponse.ok) {
@@ -150,9 +173,23 @@ export async function* startStreamingSession({
   source: StreamingPlayerSource;
   signal?: AbortSignal;
 }): AsyncGenerator<StreamingSessionEvent, void, void> {
+  console.log('[streamingSession] startStreamingSession entered', {
+    sourceType: source.type,
+    sessionId: source.sessionId ?? null,
+    hasFile: Boolean(source.file),
+    hasPresignedUrl: Boolean(source.presignedUrl),
+    hasS3Key: Boolean(source.s3Key),
+    language: source.language ?? 'ko',
+  });
+
   const headers = getAuthHeaders();
 
   if (source.type === 'youtube_url') {
+    console.log('[streamingSession] before youtube stream request', {
+      sessionId: source.sessionId ?? null,
+      url: source.url ?? null,
+    });
+
     const response = await fetch(buildAbsoluteUrl('/api/sessions/stream/'), {
       method: 'POST',
       headers: {
@@ -167,6 +204,12 @@ export async function* startStreamingSession({
       signal,
     });
 
+    console.log('[streamingSession] after youtube stream response', {
+      sessionId: source.sessionId ?? null,
+      ok: response.ok,
+      status: response.status,
+    });
+
     yield* readSseEvents(response);
     return;
   }
@@ -175,16 +218,22 @@ export async function* startStreamingSession({
   const s3Key = source.s3Key;
   const hasLocalFile = Boolean(source.file);
 
-  console.log('presignedUrl:', presignedUrl);
+  console.log('[streamingSession] file stream metadata', {
+    sessionId: source.sessionId ?? null,
+    presignedUrl,
+    s3Key,
+    hasLocalFile,
+  });
 
   if (presignedUrl) {
     const url = new URL(presignedUrl);
-    console.log('X-Amz-Algorithm:', url.searchParams.get('X-Amz-Algorithm'));
-    console.log('contains ^:', presignedUrl.includes('^'));
-    console.log('contains %5E:', presignedUrl.includes('%5E'));
+    console.log('[streamingSession] presigned url details', {
+      algorithm: url.searchParams.get('X-Amz-Algorithm'),
+      containsCaret: presignedUrl.includes('^'),
+      containsEncodedCaret: presignedUrl.includes('%5E'),
+      host: url.host,
+    });
   }
-
-  console.log('s3Key', s3Key);
 
   if (!presignedUrl) {
     throw new Error('S3 업로드 URL 정보가 없습니다.');
@@ -196,27 +245,56 @@ export async function* startStreamingSession({
 
   if (hasLocalFile) {
     assertFileStreamingSource(source);
+    console.log('[streamingSession] before S3 PUT', {
+      sessionId: source.sessionId,
+      fileName: source.file.name,
+      fileType: source.file.type,
+      fileSize: source.file.size,
+    });
+
+    const fileBuffer = await source.file.arrayBuffer();
+    console.log('[streamingSession] file buffer ready', {
+      sessionId: source.sessionId,
+      byteLength: fileBuffer.byteLength,
+    });
 
     const uploadResponse = await fetch(presignedUrl, {
       method: 'PUT',
-      body: await source.file.arrayBuffer(),
+      body: fileBuffer,
       signal,
+    });
+    console.log('[streamingSession] after S3 PUT', {
+      sessionId: source.sessionId,
+      ok: uploadResponse.ok,
+      status: uploadResponse.status,
     });
 
     if (!uploadResponse.ok) {
       throw new Error(await buildStreamingError(uploadResponse));
     }
 
-    try {
-      await uploadSessionThumbnail({
-        file: source.file,
-        sessionId: source.sessionId,
-        signal,
+    console.log('[streamingSession] schedule thumbnail upload', {
+      sessionId: source.sessionId,
+    });
+    void uploadSessionThumbnail({
+      file: source.file,
+      sessionId: source.sessionId,
+      signal,
+    })
+      .then(() => {
+        console.log('[streamingSession] after thumbnail upload', {
+          sessionId: source.sessionId,
+        });
+      })
+      .catch((error) => {
+        console.warn('[streamingSession] thumbnail upload failed', error);
       });
-    } catch (error) {
-      console.warn('[streamingSession] thumbnail upload failed', error);
-    }
   }
+
+  console.log('[streamingSession] before stream/s3 request', {
+    sessionId: source.sessionId ?? null,
+    s3Key,
+  });
 
   const response = await fetch(buildAbsoluteUrl('/api/sessions/stream/s3/'), {
     method: 'POST',
@@ -230,6 +308,12 @@ export async function* startStreamingSession({
       language: source.language ?? 'ko',
     }),
     signal,
+  });
+
+  console.log('[streamingSession] after stream/s3 response', {
+    sessionId: source.sessionId ?? null,
+    ok: response.ok,
+    status: response.status,
   });
 
   yield* readSseEvents(response);
