@@ -138,7 +138,7 @@ function getDisplayKey(settingKey?: string | null) {
       return 'Shift';
     case 'alt':
     default:
-      return 'D';
+      return 'G';
   }
 }
 
@@ -518,7 +518,7 @@ export default function MyPage() {
                     </p>
                   </div>
                   <p className="max-w-[280px] text-right text-[14px] leading-[1.6] text-[#6B7280]">
-                    D, Enter, Shift 중 하나를 선택하세요.
+                    G, Enter, Shift 중 하나를 선택하세요.
                   </p>
                 </div>
 

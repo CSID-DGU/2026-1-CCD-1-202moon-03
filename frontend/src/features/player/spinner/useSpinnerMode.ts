@@ -55,7 +55,7 @@ function mapFidgetToggleKeyToKeyboardKey(settingKey?: string | null) {
       return 'shift';
     case 'alt':
     default:
-      return 'd';
+      return 'g';
   }
 }
 
@@ -147,7 +147,7 @@ export function useSpinnerMode() {
           }
         }
       } catch {
-        // Fall back to the default D key mapping when settings cannot be loaded.
+        // Fall back to the default G key mapping when settings cannot be loaded.
       }
     };
 
