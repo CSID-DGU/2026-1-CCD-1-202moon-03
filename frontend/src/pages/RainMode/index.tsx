@@ -254,7 +254,7 @@ function RainModePage() {
   };
 
   return (
-    <main ref={fullscreenRootRef} className="min-h-screen bg-[#15171C]">
+    <main ref={fullscreenRootRef} className="min-h-screen bg-[#0F141B]">
       <div className="overflow-x-auto">
         <div className="mx-auto flex w-full max-w-[1440px] min-w-fit flex-col px-[40px] pb-[48px] pt-[32px]">
           <div className="flex items-start justify-between pb-[40px]">
@@ -290,7 +290,7 @@ function RainModePage() {
                 <button
                   type="button"
                   onClick={() => setIsSettingsOpen((prev) => !prev)}
-                  className="flex h-12 w-[124px] items-center justify-center rounded-[12px] border border-[#3D4150] bg-[#1A9AF5] text-[14px] font-bold text-white transition-opacity hover:opacity-90 active:opacity-75"
+                  className="flex h-10 w-[110px] items-center justify-center rounded-[10px] border border-[#3D4150] bg-[#1A9AF5] font-paperlogy text-[14px] font-bold text-white transition-opacity hover:opacity-90 active:opacity-75"
                 >
                   <span className="font-paperlogy">모드 설정</span>
                 </button>

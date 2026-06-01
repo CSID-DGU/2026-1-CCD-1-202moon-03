@@ -22,13 +22,14 @@ import {
 
 const TARGET_TIME_SEGMENT_TOLERANCE_SECONDS = 3;
 const DEFAULT_MISS_GRACE_SECONDS = 1.2;
-const MISS_END_BUFFER_SECONDS = 0.15;
+const MISS_END_BUFFER_SECONDS = 0.2;
 const MISSED_DISPLAY_BUFFER = 0.75;
 const SHORT_SEGMENT_THRESHOLD_SECONDS = 4;
 const MIN_BLANK_SEGMENT_DURATION_SECONDS = 2.0;
 const SHORT_SEGMENT_EXTRA_FALL_DURATION = 0.5;
 const SHORT_SEGMENT_EXTRA_LEAD_TIME = 0.4;
 const SEGMENT_TRANSITION_INPUT_HOLD_MS = 250;
+const QUIZ_PAUSE_LEAD_SECONDS = 0.12;
 const RAIN_SPEED_OPTIONS: PlaybackRate[] = [0.5, 0.75, 1, 1.25, 1.5, 2];
 const ADAPTIVE_WINDOW_SIZE = 10;
 const ADAPTIVE_SAMPLING_STEPS = [5, 4, 3, 2, 1] as const;
@@ -367,6 +368,7 @@ export function useRainMode(settings?: RainSettings) {
   const answeredKeywordIdsRef = useRef<Set<string>>(new Set());
   const missedKeywordIdsRef = useRef<Set<string>>(new Set());
   const answeredAtRef = useRef<Map<string, number>>(new Map());
+  const prioritizedSegmentIdRef = useRef<number | null>(null);
   const segmentTransitionHoldRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previousCaptionSegmentIdRef = useRef<number | null>(null);
   const previousVisibleBlankKeySignatureRef = useRef('');
@@ -865,6 +867,13 @@ export function useRainMode(settings?: RainSettings) {
       gameData.segments.find((segment) => currentTime >= segment.start && currentTime < segment.end) ?? null,
     [currentTime, gameData.segments],
   );
+  const activePlaybackSegmentId = useMemo(
+    () =>
+      gameData.segments.find(
+        (segment) => rafCurrentTime >= segment.start && rafCurrentTime < segment.end,
+      )?.segmentId ?? null,
+    [gameData.segments, rafCurrentTime],
+  );
 
   const localFileUrl = useLocalFilePlayerSrc(sessionId, streamingSource);
 
@@ -948,11 +957,30 @@ export function useRainMode(settings?: RainSettings) {
         (event) =>
           !answeredKeywordIdsRef.current.has(event.id) && !missedKeywordIdsRef.current.has(event.id),
       ),
-    [preparedEvents],
+    [correctCount, missCount, preparedEvents],
   );
 
   const activeKeyword = useMemo(() => {
+    const prioritizedSegmentEvent =
+      unresolvedEvents
+        .filter(
+          (event) =>
+            prioritizedSegmentIdRef.current === event.segmentId &&
+            rafCurrentTime <= event.missDeadline,
+        )
+        .sort((left, right) => left.targetTime - right.targetTime)[0] ?? null;
+    const currentSegmentInFlightEvent =
+      unresolvedEvents
+        .filter(
+          (event) =>
+            activePlaybackSegmentId === event.segmentId &&
+            rafCurrentTime >= event.fallStartTime &&
+            rafCurrentTime <= event.missDeadline,
+        )
+        .sort((left, right) => left.targetTime - right.targetTime)[0] ?? null;
     const currentEvent =
+      prioritizedSegmentEvent ??
+      currentSegmentInFlightEvent ??
       unresolvedEvents
         .filter(
           (event) =>
@@ -980,7 +1008,7 @@ export function useRainMode(settings?: RainSettings) {
       status: 'active' as const,
       blank: currentEvent.blank,
     };
-  }, [rafCurrentTime, unresolvedEvents]);
+  }, [activePlaybackSegmentId, rafCurrentTime, unresolvedEvents]);
 
   useEffect(() => {
     const overdueEvents = preparedEvents
@@ -1018,7 +1046,7 @@ export function useRainMode(settings?: RainSettings) {
     () =>
       preparedEvents
         .filter((event) => {
-          const isSameActiveSegment = activeSegment?.segmentId === event.segmentId;
+          const isSameActiveSegment = activePlaybackSegmentId === event.segmentId;
 
           if (answeredKeywordIdsRef.current.has(event.id)) {
             return (
@@ -1079,7 +1107,7 @@ export function useRainMode(settings?: RainSettings) {
               blankKey: event.blankKey,
               leftPercent: event.leftPercent,
               topProgress: 0,
-              status: 'pending' as const,
+              status: activeKeyword?.id === event.id ? 'active' : 'pending',
             };
           }
 
@@ -1095,14 +1123,26 @@ export function useRainMode(settings?: RainSettings) {
             status: activeKeyword?.id === event.id ? 'active' : 'pending',
           };
         }),
-    [activeKeyword?.id, activeSegment?.segmentId, rafCurrentTime, preparedEvents],
+    [activeKeyword?.id, activePlaybackSegmentId, correctCount, missCount, rafCurrentTime, preparedEvents],
   );
 
   const visibleFallingKeywords = useMemo<RainKeyword[]>(() => {
     const keywordById = new Map(fallingKeywords.map((keyword) => [keyword.id, keyword]));
-
-    return preparedEvents
+    const pinnedMissedKeywords = preparedEvents
+      .filter(
+        (event) =>
+          keywordById.has(event.id) &&
+          activePlaybackSegmentId === event.segmentId &&
+          keywordById.get(event.id)?.status === 'missed',
+      )
+      .sort((left, right) => left.targetTime - right.targetTime)
+      .map((event) => keywordById.get(event.id))
+      .filter((keyword): keyword is RainKeyword => Boolean(keyword));
+    const pinnedMissedIds = new Set(pinnedMissedKeywords.map((keyword) => keyword.id));
+    const remainingCapacity = Math.max(effectiveActiveBlanks - pinnedMissedKeywords.length, 0);
+    const prioritizedKeywords = preparedEvents
       .filter((event) => keywordById.has(event.id))
+      .filter((event) => !pinnedMissedIds.has(event.id))
       .map((event) => {
         const keyword = keywordById.get(event.id);
         const isInFlight =
@@ -1124,10 +1164,12 @@ export function useRainMode(settings?: RainSettings) {
 
         return left.targetTime - right.targetTime;
       })
-      .slice(0, effectiveActiveBlanks)
+      .slice(0, remainingCapacity)
       .map(({ keyword }) => keyword)
       .filter((keyword): keyword is RainKeyword => Boolean(keyword));
-  }, [effectiveActiveBlanks, fallingKeywords, preparedEvents, rafCurrentTime]);
+
+    return [...pinnedMissedKeywords, ...prioritizedKeywords];
+  }, [activePlaybackSegmentId, effectiveActiveBlanks, fallingKeywords, preparedEvents, rafCurrentTime]);
 
   const resolvedStatesByBlankKey = useMemo(() => {
     const nextState: Record<string, 'pending' | 'cleared' | 'missed'> = {};
@@ -1364,14 +1406,20 @@ export function useRainMode(settings?: RainSettings) {
     const nextQuiz = gameData.quizzes.find(
       (quiz) =>
         !answeredQuizIdsRef.current.has(buildAnsweredQuizKey(quiz.quizId, quiz.triggerTime)) &&
-        currentTime >= quiz.triggerTime,
+        rafCurrentTime >= Math.max(quiz.triggerTime - QUIZ_PAUSE_LEAD_SECONDS, 0),
     );
 
     if (!nextQuiz) {
       return;
     }
 
+    const quizPauseTime = nextQuiz.triggerTime;
     controllerRef.current?.pause();
+    controllerRef.current?.seek(quizPauseTime);
+    setCurrentTime(quizPauseTime);
+    setRafCurrentTime(quizPauseTime);
+    lastVideoTimeRef.current = quizPauseTime;
+    lastWallTimeRef.current = performance.now();
     setCurrentQuizState({
       quiz: {
         quiz_id: nextQuiz.quizId ?? undefined,
@@ -1392,7 +1440,7 @@ export function useRainMode(settings?: RainSettings) {
       isCorrect: null,
       isSubmitting: false,
     });
-  }, [currentQuizState, currentTime, gameData.quizzes, state]);
+  }, [currentQuizState, gameData.quizzes, rafCurrentTime, state]);
 
   useEffect(() => {
     if (!currentQuizState || currentQuizState.quiz.quiz_id !== undefined) {
@@ -1460,6 +1508,7 @@ export function useRainMode(settings?: RainSettings) {
     if (normalizedTyped === normalizeAnswer(targetEvent.keyword)) {
       answeredKeywordIdsRef.current.add(targetEvent.id);
       answeredAtRef.current.set(targetEvent.id, performance.now());
+      prioritizedSegmentIdRef.current = targetEvent.segmentId;
       settledProgressRef.current.set(targetEvent.id, resolveKeywordProgress(rafCurrentTime, targetEvent));
       setTypedValuesByBlankKey((current) => ({
         ...current,
@@ -1652,15 +1701,20 @@ export function useRainMode(settings?: RainSettings) {
       adaptiveMaxCombo: windowMetrics.maxCombo,
       videoTimeSeconds: rafCurrentTime,
       activeKeywordId: activeKeyword?.id ?? null,
+      activeKeywordSegmentId: activePreparedEvent?.segmentId ?? null,
+      prioritizedSegmentId: prioritizedSegmentIdRef.current,
       pendingKeywordCount,
       visibleKeywordCount,
+      visibleKeywordStates:
+        visibleFallingKeywords.length > 0
+          ? visibleFallingKeywords.map((keyword) => `${keyword.id}:${keyword.status}`).join(', ')
+          : null,
       nextTargetTime,
       nextFallDuration,
       missedKeywordCount: missCount,
       lastJudgement,
       rafCurrentTime,
       activeKeywordTargetTime: activePreparedEvent?.targetTime ?? null,
-      activeKeywordSegmentId: activePreparedEvent?.segmentId ?? null,
       preparedFallEvents: preparedEvents.length,
       missingSegmentEvents: preparedRainSummary.missingSegmentCount,
       missingBlankMatchEvents: preparedRainSummary.missingBlankMatchCount,

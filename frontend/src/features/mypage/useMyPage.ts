@@ -78,7 +78,7 @@ function mapDisplayKeyToSettingKey(key: string) {
       return 'ctrl';
     case 'shift':
       return 'shift';
-    case 'd':
+    case 'g':
       return 'alt';
     default:
       return null;

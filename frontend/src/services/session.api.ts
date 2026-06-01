@@ -11,6 +11,8 @@ import type {
   SessionDetailResponse,
   SessionListItem,
   SessionListResponse,
+  SessionThumbnailPresignRequest,
+  SessionThumbnailPresignResponse,
   SessionStatusResponse,
   UpdateSessionTitleRequest,
   UpdateSessionTitleResponse,
@@ -113,6 +115,18 @@ export async function getSessionDetail(id: ResourceId) {
   const response = await apiClient.get<SessionDetailResponse>(`/api/sessions/${id}/`);
   response.data.data = normalizeSessionDetailData(response.data.data);
   return response.data;
+}
+
+export async function createSessionThumbnailPresign(
+  id: ResourceId,
+  payload: SessionThumbnailPresignRequest = {},
+) {
+  const response = await apiClient.post<SessionThumbnailPresignResponse>(
+    `/api/sessions/${id}/thumbnail/presign/`,
+    payload,
+  );
+  response.data.data.thumbnail_url = resolveSessionThumbnailUrl(response.data.data);
+  return response.data.data;
 }
 
 export async function updateSessionTitle(id: ResourceId, payload: UpdateSessionTitleRequest) {

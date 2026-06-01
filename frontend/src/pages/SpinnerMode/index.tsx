@@ -100,7 +100,7 @@ function SpinnerModePage() {
   };
 
   return (
-    <main ref={fullscreenRootRef} className="min-h-screen bg-[#15171C]">
+    <main ref={fullscreenRootRef} className="min-h-screen bg-[#0F141B]">
       <div className="overflow-x-auto">
         <div className="mx-auto flex w-full max-w-[1440px] min-w-fit flex-col px-[40px] pb-[48px] pt-[32px]">
           <div className="flex items-start justify-between pb-[40px]">
