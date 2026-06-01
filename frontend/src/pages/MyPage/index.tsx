@@ -254,7 +254,7 @@ function OutlineButton({
   return (
     <button
       {...props}
-      className={`inline-flex h-10 items-center justify-center rounded-[10px] border border-[#D9DEE8] bg-white px-4 text-[15px] font-medium text-[#15171C] transition-colors hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
+      className={`inline-flex h-10 items-center justify-center whitespace-nowrap rounded-[10px] border border-[#D9DEE8] bg-white px-4 text-[15px] font-medium text-[#15171C] transition-colors hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
     >
       {children}
     </button>
@@ -294,12 +294,14 @@ function StatCard({
   icon: ReactNode;
 }) {
   return (
-    <div className="flex min-h-[132px] flex-1 flex-col rounded-[10px] border border-[#E5E7EC] bg-white px-8 py-7">
+    <div className="flex min-h-[132px] min-w-0 flex-1 flex-col rounded-[10px] border border-[#E5E7EC] bg-white px-6 py-6 sm:px-8 sm:py-7">
       <div className="flex items-start justify-between gap-4">
-        <span className="text-[16px] font-medium tracking-[-0.02em] text-[#15171C]">{label}</span>
+        <span className="whitespace-nowrap text-[16px] font-medium tracking-[-0.02em] text-[#15171C]">
+          {label}
+        </span>
         <div className="mt-1 shrink-0">{icon}</div>
       </div>
-      <strong className="mt-4 text-[44px] font-bold leading-none tracking-[-0.04em] text-[#15171C]">
+      <strong className="mt-4 break-keep text-[40px] font-bold leading-none tracking-[-0.04em] text-[#15171C] sm:text-[44px]">
         {value}
       </strong>
     </div>
@@ -483,8 +485,8 @@ export default function MyPage() {
 
   return (
     <div className="min-h-screen bg-white text-[#15171C]">
-      <div className="mx-auto flex max-w-[1280px] px-8 pb-20 pt-10">
-        <aside className="w-[220px] shrink-0 border-r border-[#E5E7EC] pr-8 pt-10">
+      <div className="mx-auto flex max-w-[1280px] flex-col gap-8 px-4 pb-20 pt-8 sm:px-6 lg:flex-row lg:gap-0 lg:px-8 lg:pt-10">
+        <aside className="w-full shrink-0 border-b border-[#E5E7EC] pb-4 lg:w-[220px] lg:border-b-0 lg:border-r lg:pb-0 lg:pr-8 lg:pt-10">
           <nav className="flex flex-col gap-1">
             <SideMenuItem active={!isSettingsView} onClick={() => closeDialog()}>
               마이페이지
@@ -495,7 +497,7 @@ export default function MyPage() {
           </nav>
         </aside>
 
-        <main className="flex-1 pl-10 pt-6">
+        <main className="min-w-0 flex-1 pt-2 lg:pl-10 lg:pt-6">
           {isLoading ? (
             <div className="flex min-h-[320px] items-center justify-center text-[18px] text-[#6B7280]">
               불러오는 중...
@@ -554,8 +556,8 @@ export default function MyPage() {
             </section>
           ) : (
             <section className="max-w-[940px]">
-              <div className="flex items-start justify-between gap-8">
-                <div className="flex items-center gap-8">
+              <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+                <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:gap-8">
                   <AvatarPreview avatarType={profile?.avatar_type} size={132} editable onClick={() => openDialog('avatar')} />
                   <div className="pt-1">
                     <h1 className="text-[28px] font-bold leading-[1.25] tracking-[-0.03em] text-[#15171C]">

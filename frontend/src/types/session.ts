@@ -67,6 +67,18 @@ export interface SessionDetailData {
 
 export type SessionDetailResponse = ApiResponse<SessionDetailData>;
 
+export interface SessionThumbnailPresignRequest {
+  file_type?: string;
+}
+
+export interface SessionThumbnailPresignResponseData {
+  presigned_url: string;
+  s3_key: string;
+  thumbnail_url: string | null;
+}
+
+export type SessionThumbnailPresignResponse = ApiResponse<SessionThumbnailPresignResponseData>;
+
 export interface UpdateSessionTitleRequest {
   title: string;
 }

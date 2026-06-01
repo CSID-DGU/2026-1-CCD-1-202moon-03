@@ -1213,13 +1213,13 @@ function SpinnerPlayer({
       {hasSubtitlePanel ? (
           <div
             ref={subtitleBarRef}
-            className={`flex w-full rounded-b-[11.455px] bg-[rgba(0,0,0,0.78)] px-6 text-white transition-[padding,height,opacity] duration-150 ${
+            className={`flex w-full rounded-b-[11.455px] bg-[rgba(0,0,0,0.78)] px-6 text-[#F8FAFC] transition-[padding,height,opacity] duration-150 ${
               isSubtitleWrapped ? 'items-center py-[10px] min-h-[86px]' : 'items-center py-3 min-h-[68px]'
             }`}
           >
             <div
               ref={subtitleContentRef}
-              className={`w-full text-left text-[22px] font-semibold text-white ${
+              className={`w-full text-left text-[22px] font-semibold text-[#F8FAFC] ${
                 isSubtitleWrapped
                   ? 'max-w-[96%] whitespace-normal text-[21px] leading-[1.36] tracking-[-0.01em] [word-break:keep-all]'
                   : 'overflow-hidden whitespace-nowrap leading-[1.4]'

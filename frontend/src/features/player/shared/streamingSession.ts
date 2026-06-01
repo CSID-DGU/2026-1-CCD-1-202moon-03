@@ -1,6 +1,8 @@
+import { createSessionThumbnailPresign } from '../../../services/session.api';
 import { useAuthStore } from '../../../store/useAuthStore';
 import type { StreamingPlayerSource } from '../../../store/usePlayerStore';
 import type { StreamingSessionEvent } from '../../../types';
+import { createThumbnailFromVideoFile } from './videoThumbnail';
 
 function getApiBaseUrl() {
   return import.meta.env.VITE_API_BASE_URL ?? '';
@@ -116,6 +118,31 @@ async function* readSseEvents(response: Response) {
   }
 }
 
+async function uploadSessionThumbnail({
+  file,
+  sessionId,
+  signal,
+}: {
+  file: File;
+  sessionId: string;
+  signal?: AbortSignal;
+}) {
+  const thumbnailBlob = await createThumbnailFromVideoFile(file);
+  const thumbnailPresign = await createSessionThumbnailPresign(sessionId, {
+    file_type: thumbnailBlob.type || 'image/jpeg',
+  });
+
+  const uploadResponse = await fetch(thumbnailPresign.presigned_url, {
+    method: 'PUT',
+    body: thumbnailBlob,
+    signal,
+  });
+
+  if (!uploadResponse.ok) {
+    throw new Error(await buildStreamingError(uploadResponse));
+  }
+}
+
 export async function* startStreamingSession({
   source,
   signal,
@@ -178,6 +205,16 @@ export async function* startStreamingSession({
 
     if (!uploadResponse.ok) {
       throw new Error(await buildStreamingError(uploadResponse));
+    }
+
+    try {
+      await uploadSessionThumbnail({
+        file: source.file,
+        sessionId: source.sessionId,
+        signal,
+      });
+    } catch (error) {
+      console.warn('[streamingSession] thumbnail upload failed', error);
     }
   }
 

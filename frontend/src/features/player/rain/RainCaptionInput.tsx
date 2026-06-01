@@ -312,7 +312,7 @@ const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProp
         ? fallbackText
           ? (
               <p
-                className={`m-0 text-[22px] font-semibold leading-[1.45] text-white ${
+                className={`m-0 text-[22px] font-semibold leading-[1.45] text-[#F8FAFC] ${
                   allowWrap ? 'whitespace-normal [word-break:keep-all]' : 'whitespace-nowrap'
                 }`}
               >
@@ -324,7 +324,7 @@ const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProp
             item.type === 'text' ? (
               <span
                 key={item.key}
-                className={`text-white ${
+                className={`text-[#F8FAFC] ${
                   allowWrap ? 'whitespace-normal [word-break:keep-all]' : 'whitespace-nowrap'
                 }`}
               >
@@ -404,7 +404,7 @@ const RainCaptionInput = forwardRef<RainCaptionInputHandle, RainCaptionInputProp
     return (
         <div
           ref={rootRef}
-          className={`min-w-full font-semibold text-white ${
+          className={`min-w-full font-semibold text-[#F8FAFC] ${
             allowWrap
               ? 'block text-left text-[21px] leading-[1.4] tracking-[-0.01em]'
               : 'inline-flex items-center whitespace-nowrap text-[22px] leading-[1.45]'

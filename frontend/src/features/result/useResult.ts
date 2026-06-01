@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { getSessionResult, getSessionSummary } from '../../services/analytic.api';
 import { getSessionDetail } from '../../services/session.api';
 import { useRainStore } from '../../store/useRainStore';
+import { usePlayerStore } from '../../store/usePlayerStore';
 import type {
   ApiErrorResponse,
   SessionDetailData,
@@ -69,12 +70,14 @@ function buildViewModel({
   result,
   summary,
   localRainResult,
+  preferLocalReplayResult,
 }: {
   videoId: string;
   detail: SessionDetailData | null;
   result: SessionResultData | null;
   summary: SessionSummaryData | null;
   localRainResult?: { score: number; maxCombo: number; accuracy: number; tabSwitchCount?: number } | null;
+  preferLocalReplayResult: boolean;
 }): ResultViewModel {
   const resolvedSummary =
     result?.ai_summary || getSummaryText(summary) || '아직 생성된 AI 요약이 없습니다.';
@@ -85,9 +88,15 @@ function buildViewModel({
     summary: resolvedSummary,
     mode: mapMode(result?.mode ?? detail?.mode),
     learnedAt: formatDate(result?.completed_at ?? detail?.created_at),
-    score: result?.total_score ?? localRainResult?.score ?? null,
-    maxCombo: result?.max_combo ?? localRainResult?.maxCombo ?? null,
-    typingAccuracy: result?.typing_accuracy ?? null,
+    score: preferLocalReplayResult
+      ? localRainResult?.score ?? result?.total_score ?? null
+      : result?.total_score ?? localRainResult?.score ?? null,
+    maxCombo: preferLocalReplayResult
+      ? localRainResult?.maxCombo ?? result?.max_combo ?? null
+      : result?.max_combo ?? localRainResult?.maxCombo ?? null,
+    typingAccuracy: preferLocalReplayResult
+      ? localRainResult?.accuracy ?? result?.typing_accuracy ?? null
+      : result?.typing_accuracy ?? localRainResult?.accuracy ?? null,
     watchRate: result?.watch_rate ?? 0,
     quizCorrect: result?.quiz_correct ?? 0,
     quizTotal: result?.quiz_total ?? 0,
@@ -100,6 +109,7 @@ function buildViewModel({
 export function useResult() {
   const [searchParams] = useSearchParams();
   const videoId = searchParams.get('videoId');
+  const sessionPlaybackMode = usePlayerStore((state) => state.sessionPlaybackMode);
   const localRainResult = useRainStore((state) =>
     videoId ? state.sessionResults[videoId] ?? null : null,
   );
@@ -196,13 +206,15 @@ export function useResult() {
         result: resultData,
         summary: summaryData,
         localRainResult,
+        preferLocalReplayResult: sessionPlaybackMode === 'replay' && Boolean(localRainResult),
       }),
-    [detail, localRainResult, resultData, summaryData, videoId],
+    [detail, localRainResult, resultData, sessionPlaybackMode, summaryData, videoId],
   );
 
   return {
     result,
     isLoading,
     error,
+    isShowingReplayUpdate: sessionPlaybackMode === 'replay' && Boolean(localRainResult),
   };
 }
