@@ -2,7 +2,7 @@ export const RAIN_DIFFICULTY_PRESETS = {
   easy: {
     manual: {
       blankCount: 1,
-      speedLevel: 1,
+      speedLevel: 3,
     },
     auto: {
       activeBlanks: 1 as const,
@@ -19,7 +19,7 @@ export const RAIN_DIFFICULTY_PRESETS = {
   normal: {
     manual: {
       blankCount: 2,
-      speedLevel: 2,
+      speedLevel: 4,
     },
     auto: {
       activeBlanks: 2 as const,
@@ -36,7 +36,7 @@ export const RAIN_DIFFICULTY_PRESETS = {
   hard: {
     manual: {
       blankCount: 2,
-      speedLevel: 4,
+      speedLevel: 5,
     },
     auto: {
       activeBlanks: 2 as const,
