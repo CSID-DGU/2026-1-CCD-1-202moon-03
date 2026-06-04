@@ -132,7 +132,7 @@ function formatWatchRate(value: number) {
 
 function formatDisplayedStudyTime(totalStudySeconds: number) {
   if (totalStudySeconds <= 0) {
-    return '292분';
+    return formatStudyTime(0);
   }
 
   return formatStudyTime(totalStudySeconds);
