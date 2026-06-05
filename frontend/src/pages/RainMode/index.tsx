@@ -246,6 +246,7 @@ function RainModePage() {
         quiz_correct: latestQuizStats.quizCorrectCount,
         quiz_total: latestQuizStats.quizAnsweredCount || totalQuizCount,
         tab_switch_count: tabSwitchCount,
+        study_duration_seconds: Math.max(0, Math.floor(currentTime)),
       });
     } catch {
       // Keep local fallback values and continue to the result page.

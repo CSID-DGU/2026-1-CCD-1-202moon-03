@@ -18,6 +18,33 @@ function stripInlineMarkdown(value: string) {
     .trim();
 }
 
+function formatStudyDuration(totalSeconds: number) {
+  if (totalSeconds <= 0) {
+    return '0분';
+  }
+
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.round((totalSeconds % 3600) / 60);
+
+  if (hours > 0) {
+    return minutes > 0 ? `${hours}시간 ${minutes}분` : `${hours}시간`;
+  }
+
+  return `${minutes}분`;
+}
+
+function formatPercent(value: number | null | undefined, scale: 'ratio' | 'percent' = 'ratio') {
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return '-';
+  }
+
+  const normalizedValue =
+    scale === 'ratio'
+      ? (value <= 1 ? value * 100 : value)
+      : value;
+  return `${Math.round(normalizedValue)}%`;
+}
+
 function ensureLeadingMarkdownHeading(summary: string) {
   const lines = summary.split('\n');
   const firstContentIndex = lines.findIndex((line) => line.trim().length > 0);
@@ -205,13 +232,19 @@ function ResultPage() {
             <div className="rounded-[12px] bg-[#F4F6F7] px-6 py-6 text-[16px] leading-[1.5] text-[#15171C]">
               <MetaRow label="모드" value={result.mode === 'rain' ? '집중호우' : '스피너'} />
               <MetaRow label="학습일자" value={result.learnedAt} />
+              <MetaRow label="학습 시간" value={formatStudyDuration(result.studyDurationSeconds)} />
+              <MetaRow
+                label="퀴즈 정답률"
+                value={`${result.quizTotal > 0 ? Math.round((result.quizCorrect / result.quizTotal) * 100) : 0}% (${result.quizCorrect} / ${result.quizTotal})`}
+              />
               {result.mode === 'rain' ? (
                 <>
+                  <MetaRow label="입력 성공률" value={formatPercent(result.typingAccuracy)} />
                   <MetaRow label="점수" value={`${result.score ?? 0}점`} />
                   <MetaRow label="최대 콤보" value={`${result.maxCombo ?? 0}`} />
-                  <MetaRow label="탭 이탈" value={`${result.tabSwitchCount}회`} />
                 </>
               ) : null}
+              <MetaRow label="탭 이탈" value={`${result.tabLeaveCount}회`} />
             </div>
           </div>
 
