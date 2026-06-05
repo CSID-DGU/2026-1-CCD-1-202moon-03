@@ -26,7 +26,6 @@ import character08_1 from '../../assets/user/character08_1.png';
 import character08_2 from '../../assets/user/character08_2.png';
 import character08_3 from '../../assets/user/character08_3.png';
 import { useMyPage } from '../../features/mypage/useMyPage';
-import type { LearningHistoryItem } from '../../types';
 
 type AvatarKey =
   | 'character01'
@@ -144,9 +143,8 @@ function getDisplayKey(settingKey?: string | null) {
       return 'Enter';
     case 'shift':
       return 'Shift';
-    case 'alt':
     default:
-      return 'G';
+      return 'Enter';
   }
 }
 
@@ -416,8 +414,14 @@ function NoticeText({ children, danger = false }: { children: ReactNode; danger?
   );
 }
 
-function HistorySummary({ history }: { history: LearningHistoryItem[] }) {
-  if (!history.length) {
+function HistorySummary({
+  sessionCount,
+  averageWatchRate,
+}: {
+  sessionCount: number;
+  averageWatchRate: number;
+}) {
+  if (!sessionCount) {
     return (
       <div className="rounded-[10px] border border-[#E5E7EC] bg-white px-7 py-6 text-[16px] text-[#6B7280]">
         아직 학습 기록이 없습니다.
@@ -427,8 +431,8 @@ function HistorySummary({ history }: { history: LearningHistoryItem[] }) {
 
   return (
     <div className="rounded-[10px] border border-[#E5E7EC] bg-white px-7 py-6 text-[16px] font-medium tracking-[-0.02em] text-[#15171C]">
-      최근 학습 {history.length}개, 평균 시청률{' '}
-      {formatWatchRate(history.reduce((sum, item) => sum + item.watch_rate, 0) / history.length)}
+      최근 학습 {sessionCount}개, 평균 시청률{' '}
+      {formatWatchRate(averageWatchRate)}
     </div>
   );
 }
@@ -459,7 +463,6 @@ export default function MyPage() {
   const {
     profile,
     settings,
-    history,
     stats,
     isLoading,
     pageError,
@@ -528,12 +531,12 @@ export default function MyPage() {
                     </p>
                   </div>
                   <p className="max-w-[280px] text-right text-[14px] leading-[1.6] text-[#6B7280]">
-                    G, Enter, Shift 중 하나를 선택하세요.
+                    Enter, Shift 중 하나를 선택하세요.
                   </p>
                 </div>
 
                 <div className="mt-8 flex items-center gap-3">
-                  {['alt', 'ctrl', 'shift'].map((key) => {
+                  {['ctrl', 'shift'].map((key) => {
                     const label = getDisplayKey(key);
                     const selected = (pendingKeySelection ?? settings?.fidget_toggle_key) === key;
                     return (
@@ -595,7 +598,10 @@ export default function MyPage() {
                   />
                 </div>
                 <div className="mt-4">
-                  <HistorySummary history={history} />
+                  <HistorySummary
+                    sessionCount={stats.completedVideoCount}
+                    averageWatchRate={stats.averageWatchRate}
+                  />
                 </div>
               </div>
 

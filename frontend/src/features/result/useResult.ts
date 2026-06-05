@@ -23,7 +23,8 @@ interface ResultViewModel {
   watchRate: number;
   quizCorrect: number;
   quizTotal: number;
-  tabSwitchCount: number;
+  tabLeaveCount: number;
+  studyDurationSeconds: number;
   thumbnailUrl: string;
   hasThumbnail: boolean;
 }
@@ -100,7 +101,8 @@ function buildViewModel({
     watchRate: result?.watch_rate ?? 0,
     quizCorrect: result?.quiz_correct ?? 0,
     quizTotal: result?.quiz_total ?? 0,
-    tabSwitchCount: localRainResult?.tabSwitchCount ?? 0,
+    tabLeaveCount: localRainResult?.tabSwitchCount ?? result?.tab_leave_count ?? 0,
+    studyDurationSeconds: result?.study_duration_seconds ?? 0,
     thumbnailUrl: detail?.thumbnail_url || '',
     hasThumbnail: Boolean(detail?.thumbnail_url),
   };

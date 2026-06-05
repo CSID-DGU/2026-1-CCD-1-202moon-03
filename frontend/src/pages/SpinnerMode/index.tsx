@@ -92,6 +92,7 @@ function SpinnerModePage() {
         quiz_correct: latestQuizStats.quizCorrectCount,
         quiz_total: latestQuizStats.quizAnsweredCount || totalQuizCount,
         tab_switch_count: tabSwitchCount,
+        study_duration_seconds: Math.max(0, Math.floor(currentTime)),
       });
     } catch {
       // Ignore save failures and continue to result.

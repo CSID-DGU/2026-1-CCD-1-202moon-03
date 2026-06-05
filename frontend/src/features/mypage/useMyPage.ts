@@ -2,8 +2,7 @@ import { isAxiosError } from 'axios';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '../../constants/routes';
-import { getLearningHistory } from '../../services/analytic.api';
-import { getSessionDetail } from '../../services/session.api';
+import { getLearningDashboard } from '../../services/analytic.api';
 import {
   changeMyPassword,
   deleteMyAccount,
@@ -12,12 +11,11 @@ import {
   updateMyProfile,
   updateMySettings,
 } from '../../services/user.api';
-import { getSessionStudyTime } from '../player/shared/sessionStudyTime';
 import { useAuthStore } from '../../store/useAuthStore';
 import type {
   ApiErrorResponse,
   ChangeMyPasswordRequest,
-  LearningHistoryItem,
+  LearningDashboardData,
   UpdateMyProfileRequest,
   UserProfileData,
   UserSettingsData,
@@ -33,7 +31,7 @@ const AVATAR_OPTIONS = [
   'character07',
   'character08',
 ] as const;
-const FIDGET_KEY_OPTIONS = ['alt', 'ctrl', 'shift'] as const;
+const FIDGET_KEY_OPTIONS = ['ctrl', 'shift'] as const;
 
 type MyPageDialog =
   | 'profile'
@@ -79,8 +77,6 @@ function mapDisplayKeyToSettingKey(key: string) {
       return 'ctrl';
     case 'shift':
       return 'shift';
-    case 'g':
-      return 'alt';
     default:
       return null;
   }
@@ -161,7 +157,7 @@ export function useMyPage() {
 
   const [profile, setProfile] = useState<UserProfileData | null>(null);
   const [settings, setSettings] = useState<UserSettingsData | null>(null);
-  const [history, setHistory] = useState<LearningHistoryItem[]>([]);
+  const [dashboard, setDashboard] = useState<LearningDashboardData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [pageError, setPageError] = useState('');
   const [notice, setNotice] = useState('');
@@ -198,10 +194,10 @@ export function useMyPage() {
       setPageError('');
 
       try {
-        const [profileResponse, settingsResponse, historyResponse] = await Promise.all([
+        const [profileResponse, settingsResponse, dashboardResponse] = await Promise.all([
           getMyProfile(),
           getMySettings(),
-          getLearningHistory(),
+          getLearningDashboard(),
         ]);
 
         if (isCancelled) {
@@ -210,7 +206,7 @@ export function useMyPage() {
 
         setProfile(profileResponse.data);
         setSettings(settingsResponse.data);
-        setHistory(historyResponse.data);
+        setDashboard(dashboardResponse);
         setProfileForm({
           nickname: profileResponse.data.nickname,
           birth_date: profileResponse.data.birth_date || '',
@@ -266,7 +262,7 @@ export function useMyPage() {
       const nextKey = mapDisplayKeyToSettingKey(key);
 
       if (!nextKey) {
-        setNotice('D, Enter, Shift 키만 설정할 수 있습니다.');
+        setNotice('Enter, Shift 키만 설정할 수 있습니다.');
         return;
       }
 
@@ -282,71 +278,16 @@ export function useMyPage() {
   }, [dialog, pendingKeySelection]);
 
   const stats = useMemo<LearningStats>(() => {
+    const sessions = dashboard?.sessions ?? [];
+
     return {
-      completedVideoCount: history.length,
-      totalStudySeconds: 0,
-      averageWatchRate: history.length
-        ? history.reduce((sum, item) => sum + item.watch_rate, 0) / history.length
+      completedVideoCount: sessions.length,
+      totalStudySeconds: dashboard?.summary?.total_study_duration_seconds ?? 0,
+      averageWatchRate: sessions.length
+        ? sessions.reduce((sum, item) => sum + item.watch_rate, 0) / sessions.length
         : 0,
     };
-  }, [history]);
-
-  useEffect(() => {
-    if (!history.length) {
-      return;
-    }
-
-    let isCancelled = false;
-
-    const loadDurations = async () => {
-      const detailResults = await Promise.allSettled(
-        history.map((item) => getSessionDetail(item.session_id)),
-      );
-
-      if (isCancelled) {
-        return;
-      }
-
-      const totalStudySeconds = detailResults.reduce((sum, result, index) => {
-        const fallbackStudyTimeSeconds = getSessionStudyTime(history[index]?.session_id ?? '');
-
-        if (result.status !== 'fulfilled') {
-          return sum + (fallbackStudyTimeSeconds ?? 0);
-        }
-
-        const durationSec = result.value.data.duration_sec;
-        const watchRate = history[index]?.watch_rate ?? 0;
-        const normalizedWatchRate = Math.max(0, Math.min(1, watchRate));
-
-        if (typeof durationSec === 'number' && durationSec > 0) {
-          return sum + durationSec * normalizedWatchRate;
-        }
-
-        return sum + (fallbackStudyTimeSeconds ?? 0);
-      }, 0);
-
-      setComputedStats((current) => ({
-        ...current,
-        totalStudySeconds,
-      }));
-    };
-
-    void loadDurations();
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [history]);
-
-  const [computedStats, setComputedStats] = useState<LearningStats>({
-    completedVideoCount: 0,
-    totalStudySeconds: 0,
-    averageWatchRate: 0,
-  });
-
-  useEffect(() => {
-    setComputedStats(stats);
-  }, [stats]);
+  }, [dashboard]);
 
   const openDialog = (nextDialog: Exclude<MyPageDialog, 'passwordSuccess' | 'deleteSuccess' | null>) => {
     setNotice('');
@@ -497,8 +438,8 @@ export function useMyPage() {
     authUser,
     profile,
     settings,
-    history,
-    stats: computedStats,
+    dashboard,
+    stats,
     isLoading,
     pageError,
     notice,
