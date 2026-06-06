@@ -34,6 +34,7 @@ const AVATAR_OPTIONS = [
 const FIDGET_KEY_OPTIONS = ['ctrl', 'shift'] as const;
 
 type MyPageDialog =
+  | 'dashboard'
   | 'profile'
   | 'avatar'
   | 'password'
