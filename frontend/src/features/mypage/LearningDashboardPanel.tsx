@@ -931,6 +931,7 @@ function FocusAnalysisCard({
 }) {
   const focusScore = getFocusScore(count, changeRate);
   const focusBadge = getFocusBadge(focusScore);
+  const countStatusText = count === 0 ? '이탈 없음' : formatSignedDelta(changeRate);
 
   return (
     <CardShell className="px-7 py-6">
@@ -958,7 +959,7 @@ function FocusAnalysisCard({
           <div className="flex items-start justify-between gap-2">
             <span className="shrink-0 whitespace-nowrap text-[14px] font-medium text-[#64748B]">이탈 횟수</span>
             <span className="shrink-0 whitespace-nowrap text-[12px] font-semibold text-[#16A34A]">
-              {formatSignedDelta(changeRate)}
+              {countStatusText}
             </span>
           </div>
           <p className="mt-3 text-[32px] font-black leading-none tracking-[-0.05em] text-[#0F172A]">
@@ -967,14 +968,10 @@ function FocusAnalysisCard({
         </div>
       </div>
       <div className="mt-5 flex flex-col items-end gap-2">
-        <div className="relative w-fit max-w-[34ch] self-start rounded-[18px] border border-[#DCE6F4] bg-white px-4 py-3 text-[13px] leading-[1.75] text-[#64748B] shadow-[0_8px_18px_rgba(15,23,42,0.04)]">
+        <div className="relative w-full max-w-[280px] self-start rounded-[18px] border border-[#DCE6F4] bg-white px-4 py-3 text-[13px] leading-[1.75] text-[#64748B] shadow-[0_8px_18px_rgba(15,23,42,0.04)]">
           <span className="absolute -bottom-2 right-8 h-4 w-4 rotate-45 border-b border-r border-[#DCE6F4] bg-white" />
-          <p className="relative z-[1]">
-            {insight.split('\n').map((line, index) => (
-              <span key={`${line}-${index}`} className="block whitespace-nowrap">
-                {line}
-              </span>
-            ))}
+          <p className="relative z-[1] whitespace-pre-line break-keep text-pretty">
+            {insight}
           </p>
         </div>
         <img
