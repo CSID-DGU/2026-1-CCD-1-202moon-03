@@ -1,6 +1,4 @@
-import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from 'react';
-import clockIcon from '../../assets/icons/clock.svg';
-import clapperboardIcon from '../../assets/icons/clapperboard.svg';
+﻿import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from 'react';
 import character01_1 from '../../assets/user/character01_1.png';
 import character01_2 from '../../assets/user/character01_2.png';
 import character01_3 from '../../assets/user/character01_3.png';
@@ -25,6 +23,7 @@ import character07_3 from '../../assets/user/character07_3.png';
 import character08_1 from '../../assets/user/character08_1.png';
 import character08_2 from '../../assets/user/character08_2.png';
 import character08_3 from '../../assets/user/character08_3.png';
+import { LearningDashboardPanel } from '../../features/mypage/LearningDashboardPanel';
 import { useMyPage } from '../../features/mypage/useMyPage';
 
 type AvatarKey =
@@ -123,18 +122,6 @@ function formatStudyTime(totalStudySeconds: number) {
   }
 
   return `${minutes}분`;
-}
-
-function formatWatchRate(value: number) {
-  return `${Math.round(value * 100)}%`;
-}
-
-function formatDisplayedStudyTime(totalStudySeconds: number) {
-  if (totalStudySeconds <= 0) {
-    return formatStudyTime(0);
-  }
-
-  return formatStudyTime(totalStudySeconds);
 }
 
 function getDisplayKey(settingKey?: string | null) {
@@ -414,29 +401,6 @@ function NoticeText({ children, danger = false }: { children: ReactNode; danger?
   );
 }
 
-function HistorySummary({
-  sessionCount,
-  averageWatchRate,
-}: {
-  sessionCount: number;
-  averageWatchRate: number;
-}) {
-  if (!sessionCount) {
-    return (
-      <div className="rounded-[10px] border border-[#E5E7EC] bg-white px-7 py-6 text-[16px] text-[#6B7280]">
-        아직 학습 기록이 없습니다.
-      </div>
-    );
-  }
-
-  return (
-    <div className="rounded-[10px] border border-[#E5E7EC] bg-white px-7 py-6 text-[16px] font-medium tracking-[-0.02em] text-[#15171C]">
-      최근 학습 {sessionCount}개, 평균 시청률{' '}
-      {formatWatchRate(averageWatchRate)}
-    </div>
-  );
-}
-
 function SuccessContent({
   message,
   buttonLabel,
@@ -461,6 +425,7 @@ function SuccessContent({
 
 export default function MyPage() {
   const {
+    dashboard,
     profile,
     settings,
     stats,
@@ -491,6 +456,7 @@ export default function MyPage() {
     logoutToOnboarding,
   } = useMyPage();
 
+  const isDashboardView = dialog === 'dashboard';
   const isSettingsView = dialog === 'settings';
   const activeAvatarGroup = getAvatarGroup(profileForm.avatar_type ?? profile?.avatar_type);
 
@@ -499,8 +465,11 @@ export default function MyPage() {
       <div className="mx-auto flex max-w-[1280px] flex-col gap-8 px-4 pb-20 pt-8 sm:px-6 lg:flex-row lg:gap-0 lg:px-8 lg:pt-10">
         <aside className="w-full shrink-0 border-b border-[#E5E7EC] pb-4 lg:w-[220px] lg:border-b-0 lg:border-r lg:pb-0 lg:pr-8 lg:pt-10">
           <nav className="flex flex-col gap-1">
-            <SideMenuItem active={!isSettingsView} onClick={() => closeDialog()}>
-              마이페이지
+            <SideMenuItem active={!isDashboardView && !isSettingsView} onClick={() => closeDialog()}>
+              프로필
+            </SideMenuItem>
+            <SideMenuItem active={isDashboardView} onClick={() => openDialog('dashboard')}>
+              학습 대시보드
             </SideMenuItem>
             <SideMenuItem active={isSettingsView} onClick={() => openDialog('settings')}>
               설정
@@ -517,6 +486,10 @@ export default function MyPage() {
             <div className="rounded-[16px] border border-[#F3C1C4] bg-[#FFF5F5] px-6 py-5 text-[16px] text-[#B42318]">
               {pageError}
             </div>
+          ) : isDashboardView ? (
+            <section className="max-w-[940px]">
+              <LearningDashboardPanel dashboard={dashboard} formatDisplayedStudyTime={formatStudyTime} />
+            </section>
           ) : isSettingsView ? (
             <section className="max-w-[720px]">
               <SectionTitle>설정</SectionTitle>
@@ -581,28 +554,6 @@ export default function MyPage() {
                 </div>
 
                 <OutlineButton onClick={() => openDialog('profile')}>프로필 수정</OutlineButton>
-              </div>
-
-              <div className="mt-16">
-                <SectionTitle>학습 통계</SectionTitle>
-                <div className="mt-7 grid gap-5 md:grid-cols-2">
-                  <StatCard
-                    label="총 학습 시간"
-                    value={formatDisplayedStudyTime(stats.totalStudySeconds)}
-                    icon={<img src={clockIcon} alt="" aria-hidden="true" className="h-6 w-6" />}
-                  />
-                  <StatCard
-                    label="완료한 영상"
-                    value={`${stats.completedVideoCount}개`}
-                    icon={<img src={clapperboardIcon} alt="" aria-hidden="true" className="h-6 w-6" />}
-                  />
-                </div>
-                <div className="mt-4">
-                  <HistorySummary
-                    sessionCount={stats.completedVideoCount}
-                    averageWatchRate={stats.averageWatchRate}
-                  />
-                </div>
               </div>
 
               <div className="mt-16">

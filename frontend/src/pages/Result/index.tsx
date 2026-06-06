@@ -244,7 +244,7 @@ function ResultPage() {
                   <MetaRow label="최대 콤보" value={`${result.maxCombo ?? 0}`} />
                 </>
               ) : null}
-              <MetaRow label="탭 이탈" value={`${result.tabLeaveCount}회`} />
+              <MetaRow label="이탈 횟수" value={`${result.tabLeaveCount}회`} />
             </div>
           </div>
 
