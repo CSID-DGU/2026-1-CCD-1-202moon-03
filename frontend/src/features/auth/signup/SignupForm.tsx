@@ -12,6 +12,7 @@ import { useSignupForm } from './useSignupForm';
 const SignupForm: React.FC = () => {
   const {
     surveyQuestions,
+    totalSurveyQuestionCount,
     username,
     nickname,
     birthdate,
@@ -54,7 +55,7 @@ const SignupForm: React.FC = () => {
   const showSuccessModal = signupState === 'submit_success';
   const currentQuestion = surveyQuestions[currentSurveyIndex];
   const selectedSurveyAnswer = surveyAnswers[currentQuestion.questionNumber];
-  const isLastQuestion = currentSurveyIndex === surveyQuestions.length - 1;
+  const isLastQuestion = currentSurveyIndex === totalSurveyQuestionCount - 1;
 
   const handleNextStep = async () => {
     if (!validate()) {
@@ -239,7 +240,7 @@ const SignupForm: React.FC = () => {
 
           <div className="mt-10">
             <p className="text-[18px] font-semibold leading-none text-[#1E97F4]">
-              {currentSurveyIndex + 1}/{surveyQuestions.length}
+              {currentSurveyIndex + 1}/{totalSurveyQuestionCount}
             </p>
             <h2 className="mt-4 text-[20px] font-semibold leading-[1.45] text-[#202632]">
               {currentQuestion.question}
