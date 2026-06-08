@@ -23,6 +23,8 @@ export interface SignupFieldErrors {
 }
 
 type SurveyAnswerValue = 'low' | 'medium' | 'high';
+type SurveyQuestionNumber = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12;
+type StoredSurveyQuestionNumber = 1 | 2 | 3 | 4 | 5;
 
 export interface SurveyOption {
   label: string;
@@ -30,7 +32,7 @@ export interface SurveyOption {
 }
 
 export interface SurveyQuestion {
-  questionNumber: 1 | 2 | 3 | 4 | 5;
+  questionNumber: SurveyQuestionNumber;
   question: string;
   options: SurveyOption[];
 }
@@ -49,7 +51,7 @@ const initialErrors: SignupFieldErrors = {
 const SURVEY_QUESTIONS: SurveyQuestion[] = [
   {
     questionNumber: 1,
-    question: '평소 공부할 때 주변 자극(소리, 움직임 등)이 있으면 어떤가요?',
+    question: '공부할 때 음악이나 주변 소리가 있으면 어떤가요?',
     options: [
       { label: '집중이 더 잘 된다', value: 'high' },
       { label: '별로 상관없다', value: 'medium' },
@@ -58,24 +60,69 @@ const SURVEY_QUESTIONS: SurveyQuestion[] = [
   },
   {
     questionNumber: 2,
-    question: '타이핑 속도는 어느 정도인가요?',
+    question: '공부할 때 손을 움직이거나 뭔가를 만지작거리는 편인가요?',
     options: [
-      { label: '빠른 편이다 (분당 300타 이상)', value: 'high' },
-      { label: '보통이다 (분당 150~300타)', value: 'medium' },
-      { label: '느린 편이다 (분당 150타 미만)', value: 'low' },
+      { label: '자주 그렇다', value: 'high' },
+      { label: '가끔 그렇다', value: 'medium' },
+      { label: '거의 없다', value: 'low' },
     ],
   },
   {
     questionNumber: 3,
-    question: '강의를 들을 때 얼마나 자주 놓치는 내용이 생기나요?',
+    question: '조용하고 자극이 적은 환경에서 오히려 딴생각이 더 많이 나는 편인가요?',
     options: [
-      { label: '거의 놓치지 않는다', value: 'high' },
-      { label: '가끔 놓친다', value: 'medium' },
-      { label: '자주 놓친다', value: 'low' },
+      { label: '자주 그렇다', value: 'high' },
+      { label: '가끔 그렇다', value: 'medium' },
+      { label: '거의 없다', value: 'low' },
     ],
   },
   {
     questionNumber: 4,
+    question: '지루한 내용을 공부할 때 몸을 움직이고 싶어지나요?',
+    options: [
+      { label: '자주 그렇다', value: 'high' },
+      { label: '가끔 그렇다', value: 'medium' },
+      { label: '거의 없다', value: 'low' },
+    ],
+  },
+  {
+    questionNumber: 5,
+    question: '영상 강의 중 다른 탭이나 핸드폰을 얼마나 자주 확인하나요?',
+    options: [
+      { label: '자주 확인한다', value: 'high' },
+      { label: '가끔 확인한다', value: 'medium' },
+      { label: '거의 확인하지 않는다', value: 'low' },
+    ],
+  },
+  {
+    questionNumber: 6,
+    question: '강의 내용을 놓쳐서 되감기하는 경우가 얼마나 자주 있나요?',
+    options: [
+      { label: '자주 있다', value: 'high' },
+      { label: '가끔 있다', value: 'medium' },
+      { label: '거의 없다', value: 'low' },
+    ],
+  },
+  {
+    questionNumber: 7,
+    question: '한 가지 영상을 끝까지 보지 못하고 중간에 포기한 경험이 있나요?',
+    options: [
+      { label: '자주 있다', value: 'high' },
+      { label: '가끔 있다', value: 'medium' },
+      { label: '거의 없다', value: 'low' },
+    ],
+  },
+  {
+    questionNumber: 8,
+    question: '강의 중 관련 없는 생각이 얼마나 자주 떠오르나요?',
+    options: [
+      { label: '자주 떠오른다', value: 'high' },
+      { label: '가끔 떠오른다', value: 'medium' },
+      { label: '거의 없다', value: 'low' },
+    ],
+  },
+  {
+    questionNumber: 9,
     question: '게임이나 퀴즈처럼 빠른 반응이 필요한 활동을 할 때 어떤가요?',
     options: [
       { label: '재미있고 잘 할 수 있다', value: 'high' },
@@ -84,15 +131,36 @@ const SURVEY_QUESTIONS: SurveyQuestion[] = [
     ],
   },
   {
-    questionNumber: 5,
-    question: '학습 중 빈칸 채우기 같은 활동이 있다면 어느 정도 난이도를 선호하나요?',
+    questionNumber: 10,
+    question: '타이핑 속도는 어느 정도인가요?',
     options: [
-      { label: '도전적인 난이도가 좋다', value: 'high' },
-      { label: '적당한 난이도가 좋다', value: 'medium' },
-      { label: '쉬운 난이도가 좋다', value: 'low' },
+      { label: '빠른 편이다', value: 'high' },
+      { label: '보통이다', value: 'medium' },
+      { label: '느린 편이다', value: 'low' },
+    ],
+  },
+  {
+    questionNumber: 11,
+    question: '시간 제한이 있는 활동을 할 때 어떤가요?',
+    options: [
+      { label: '긴장감이 있어서 더 집중이 잘 된다', value: 'high' },
+      { label: '별로 상관없다', value: 'medium' },
+      { label: '부담스럽고 실수가 많아진다', value: 'low' },
+    ],
+  },
+  {
+    questionNumber: 12,
+    question: '빠르게 변하는 화면이나 정보를 따라가는 것이 어렵지 않나요?',
+    options: [
+      { label: '잘 따라갈 수 있다', value: 'high' },
+      { label: '보통이다', value: 'medium' },
+      { label: '따라가기 어렵다', value: 'low' },
     ],
   },
 ] as const;
+
+const STORED_SURVEY_QUESTION_NUMBERS: StoredSurveyQuestionNumber[] = [1, 2, 3, 4, 5];
+const TOTAL_SURVEY_QUESTION_COUNT = SURVEY_QUESTIONS.length;
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const usernamePattern = /^[a-zA-Z0-9_]{4,20}$/;
@@ -114,12 +182,21 @@ export function useSignupForm() {
   const [agreeToService, setAgreeToService] = useState(false);
   const [agreeToPrivacy, setAgreeToPrivacy] = useState(false);
   const [confirmAge, setConfirmAge] = useState(false);
-  const [surveyAnswers, setSurveyAnswers] = useState<Record<1 | 2 | 3 | 4 | 5, SurveyAnswerValue | null>>({
+  const [surveyAnswers, setSurveyAnswers] = useState<
+    Record<SurveyQuestionNumber, SurveyAnswerValue | null>
+  >({
     1: null,
     2: null,
     3: null,
     4: null,
     5: null,
+    6: null,
+    7: null,
+    8: null,
+    9: null,
+    10: null,
+    11: null,
+    12: null,
   });
   const [fieldErrors, setFieldErrors] = useState<SignupFieldErrors>(initialErrors);
   const [submitError, setSubmitError] = useState('');
@@ -250,7 +327,7 @@ export function useSignupForm() {
   };
 
   const handleSurveyAnswerChange = (
-    questionNumber: 1 | 2 | 3 | 4 | 5,
+    questionNumber: SurveyQuestionNumber,
     answerValue: SurveyAnswerValue,
   ) => {
     setSurveyAnswers((prev) => ({
@@ -313,7 +390,7 @@ export function useSignupForm() {
 
     setFieldErrors((prev) => ({
       ...prev,
-      survey: hasAllAnswers ? '' : '설문 5문항에 모두 응답해 주세요.',
+      survey: hasAllAnswers ? '' : `설문 ${SURVEY_QUESTIONS.length}문항에 모두 응답해 주세요.`,
     }));
 
     return hasAllAnswers;
@@ -336,9 +413,9 @@ export function useSignupForm() {
       });
 
       await saveOnboardingSurvey({
-        answers: SURVEY_QUESTIONS.map((question) => ({
-          question_number: question.questionNumber,
-          answer_value: surveyAnswers[question.questionNumber] as SurveyAnswerValue,
+        answers: STORED_SURVEY_QUESTION_NUMBERS.map((questionNumber) => ({
+          question_number: questionNumber,
+          answer_value: surveyAnswers[questionNumber] as SurveyAnswerValue,
         })),
       });
 
@@ -383,6 +460,7 @@ export function useSignupForm() {
 
   return {
     surveyQuestions: SURVEY_QUESTIONS,
+    totalSurveyQuestionCount: TOTAL_SURVEY_QUESTION_COUNT,
     username,
     nickname,
     birthdate,
