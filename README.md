@@ -1,141 +1,138 @@
-## 프로젝트 개요
+# 🌧️ TADAC — 202moon
 
-이 프로젝트는 Vite + React + TypeScript 기반으로 구성된 학습 서비스 프론트엔드입니다.
+> **2026-1 동국대학교 융합캡스톤디자인 03팀 202moon**의 TADAC 통합 레포지토리입니다.
+>
+> 배포 주소: https://2026-1-ccd-1-202moon-03.vercel.app
 
-- 영상 URL 또는 파일 기반 학습 진입
-- `Spinner` / `Rain` 두 가지 인터랙티브 학습 모드 제공
-- 학습 결과 요약, 키워드 하이라이트, 퀴즈 다시 풀기 UI 제공
-- 로그인, 회원가입, 마이페이지, 학습 기록 화면 구성
-- Axios + Zustand 기반 인증 상태 및 API 통신 관리
+---
 
-## 기술 스택
+## 📌 프로젝트 소개
 
-- React 19
-- TypeScript
-- Vite
-- React Router
-- Zustand
-- Axios
-- Tailwind CSS
+**TADAC**은 유튜브 강의 영상을 기반으로 한 **AI 기반 능동적 학습 플랫폼**입니다.
 
-## 주요 기능
+단순히 영상을 수동적으로 시청하는 것을 넘어, **피젯 모드**와 **집중호우 모드** 두 가지 인터랙티브 학습 경험을 제공해 집중력과 학습 효율을 높입니다.
 
-### 1. 인증
+- 🎥 유튜브 URL 입력 또는 영상 업로드
+- 🧠 AI가 핵심 키워드 추출 및 학습 데이터 생성
+- 🌀 **피젯 모드**: 영상 시청 중 피젯스피너/키캡으로 손 자극 유지
+- 🌧️ **집중호우 모드**: 키워드가 화면에 낙하 → 타이핑으로 받아치는 게임형 학습
+- ⏱️ **뽀모도로 퀴즈**: 15~20분마다 자동 퀴즈 팝업으로 복습
+- 📝 **학습 결과 & AI 정리본**: 세션 종료 후 GPT 기반 구조화 요약 제공
+- 📊 **학습 대시보드**: 누적 학습 기록, 정확도, 주요 성과를 한눈에 확인
 
-- 로그인 / 회원가입 화면 제공
-- 액세스 토큰 기반 인증 상태 유지
-- 리프레시 토큰 재발급 인터셉터 처리
+--- 
 
-### 2. 학습 영상 관리
+## 👩‍💻 팀원
 
-- 영상 URL 입력 또는 파일 업로드 UI
-- 학습 영상 목록 조회 및 카드형 목록 표시
-- 영상 제목 수정 / 삭제 UI
+| 역할 | 이름 |
+|------|------|
+| Backend | 임수빈 |
+| AI | 김연비 |
+| Frontend | 이규민 |
+| PM | 정준희 |
 
-### 3. 학습 모드
+---
 
-- `Spinner Mode`
-  - 재생 속도 및 자막 제어
-  - 키보드/휠 기반 인터랙션
+## 🛠️ 기술 스택
 
-- `Rain Mode`
-  - 재생 속도 및 자막 제어
-  - 떨어지는 키워드 입력형 학습
-  - 점수, 콤보, 정확도 계산
+### Backend / AI
 
-### 4. 결과 및 마이페이지
+| 분류 | 기술 |
+|------|------|
+| Language | Python 3.x |
+| Framework | Django REST Framework |
+| AI | OpenAI Whisper API, GPT API |
+| Database | PostgreSQL |
+| Auth | JWT (SimpleJWT) |
 
-- AI 요약 결과 표시
-- 키워드 하이라이트 제공
-- 퀴즈 다시 풀기 및 영상 다시 보기 흐름 지원
-- 사용자 프로필 및 학습 기록 화면 제공
+### Frontend
 
-## 폴더 구조
+| 분류 | 기술 |
+|------|------|
+| Language | TypeScript |
+| Framework | React 19 |
+| Build Tool | Vite |
+| Routing | React Router |
+| State | Zustand |
+| HTTP Client | Axios |
+| Styling | Tailwind CSS |
 
-```text
-frontend/
-├─ src/
-│  ├─ assets/        # 폰트, 아이콘, 이미지
-│  ├─ components/    # 공통 UI 및 레이아웃 컴포넌트
-│  ├─ constants/     # 라우트 상수 등
-│  ├─ features/      # 도메인별 기능 단위 UI/훅
-│  ├─ hooks/         # 공통 커스텀 훅
-│  ├─ pages/         # 라우트 페이지
-│  ├─ router/        # 라우터 설정
-│  ├─ services/      # API 클라이언트 및 엔드포인트 함수
-│  ├─ store/         # Zustand 스토어
-│  ├─ styles/        # 전역 스타일
-│  ├─ types/         # 타입 정의
-│  └─ utils/         # 유틸 함수
-```
+---
 
-## 시작하기
-
-현재는 백엔드 연동 전 단계이므로, 프론트엔드 화면을 로컬에서 실행해 확인할 수 있습니다.
-
-### 1. 저장소 클론
-
-```bash
-git clone <REPOSITORY_URL>
-cd <REPOSITORY_NAME>/frontend
-```
-
-### 2. 패키지 설치
-
-```bash
-npm install
-```
-
-### 3. 개발 서버 실행
-
-```bash
-npm run dev
-```
-
-### 4. 브라우저에서 확인
-
-기본적으로 아래 주소에서 확인할 수 있습니다.
+## 📁 프로젝트 구조
 
 ```text
-http://localhost:5173
+2026-1-CCD-1-202moon-03/
+├── frontend/                 # React + TypeScript 프론트엔드
+│   ├── src/
+│   │   ├── assets/           # 폰트, 아이콘, 이미지
+│   │   ├── components/       # 공통 UI 컴포넌트
+│   │   ├── constants/        # 상수, 라우트 정의
+│   │   ├── features/         # 기능 단위 UI / 훅 / 로직
+│   │   ├── hooks/            # 공통 커스텀 훅
+│   │   ├── pages/            # 페이지 컴포넌트
+│   │   ├── router/           # 라우터 설정
+│   │   ├── services/         # API 통신 레이어
+│   │   ├── store/            # Zustand 스토어
+│   │   ├── styles/           # 전역 스타일
+│   │   ├── types/            # 타입 정의
+│   │   └── utils/            # 유틸 함수
+├── ai_backend/               # AI 백엔드 (별도 레포)
+│   ├── api.py                # FastAPI 웹 서버 진입점 및 HTTP 라우팅
+│   ├── pipeline.py           # STT -> 교정 -> 키워드 -> 쇼츠 핵심 파이프라인
+│   ├── stt.py                # Whisper 기반 음성 인식 모듈
+│   ├── transcript_refiner.py # GPT 기반 자막 교정
+│   ├── combined_processor.py # STT 결과와 키워드 매핑
+│   ├── shorts_generator.py   # 쇼츠 비디오/대본 생성
+│   ├── shorts_builder.py     # 쇼츠 비디오/대본 생성
+│   ├── youtube_audio.py      # YouTube 오디오 다운로드 및 처리
+│   ├── youtube_subtitle.py   # YouTube 자막 다운로드 및 처리
+│   ├── AI_SPEC.md            # AI 연동 명세서
+│   └── BACKEND_HANDOFF.md    # 백엔드 연동 주의사항
+├── tadac_backend/            # Django 백엔드 (별도 레포)
+│   ├── auth/                 # 인증 (회원가입, 로그인, 토큰)
+│   ├── users/                # 유저 프로필, 환경설정
+│   ├── sessions/             # 학습 세션 관리
+│   ├── game/                 # 집중호우 모드 게임 로직
+│   ├── quiz/                 # 뽀모도로 퀴즈
+│   ├── analytics/            # 학습 결과 및 기록
+│   ├── common/               # 공통 모듈
+│   ├── logs/                 # 로그 관리
+│   ├── project/              # Django 프로젝트 설정
+│   └── manage.py
+└── README.md
 ```
 
-## 스크립트
+- AI는 별도 레포에서 관리합니다: https://github.com/KimYeonBee/2026-1-CCD-1-202moon-03-ai/tree/master
+- 백엔드는 별도 레포에서 관리합니다: https://github.com/CSID-DGU/2026-1-CCD-1-202moon-03-be
 
-```bash
-npm run dev      # 개발 서버 실행
-npm run build    # 타입 체크 후 프로덕션 빌드
-npm run preview  # 빌드 결과 미리보기
-```
+---
 
-## 라우트
+## ✨ 주요 기능 명세
 
-현재 주요 페이지는 아래와 같습니다.
+### 🌀 피젯 모드
 
-- `/` : 온보딩
-- `/home` : 학습 영상 목록
-- `/login` : 로그인
-- `/signup` : 회원가입
-- `/mypage` : 마이페이지
-- `/result` : 학습 결과
-- `/player/spinner` : Spinner 모드
-- `/player/rain` : Rain 모드
+- 영상 재생 중 피젯스피너 / 키캡 모드 전환
+- 마우스 휠 및 키 입력 기반 인터랙션
+- 영상 재생 / 일시정지 / 배속 / 탐색 / 자막 제어
 
-## API 연동
+### 🌧️ 집중호우 모드
 
-- API 통신은 `src/services`에서 관리합니다.
-- 공통 Axios 인스턴스는 `src/services/apiClient.ts`에서 설정합니다.
-- 인증 만료 시 리프레시 토큰으로 재발급을 시도하고, 실패하면 로그인 페이지로 이동합니다.
-- 세션 상태 폴링 훅은 `src/hooks/useSessionPolling.ts`에서 관리합니다.
+- Whisper STT 기반 단어별 타임스탬프 추출
+- GPT 핵심 키워드 추출 및 타임스탬프 매핑
+- 키워드 낙하 애니메이션과 자막 입력 동기화
+- 타이핑 정답 판정 / 콤보 / 점수 / 정확도 계산
+- 난이도 및 낙하 속도 조절
 
-## 참고 사항
+### 🧠 뽀모도로 퀴즈
 
-- 현재 프로젝트에는 별도 테스트 스크립트가 포함되어 있지 않습니다.
-- 일부 학습 모드 UI는 목업 데이터 기반으로 동작하는 화면이 포함되어 있습니다.
-- 현재 백엔드 API와의 연결은 완료되지 않았습니다.
-- 백엔드 연동 이후 `.env` 파일에 API 주소를 설정할 예정입니다.
-- 실제 배포 전에는 백엔드 API 주소, 인증 정책, 업로드 정책을 함께 점검할 예정입니다.
+- 15~20분 간격 자동 일시정지
+- GPT 기반 객관식 퀴즈 생성
+- 정답 / 오답 즉각 피드백
 
-## 백엔드 저장소 링크
+### 📊 학습 결과
 
-- https://github.com/CSID-DGU/2026-1-CCD-1-202moon-03-be
+- 시청 완료율, 총점, 콤보, 타이핑 정확도 제공
+- 키워드 하이라이트 및 퀴즈 재도전
+- GPT 기반 전체 내용 구조화 요약 제공
+
